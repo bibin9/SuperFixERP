@@ -34,7 +34,7 @@ export default async function Roles({ searchParams }: { searchParams: Promise<Re
               <thead><tr><th>Field group</th><th>Level</th></tr></thead>
               <tbody>{groups.map((g) => (
                 <tr key={g.code}><td><b>{g.name}</b><div className="small muted">{g.fields}{g.derived ? `. Also hides: ${g.derived}` : ""}</div></td>
-                  <td><select name={`f:${g.code}`} defaultValue={lvl[g.code] ?? "hidden"}><option value="hidden">Hidden</option><option value="view">View</option><option value="edit">Edit</option></select></td></tr>
+                  <td><select style={{ minWidth: 96 }} name={`f:${g.code}`} defaultValue={lvl[g.code] ?? "hidden"}><option value="hidden">Hidden</option><option value="view">View</option><option value="edit">Edit</option></select></td></tr>
               ))}</tbody>
             </table>
           </div>

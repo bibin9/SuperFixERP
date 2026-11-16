@@ -4,6 +4,7 @@ import { canAnywhere, roleAt } from "@/lib/access";
 import { shellData } from "@/lib/services/home";
 import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
+import { SideNav, type NavGroup } from "@/components/SideNav";
 
 export const dynamic = "force-dynamic";
 
@@ -36,25 +37,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/admin/audit", "Audit log", can("admin")],
     ]],
   ];
+  const groups: NavGroup[] = menu
+    .map(([label, items]) => ({ key: label.toLowerCase().replace(/[^a-z]+/g, "-"), label, items: items.filter((i) => i[2]).map(([href, l, , badge]) => ({ href, label: l, badge })) }))
+    .filter((g) => g.items.length);
   return (
     <div className="app">
       <aside className="side">
-        <div className="brand"><div className="mk">A</div><div><b>AUTOVIQO</b><small>Smart Garage ERP</small></div></div>
+        <input type="checkbox" id="navtoggle" className="navtoggle" aria-hidden />
+        <div className="brand"><div className="mk">A</div><div><b>AUTOVIQO</b><small>Smart Garage ERP</small></div>
+          <label htmlFor="navtoggle" className="menubtn" aria-label="Open or close the menu">☰ Menu</label></div>
         <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" /><span>Super Fix Auto Centers</span></div>
-        <nav className="nav">
-          {menu.map(([grp, items]) => {
-            const shown = items.filter((i) => i[2]);
-            if (!shown.length) return null;
-            return (
-              <div key={grp}>
-                <div className="grp">{grp}</div>
-                {shown.map(([href, label, , badge]) => (
-                  <Link key={href} href={href}>{label}{badge ? <span className="badge">{badge}</span> : null}</Link>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
+        <SideNav groups={groups} />
         <div className="side-foot">
           Local build · phase 1
           <form action={logoutAction}><button type="submit">Sign out</button></form>

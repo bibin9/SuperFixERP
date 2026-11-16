@@ -3,6 +3,7 @@ import { requireCtx } from "@/lib/session";
 import { invoiceDraft } from "@/lib/services/billing";
 import { postInvoiceAction } from "@/app/actions";
 import { Flash, Link, Money, PageHead } from "@/components/ui";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { D } from "@/lib/money";
 
 export default async function InvoiceDraft({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
@@ -27,11 +28,12 @@ export default async function InvoiceDraft({ params, searchParams }: { params: P
           ))}</tbody>
           <tfoot><tr><td colSpan={4}>Total AED</td><td className="num"><Money v={d.taxable} /></td><td className="num"><Money v={d.vat} /></td><td className="num"><Money v={d.total} /></td></tr></tfoot>
         </table>
+        {!d.lines.length ? <p className="muted" style={{ marginTop: 12 }}>Everything approved on this job is already invoiced. <Link href={`/jobs/${id}`}>Back to the job card</Link> to see its invoices.</p> : (
         <form action={postInvoiceAction} style={{ marginTop: 12 }}>
           <input type="hidden" name="job_id" value={id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
-          <button className="btn green" disabled={!ready}>Post tax invoice</button>
+          <ConfirmButton className="btn green" disabled={!ready} message="Post this tax invoice? It gets the next invoice number and cannot be edited or deleted afterwards.">Post tax invoice</ConfirmButton>
           <span className="small muted"> Posting gives the next invoice number for this branch and cannot be undone; corrections are made with a credit note.</span>
-        </form>
+        </form>)}
       </div>
     </>
   );

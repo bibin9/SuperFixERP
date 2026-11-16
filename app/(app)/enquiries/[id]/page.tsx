@@ -8,6 +8,7 @@ import { can, fieldLevel } from "@/lib/access";
 import { updateEnquiryAction, lostEnquiryAction, createJobAction, whatsappAction } from "@/app/actions";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
 import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ManualMessage } from "@/components/ManualMessage";
 
 const STEPS: [string, string[]][] = [
@@ -89,7 +90,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
             : <p className="small">{e.customer_id && e.vehicle_id ? "Add the work below, save the quotation and send it to the customer. The job card is created after the customer approves." : "Pick the customer and the vehicle, then add the work to quote."}</p>}
           {open && canEditEnq && (
             <form action={lostEnquiryAction} style={{ marginTop: 14 }}><input type="hidden" name="id" value={id} /><input type="hidden" name="$back" value={back} />
-              <div className="row"><select name="reason">{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select><button className="btn ghost sm shrink">Mark lost</button></div></form>
+              <div className="row"><select name="reason">{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form>
           )}
         </div>
       </div>

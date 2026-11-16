@@ -21,7 +21,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <div className="kpi"><div className="v">{total}</div><div className="l">Cars on site</div></div>
         <div className="kpi"><div className="v" style={{ color: d.late.length ? "var(--late)" : undefined }}>{d.late.length}</div><div className="l">Late jobs</div></div>
         <div className="kpi"><div className="v">{d.enq.open}</div><div className="l">Enquiries to quote ({d.enq.overdue} past follow-up)</div></div>
-        <div className="kpi"><div className="v">{canSee(ctx, "selling_price") ? <Money v={d.sales.net} /> : "—"}</div><div className="l">Sales today (net of VAT)</div></div>
+        <div className="kpi"><div className="v">{canSee(ctx, "selling_price") ? <Money v={d.sales.net} /> : "—"}</div><div className="l">Sales today, AED (net of VAT)</div></div>
       </div>
       <div className="grid2" style={{ marginTop: 16 }}>
         <div className="card">

@@ -6,7 +6,7 @@ import { resetTestDb, adminQuery, id } from "./helpers";
 import { closePool } from "../lib/db";
 import { ctxFor } from "../lib/ctx-helper";
 import { addEnquiryLine, addJobLine, changeStatus } from "../lib/services/jobs";
-import { createEnquiry, createJobCard } from "../lib/services/enquiries";
+import { createEnquiry, createJobCard, updateEnquiry } from "../lib/services/enquiries";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff, getPublicQuotation, submitPublicDecisions } from "../lib/services/quotations";
 import { inbox, act } from "../lib/services/workflow";
 import { receiveStock, issueToJobLine } from "../lib/services/stock";
@@ -285,4 +285,17 @@ test("a job card exists only after enquiry, quotation and customer approval, in 
   const tech = await ctxFor("ramesh", "YAS");
   const e3 = await newEnquiry();
   await rejects(createJobCard(tech, e3.enqId), "forbidden");
+});
+
+test("the job card odometer cannot be lower than the reading taken at check-in", async () => {
+  const { ctx: priya, enqId } = await newEnquiry();
+  odo += 1000;
+  await updateEnquiry(priya, enqId, { odometer_in: String(odo) });
+  await addEnquiryLine(priya, enqId, { line_type: "labour", service_id: svc["DIAG"] });
+  const q = await saveQuotation(priya, enqId, {});
+  await sendQuotation(priya, q.id);
+  const ls = await qLines(q.id);
+  await recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "in_person", null);
+  await rejects(createJobCard(priya, enqId, { odometer_in: String(odo - 500) }), "validation");
+  assert.ok((await createJobCard(priya, enqId, { odometer_in: String(odo) })).id);
 });

@@ -7,6 +7,7 @@ import { statusAction, whatsappAction } from "@/app/actions";
 import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
 import { ManualMessage } from "@/components/ManualMessage";
 import { messagesFor } from "@/lib/services/messaging";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
 
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
@@ -55,7 +56,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {can(ctx, "jobs", "cancel", b) && nextStatuses(job.status).includes("cancelled") && (
             <form action={statusAction} style={{ marginTop: 10 }}>
               <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
-              <div className="row"><input name="reason" placeholder="Reason for cancelling" required /><button className="btn red sm shrink">Cancel job</button></div>
+              <div className="row"><input name="reason" placeholder="Reason for cancelling" required /><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
             </form>
           )}
         </div>

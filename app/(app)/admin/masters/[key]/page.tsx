@@ -2,6 +2,7 @@ import { requireCtx } from "@/lib/session";
 import { getMaster } from "@/lib/services/master-forms";
 import { can } from "@/lib/access";
 import { saveMasterAction, masterActiveAction } from "@/app/actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Flash, Link, PageHead } from "@/components/ui";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -57,7 +58,7 @@ export default async function MasterPage({ params, searchParams }: { params: Pro
               <td style={{ whiteSpace: "nowrap" }}>{canEdit && <>
                 <Link className="btn ghost sm" href={`${back}?edit=${encodeURIComponent(keyOf(r))}`}>Edit</Link>{" "}
                 {def.hasActive && <form action={masterActiveAction} className="inline"><input type="hidden" name="$master" value={key} /><input type="hidden" name="$key" value={keyOf(r)} />
-                  <input type="hidden" name="active" value={r.active ? "false" : "true"} /><button className="btn ghost sm">{r.active ? "Deactivate" : "Activate"}</button></form>}
+                  <input type="hidden" name="active" value={r.active ? "false" : "true"} /><ConfirmButton className="btn ghost sm" message={r.active ? "Deactivate this record? It stops being offered on new documents; existing documents keep it." : "Activate this record again?"}>{r.active ? "Deactivate" : "Activate"}</ConfirmButton></form>}
               </>}</td>
             </tr>
           ))}</tbody>

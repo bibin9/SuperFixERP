@@ -1,6 +1,7 @@
 import { requireCtx } from "@/lib/session";
 import { listUsers, listBranches, listRoles } from "@/lib/services/admin";
 import { createUserAction, userRoleAction, disableUserAction, resetPasswordAction } from "@/app/actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Flash, PageHead } from "@/components/ui";
 
 export default async function Users({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
@@ -35,7 +36,7 @@ export default async function Users({ searchParams }: { searchParams: Promise<Re
                   <button className="btn ghost sm shrink">Set</button></form>)}</td>
               <td>{u.status}</td>
               <td>{u.status === "active" && <>
-                <form action={disableUserAction}><input type="hidden" name="user_id" value={u.id} /><button className="btn red sm">Disable user</button></form>
+                <form action={disableUserAction}><input type="hidden" name="user_id" value={u.id} /><ConfirmButton className="btn ghost red-text sm" message={`Disable ${u.full_name}? This ends their sessions and removes access at every branch.`}>Disable user</ConfirmButton></form>
                 <form action={resetPasswordAction} className="row" style={{ marginTop: 4 }}><input type="hidden" name="user_id" value={u.id} /><input name="password" type="password" placeholder="New password" style={{ minHeight: 32 }} /><button className="btn ghost sm shrink">Reset</button></form>
               </>}</td>
             </tr>

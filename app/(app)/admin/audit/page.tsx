@@ -14,7 +14,7 @@ export default async function Audit({ searchParams }: { searchParams: Promise<Re
         <table>
           <thead><tr><th>When</th><th>User</th><th>Branch</th><th>Record</th><th>Action</th><th>Changes</th></tr></thead>
           <tbody>{rows.map((r) => <tr key={r.id}><td className="small">{dt(r.at)}</td><td>{r.full_name ?? "system"}</td><td>{r.branch_code}</td><td className="small">{r.entity}</td><td>{r.action}</td>
-            <td className="small" style={{ maxWidth: 420, wordBreak: "break-word" }}>{r.changes ? JSON.stringify(r.changes) : ""}</td></tr>)}</tbody>
+            <td className="small" style={{ maxWidth: 420, wordBreak: "break-word" }}><Changes c={r.changes} /></td></tr>)}</tbody>
         </table>
       </div>
       <div className="card"><h2>Sign-ins and branch switches</h2>
@@ -22,4 +22,15 @@ export default async function Audit({ searchParams }: { searchParams: Promise<Re
       </div>
     </>
   );
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const show = (v: any) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+/** Audit changes as "field: old → new" lines instead of raw JSON. */
+function Changes({ c }: { c: any }) {
+  if (!c || typeof c !== "object") return null;
+  return <>{Object.entries(c).map(([k, v]: [string, any]) => (
+    <div key={k}><span className="muted">{k.replace(/_/g, " ")}:</span>{" "}
+      {v && typeof v === "object" && ("old" in v || "new" in v) ? <><s className="muted">{show(v.old)}</s> → <b>{show(v.new)}</b></> : show(v)}</div>
+  ))}</>;
 }

@@ -173,6 +173,7 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
     if (odo === null || odo === undefined) throw invalid("Enter the odometer reading before creating the job card.");
     const v = (await c.query("SELECT odometer FROM vehicle WHERE id = $1", [enq.vehicle_id])).rows[0];
     if (v?.odometer && odo < v.odometer) throw invalid(`Odometer is lower than the last recorded reading (${v.odometer} km).`);
+    if (enq.odometer_in !== null && enq.odometer_in !== undefined && odo < enq.odometer_in) throw invalid(`Odometer is lower than the reading taken at check-in (${enq.odometer_in} km).`);
 
     const docNo = await nextDocNo(c, enq.branch_id, "job_card");
     const r = await c.query(

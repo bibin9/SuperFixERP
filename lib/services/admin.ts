@@ -205,11 +205,12 @@ export async function listSettings(ctx: Ctx) {
 
 export async function updateSetting(ctx: Ctx, id: string, raw: string) {
   assertCan(ctx, "settings", "edit");
-  let value: unknown;
-  try { value = JSON.parse(raw); } catch { throw invalid("Value must be a number, true/false, or text in quotes."); }
   return withTx(ctx, async (c) => {
     const cur = await c.query("SELECT * FROM setting WHERE id = $1 FOR UPDATE", [id]);
     if (!cur.rowCount) throw notFound("Setting");
+    let value: unknown;
+    if (typeof cur.rows[0].value === "string") value = raw.trim().replace(/^"(.*)"$/, "$1"); // text settings are typed as plain text
+    else { try { value = JSON.parse(raw); } catch { throw invalid("Value must be a number, true/false, or a list."); } }
     await c.query("UPDATE setting SET value = $2, updated_at = now(), updated_by = $3 WHERE id = $1", [id, JSON.stringify(value), ctx.userId]);
     await audit(c, ctx, "setting", cur.rows[0].key, "update", { value: { old: cur.rows[0].value, new: value }, branch_id: cur.rows[0].branch_id }, cur.rows[0].branch_id);
   });

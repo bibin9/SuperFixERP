@@ -18,7 +18,13 @@ a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
 .client{margin:0 12px 8px;background:#fff;border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:8px}
 .client img{height:30px}.client span{font-size:11px;color:var(--muted)}
 .nav{flex:1;overflow:auto;padding:4px 10px 10px}
-.nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:#647a99;margin:12px 10px 4px}
+.nav .grp{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;cursor:pointer;font:inherit;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#7f93b0;margin:10px 0 2px;padding:7px 12px;border-radius:8px;text-align:left}
+.nav .grp:hover:not(:disabled){background:var(--navy2);color:#fff}
+.nav .grp:disabled{cursor:default}
+.nav .grp:focus-visible,.nav a:focus-visible{outline:2px solid #6aa5ff;outline-offset:1px}
+.nav .chev{display:inline-block;font-size:10px;transition:transform .15s}
+.nav .navgrp.open .chev{transform:rotate(90deg)}
+.nav a.active{background:#1f3a63;color:#fff;box-shadow:inset 3px 0 0 #4f8ff7}
 .nav a{display:flex;align-items:center;gap:8px;padding:8px 12px;color:#c6d2e3;border-radius:9px;font-weight:500}
 .nav a:hover{background:var(--navy2);color:#fff;text-decoration:none}
 .nav .badge{margin-left:auto;background:var(--red);color:#fff;border-radius:20px;font-size:11px;padding:0 7px}
@@ -34,7 +40,27 @@ h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}h3{font-size:
 .sub{color:var(--muted);margin:0 0 18px}
 .card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:16px 18px;margin-bottom:16px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-@media(max-width:900px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+.navtoggle,.menubtn{display:none}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.btn.ghost.red-text{color:var(--late);border-color:#f3c3bf}
+.app table td:first-child a{white-space:nowrap}
+@media(max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{position:sticky;top:0;height:auto;z-index:20;max-height:100vh}
+  .brand{padding:10px 12px}
+  .menubtn{display:inline-flex;margin-left:auto;align-items:center;gap:6px;border:1px solid #2b4366;color:#fff;border-radius:9px;padding:8px 12px;font-weight:600;cursor:pointer;font-size:14px}
+  .side .client,.side .nav,.side .side-foot{display:none}
+  .navtoggle:checked~.client,.navtoggle:checked~.nav,.navtoggle:checked~.side-foot{display:flex}
+  .navtoggle:checked~.nav{display:block;overflow:auto;max-height:calc(100vh - 170px)}
+  .nav a,.nav .grp{padding:11px 12px}
+  .top{position:static;flex-wrap:wrap;padding:10px 14px;gap:8px}
+  .top form.search{flex:1 1 100%;max-width:none;order:3}
+  .main{padding:16px 14px 60px}
+  .grid2,.grid3{grid-template-columns:1fr}.grid4{grid-template-columns:1fr 1fr;gap:10px}
+  .app .card{overflow-x:auto}
+  .app>div,.main,.grid2>*,.grid3>*,.grid4>*{min-width:0}
+  .app .card table:has(thead th:nth-child(5)){min-width:620px}
+}
 .kpi{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px}
 .kpi .v{font-size:26px;font-weight:700}.kpi .l{color:var(--muted);font-size:12.5px}
 table{width:100%;border-collapse:collapse}
