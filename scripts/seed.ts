@@ -8,7 +8,8 @@ import { ctxFor } from "../lib/ctx-helper";
 import { closePool } from "../lib/db";
 import { receiveStock, issueToJobLine } from "../lib/services/stock";
 import { createCustomer, createVehicle } from "../lib/services/customers";
-import { createEnquiry, createJobCard, addJobLine, changeStatus } from "../lib/services/jobs";
+import { addEnquiryLine, changeStatus } from "../lib/services/jobs";
+import { createEnquiry, createJobCard } from "../lib/services/enquiries";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff } from "../lib/services/quotations";
 
 export const DEMO_PASSWORD = "Superfix@2026";
@@ -74,37 +75,42 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean } = { de
 
   const svc = await serviceIds(adminUrl);
 
-  // Job 1 (YAS): 60,000 km service, quotation sent and waiting for the customer.
-  const enq = await createEnquiry(priya, { customer_id: faisal, vehicle_id: lc, service_asked: "60,000 km service and brake noise", source: "whatsapp" });
-  const j1 = await createJobCard(priya, { customer_id: faisal, vehicle_id: lc, enquiry_id: enq.id, odometer_in: "60110", fuel_level: "5", complaints: "60k service due; squeal from front brakes", promised_at: new Date(Date.now() + 6 * 3600_000).toISOString() });
-  await addJobLine(priya, j1.id, { line_type: "labour", service_id: svc["SVC-60K"] });
-  await addJobLine(priya, j1.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "5" });
-  await addJobLine(priya, j1.id, { line_type: "part", item_id: items["FLT-OIL-90915"], qty: "1" });
-  await addJobLine(priya, j1.id, { line_type: "part", item_id: items["BRK-PAD-FR-LC"], qty: "1" });
-  const q1 = await saveQuotation(priya, j1.id, { doc_discount: "103.50" });
+  // Every job follows the FSD v0.10 flow: enquiry, quotation, customer approval, then the job card.
+  const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+
+  // Enquiry 1 (YAS): 60,000 km service, quotation sent and waiting for the customer (FSD 5.1 example, 978.08).
+  const e1 = await createEnquiry(priya, { customer_id: faisal, vehicle_id: lc, service_asked: "60,000 km service and brake noise", source: "whatsapp",
+    odometer_in: "60110", fuel_level: "5", complaints: "60k service due; squeal from front brakes" });
+  await addEnquiryLine(priya, e1.id, { line_type: "labour", service_id: svc["SVC-60K"] });
+  await addEnquiryLine(priya, e1.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "5" });
+  await addEnquiryLine(priya, e1.id, { line_type: "part", item_id: items["FLT-OIL-90915"], qty: "1" });
+  await addEnquiryLine(priya, e1.id, { line_type: "part", item_id: items["BRK-PAD-FR-LC"], qty: "1" });
+  const q1 = await saveQuotation(priya, e1.id, { doc_discount: "103.50" });
   if (q1.status === "ready_to_send") await sendQuotation(priya, q1.id);
 
-  // Job 2 (YAS): approved in person, parts issued, work done and ready to invoice.
-  const j2 = await createJobCard(priya, { customer_id: fatima, vehicle_id: patrol, odometer_in: "91240", fuel_level: "3", complaints: "AC not cooling; due for oil change", promised_at: new Date(Date.now() + 3 * 3600_000).toISOString() });
-  await addJobLine(priya, j2.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
-  await addJobLine(priya, j2.id, { line_type: "labour", service_id: svc["OIL-QK"] });
-  await addJobLine(priya, j2.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
-  await addJobLine(priya, j2.id, { line_type: "part", item_id: items["WPR-24"], qty: "2" });
-  const q2 = await saveQuotation(priya, j2.id, {});
+  // Enquiry 2 (YAS): approved in person (wiper declined), job card created, parts issued, ready to invoice.
+  const e2 = await createEnquiry(priya, { customer_id: fatima, vehicle_id: patrol, service_asked: "AC not cooling, oil change", source: "walk_in",
+    odometer_in: "91240", fuel_level: "3", complaints: "AC not cooling; due for oil change" });
+  await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
+  await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["OIL-QK"] });
+  await addEnquiryLine(priya, e2.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
+  await addEnquiryLine(priya, e2.id, { line_type: "part", item_id: items["WPR-24"], qty: "2" });
+  const q2 = await saveQuotation(priya, e2.id, {});
   await sendQuotation(priya, q2.id);
-  const job2 = await ctxLines(adminUrl, q2.id);
-  await recordDecisionsByStaff(priya, q2.id, Object.fromEntries(job2.map((l) => [l.id, l.description.startsWith("WPR") ? "declined" : "approved"])), "in_person", null);
+  const ql2 = await ctxLines(adminUrl, q2.id);
+  await recordDecisionsByStaff(priya, q2.id, Object.fromEntries(ql2.map((l) => [l.id, l.description.startsWith("WPR") ? "declined" : "approved"])), "in_person", null);
+  const j2 = await createJobCard(priya, e2.id, { job_type: "service", promised_at: soon(3) });
   for (const l of await partLines(adminUrl, j2.id)) await issueToJobLine(anil, l.id, l.qty);
   await changeStatus(priya, j2.id, "in_progress");
   await changeStatus(priya, j2.id, "quality_check");
   await changeStatus(priya, j2.id, "ready");
 
-  // Job 3 (QUS, Al Qusais): fleet pickup checked in at another branch, used to show branch separation.
+  // Enquiry 3 (QUS, Al Qusais): fleet 10k service quoted at another branch, used to show branch separation.
   const sara = await ctxFor("sara", "QUS");
-  const j3 = await createJobCard(sara, { customer_id: fleet, vehicle_id: hilux, odometer_in: "64500", fuel_level: "4", complaints: "Fleet 10k service", lpo_no: "LPO-EFS-2211", promised_at: new Date(Date.now() + 24 * 3600_000).toISOString() });
-  await addJobLine(sara, j3.id, { line_type: "labour", service_id: svc["SVC-10K"] });
-  await addJobLine(sara, j3.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
-  await saveQuotation(sara, j3.id, {});
+  const e3 = await createEnquiry(sara, { customer_id: fleet, vehicle_id: hilux, service_asked: "Fleet 10k service", source: "phone", odometer_in: "64500", fuel_level: "4" });
+  await addEnquiryLine(sara, e3.id, { line_type: "labour", service_id: svc["SVC-10K"] });
+  await addEnquiryLine(sara, e3.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
+  await saveQuotation(sara, e3.id, {});
 }
 
 async function q(adminUrl: string, sql: string, params: unknown[] = []) {

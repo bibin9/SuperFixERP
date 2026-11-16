@@ -18,7 +18,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   return (
     <>
       <PageHead title={custName(c)} sub={`${c.customer_no} · ${c.mobile}${c.trn ? ` · TRN ${c.trn}` : ""}`}>
-        {can(ctx, "jobs", "create") && vehicles.length > 0 && <Link className="btn" href={`/jobs/new?customer=${id}`}>Check in a vehicle</Link>}
+        {can(ctx, "customers", "create") && <Link className="btn" href={`/enquiries/new?customer=${id}`}>New enquiry</Link>}
       </PageHead>
       <Flash sp={sp} />
       <div className="card">

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { requireCtx } from "@/lib/session";
 import { getInvoice } from "@/lib/services/billing";
+import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { receiptAction } from "@/app/actions";
 import { Flash, Link, Money, d } from "@/components/ui";
@@ -12,6 +13,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const { invoice: i, lines, receipts } = await getInvoice(ctx, id);
   const open = D(i.grand_total).minus(i.paid_amount);
+  const m = await masters(ctx);
   return (
     <>
       <Flash sp={sp} />
@@ -50,7 +52,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
         {can(ctx, "invoices", "create", i.branch_id) && open.gt(0) && (
           <form action={receiptAction} className="row" style={{ marginTop: 10 }}>
             <input type="hidden" name="invoice_id" value={id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
-            <div className="field"><label>Method</label><select name="method"><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option><option value="cheque">Cheque</option></select></div>
+            <div className="field"><label>Method</label><select name="method">{m.paymentMethods.map((pm) => <option key={pm.code} value={pm.code}>{pm.name}{pm.needs_reference ? " (reference needed)" : ""}</option>)}</select></div>
             <div className="field"><label>Amount (AED)</label><input name="amount" defaultValue={open.toFixed(2)} /></div>
             <div className="field"><label>Reference</label><input name="reference" placeholder="Card slip, transfer ref, cheque no." /></div>
             <div className="shrink"><button className="btn green">Record payment</button></div>

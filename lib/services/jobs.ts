@@ -17,53 +17,11 @@ function currentBranch(ctx: Ctx) {
   return ctx.currentBranchId;
 }
 
-// ---------- enquiries (CV-10) ----------
-
-export async function createEnquiry(ctx: Ctx, f: Record<string, unknown>) {
-  const branchId = currentBranch(ctx);
-  assertCan(ctx, "customers", "create", branchId);
-  return withTx(ctx, async (c) => {
-    const docNo = await nextDocNo(c, branchId, "enquiry");
-    const customerId = optStr(f.customer_id);
-    if (!customerId && !optStr(f.contact_mobile)) throw invalid("Pick a customer or enter a contact mobile.");
-    const r = await c.query(
-      `INSERT INTO enquiry (branch_id, doc_no, customer_id, vehicle_id, contact_name, contact_mobile, service_asked, source, assigned_to, follow_up_at, notes, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
-      [branchId, docNo, customerId, optStr(f.vehicle_id), optStr(f.contact_name), optStr(f.contact_mobile), required(f.service_asked, "Service asked about"),
-        required(f.source, "Source"), optStr(f.assigned_to) ?? ctx.userId, optStr(f.follow_up_at), optStr(f.notes), ctx.userId],
-    );
-    await audit(c, ctx, "enquiry", r.rows[0].id, "create", { doc_no: docNo }, branchId);
-    return { id: r.rows[0].id, docNo };
-  });
-}
-
-export async function listEnquiries(ctx: Ctx, status = "") {
-  return withTx(ctx, async (c) => (await c.query(
-    `SELECT e.*, b.code branch_code, c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, u.full_name assigned_name,
-            (e.follow_up_at < now() AND e.status = 'open') overdue
-       FROM enquiry e JOIN branch b ON b.id = e.branch_id LEFT JOIN customer c ON c.id = e.customer_id LEFT JOIN app_user u ON u.id = e.assigned_to
-      WHERE ($1 = '' OR e.status = $1) ORDER BY e.created_at DESC LIMIT 200`, [status],
-  )).rows);
-}
-
-export async function markEnquiryLost(ctx: Ctx, id: string, reason: string) {
-  return withTx(ctx, async (c) => {
-    const e = await c.query("SELECT * FROM enquiry WHERE id = $1 FOR UPDATE", [id]);
-    if (!e.rowCount) throw notFound("Enquiry");
-    assertCan(ctx, "customers", "edit", e.rows[0].branch_id);
-    if (!["open", "quoted", "booked"].includes(e.rows[0].status)) throw invalid("Only an open enquiry can be marked lost.");
-    await c.query("UPDATE enquiry SET status = 'lost', lost_reason = $2, updated_at = now(), updated_by = $3, version = version + 1 WHERE id = $1", [id, required(reason, "Lost reason"), ctx.userId]);
-    await audit(c, ctx, "enquiry", id, "lost", { reason }, e.rows[0].branch_id);
-  });
-}
-
 // ---------- job cards ----------
 
+// A job card exists only after the customer approved a quotation, so it starts at Approved.
+// Booked, checked in and quoted are enquiry stages (FSD v0.10).
 const TRANSITIONS: Record<string, string[]> = {
-  booked: ["checked_in", "cancelled"],
-  checked_in: ["inspection", "awaiting_approval", "cancelled"],
-  inspection: ["awaiting_approval", "cancelled"],
-  awaiting_approval: ["approved", "closed", "cancelled"],
   approved: ["in_progress", "awaiting_parts", "cancelled"],
   awaiting_parts: ["in_progress", "cancelled"],
   in_progress: ["quality_check"],
@@ -75,58 +33,18 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 export const STATUS_LABEL: Record<string, string> = {
-  booked: "Booked", checked_in: "Checked in", inspection: "Inspection", awaiting_approval: "Awaiting approval", approved: "Approved",
+  approved: "Approved",
   awaiting_parts: "Awaiting parts", in_progress: "In progress", quality_check: "Quality check", ready: "Ready", delivered: "Delivered",
   invoiced: "Invoiced", closed: "Closed", cancelled: "Cancelled",
 };
 export const nextStatuses = (s: string) => TRANSITIONS[s] ?? [];
-const EDITABLE = ["checked_in", "inspection", "awaiting_approval", "approved", "awaiting_parts", "in_progress", "quality_check"];
+export const JOB_EDITABLE = ["approved", "awaiting_parts", "in_progress", "quality_check"];
+const EDITABLE = JOB_EDITABLE;
 
 export async function setStatus(c: PoolClient, ctx: Ctx | null, job: { id: string; branch_id: string; status: string }, to: string, reason?: string | null) {
   await c.query("UPDATE job_card SET status = $2, updated_at = now(), version = version + 1 WHERE id = $1", [job.id, to]);
   await c.query("INSERT INTO job_status_history (job_card_id, branch_id, from_status, to_status, reason, user_id) VALUES ($1,$2,$3,$4,$5,$6)",
     [job.id, job.branch_id, job.status, to, reason ?? null, ctx?.userId ?? null]);
-}
-
-export async function createJobCard(ctx: Ctx, f: Record<string, unknown>) {
-  const branchId = currentBranch(ctx);
-  assertCan(ctx, "jobs", "create", branchId);
-  return withTx(ctx, async (c) => {
-    const customerId = required(f.customer_id, "Customer");
-    const vehicleId = required(f.vehicle_id, "Vehicle");
-    const v = await c.query("SELECT * FROM vehicle WHERE id = $1 AND active", [vehicleId]);
-    if (!v.rowCount) throw invalid("Vehicle not found.");
-    if (!(await c.query("SELECT 1 FROM customer WHERE id = $1 AND active", [customerId])).rowCount) throw invalid("Customer not found.");
-    const jobType = str(f.job_type) || "service";
-    let originalJob: string | null = null;
-    if (jobType === "warranty_comeback") {
-      // JC-08: must link to the original job, which may be at any branch.
-      const no = required(f.original_job_no, "Original job number");
-      const o = await c.query("SELECT job_id FROM vehicle_history($1) WHERE doc_no = $2", [vehicleId, no.toUpperCase()]);
-      if (!o.rowCount) throw invalid("Original job not found for this vehicle.");
-      originalJob = o.rows[0].job_id;
-    }
-    const enquiryId = optStr(f.enquiry_id);
-    const docNo = await nextDocNo(c, branchId, "job_card");
-    const odo = optInt(f.odometer_in, "Odometer", 0, 5_000_000);
-    if (odo !== null && v.rows[0].odometer && odo < v.rows[0].odometer) throw invalid(`Odometer is lower than the last recorded reading (${v.rows[0].odometer} km).`);
-    const r = await c.query(
-      `INSERT INTO job_card (branch_id, doc_no, job_type, customer_id, vehicle_id, enquiry_id, original_job_id, odometer_in, fuel_level, complaints, valuables,
-                             advisor_id, promised_at, lpo_no, status, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'checked_in',$12,$12) RETURNING id`,
-      [branchId, docNo, jobType, customerId, vehicleId, enquiryId, originalJob, odo, optInt(f.fuel_level, "Fuel level", 0, 8), optStr(f.complaints), optStr(f.valuables),
-        ctx.userId, optStr(f.promised_at), optStr(f.lpo_no)],
-    );
-    const id = r.rows[0].id;
-    await c.query("INSERT INTO job_status_history (job_card_id, branch_id, from_status, to_status, user_id) VALUES ($1,$2,NULL,'checked_in',$3)", [id, branchId, ctx.userId]);
-    if (odo !== null) await c.query("UPDATE vehicle SET odometer = $2 WHERE id = $1", [vehicleId, odo]);
-    if (enquiryId) {
-      const e = await c.query("UPDATE enquiry SET status = 'converted', converted_job_id = $2, updated_at = now(), version = version + 1 WHERE id = $1 AND status IN ('open','quoted','booked') RETURNING id", [enquiryId, id]);
-      if (!e.rowCount) throw invalid("That enquiry is not open.");
-    }
-    await audit(c, ctx, "job_card", id, "create", { doc_no: docNo }, branchId);
-    return { id, docNo };
-  });
 }
 
 export async function listJobs(ctx: Ctx, status = "") {
@@ -143,18 +61,18 @@ export async function listJobs(ctx: Ctx, status = "") {
   )).rows);
 }
 
-const LINE_FIELDS = { unit_price: "selling_price", discount_amount: "discount", avg_cost: "purchase_cost", margin_pct: "purchase_cost" };
-const QLINE_FIELDS = { unit_price: "selling_price", gross_amount: "selling_price", line_discount: "discount", doc_discount_share: "discount", taxable_amount: "selling_price", vat_amount: "selling_price", line_total: "selling_price" };
-const Q_FIELDS = { gross_amount: "selling_price", discount_total: "discount", doc_discount_amount: "discount", taxable_total: "selling_price", vat_total: "selling_price", grand_total: "selling_price", approved_total: "selling_price" };
+export const LINE_FIELDS = { unit_price: "selling_price", discount_amount: "discount", avg_cost: "purchase_cost", margin_pct: "purchase_cost" };
+export const QLINE_FIELDS = { unit_price: "selling_price", gross_amount: "selling_price", line_discount: "discount", doc_discount_share: "discount", taxable_amount: "selling_price", vat_amount: "selling_price", line_total: "selling_price" };
+export const Q_FIELDS = { gross_amount: "selling_price", discount_total: "discount", doc_discount_amount: "discount", taxable_total: "selling_price", vat_total: "selling_price", grand_total: "selling_price", approved_total: "selling_price" };
 
 /** Job card with lines, quotations and history. Prices and costs are removed per field permissions. */
 export async function getJob(ctx: Ctx, id: string) {
   return withTx(ctx, async (c) => {
     const j = await c.query(
       `SELECT j.*, b.code branch_code, b.name_en branch_name, v.make, v.model, v.model_year, v.registered_in, v.plate_code, v.plate_number, v.vin,
-              c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, c.whatsapp, c.trn, u.full_name advisor_name
+              c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, c.whatsapp, c.trn, u.full_name advisor_name, e.doc_no enquiry_no
          FROM job_card j JOIN branch b ON b.id = j.branch_id JOIN vehicle v ON v.id = j.vehicle_id JOIN customer c ON c.id = j.customer_id
-         LEFT JOIN app_user u ON u.id = j.advisor_id WHERE j.id = $1`, [id]);
+         LEFT JOIN app_user u ON u.id = j.advisor_id LEFT JOIN enquiry e ON e.id = j.enquiry_id WHERE j.id = $1`, [id]);
     if (!j.rowCount) throw notFound("Job card");
     const job = j.rows[0];
     const ownOnly = !can(ctx, "jobs", "view", job.branch_id);
@@ -213,10 +131,32 @@ async function isBelowMargin(c: PoolClient, branchId: string, itemId: string | n
   return netUnit.minus(cost).div(netUnit).lt(minMargin);
 }
 
-export async function addJobLine(ctx: Ctx, jobId: string, f: Record<string, unknown>) {
+export const ENQUIRY_QUOTABLE = ["open", "booked", "quoted", "approved"];
+type Owner = { kind: "job" | "enquiry"; id: string };
+
+/**
+ * Locks whatever owns the work lines. Before the job card exists that is the enquiry (the quotation
+ * is built there); after it exists, new lines go on the job card as extra work (JC-07).
+ */
+async function lockOwner(c: PoolClient, ctx: Ctx, owner: Owner) {
+  if (owner.kind === "job") {
+    const job = await lockJob(c, ctx, owner.id);
+    if (!EDITABLE.includes(job.status)) throw invalid(`Lines cannot be changed while the job is ${STATUS_LABEL[job.status]}.`);
+    return { branchId: job.branch_id as string, enquiryId: job.enquiry_id as string, jobId: job.id as string | null, extra: true, ref: job.doc_no as string };
+  }
+  const e = await c.query("SELECT * FROM enquiry WHERE id = $1 FOR UPDATE", [owner.id]);
+  if (!e.rowCount) throw notFound("Enquiry");
+  const enq = e.rows[0];
+  assertCan(ctx, "jobs", "edit", enq.branch_id);
+  if (enq.status === "converted") throw invalid("The job card exists already. Add extra work on the job card.");
+  if (!ENQUIRY_QUOTABLE.includes(enq.status)) throw invalid("This enquiry is closed.");
+  if (!enq.customer_id || !enq.vehicle_id) throw invalid("Pick the customer and the vehicle before adding work.");
+  return { branchId: enq.branch_id as string, enquiryId: enq.id as string, jobId: null as string | null, extra: false, ref: enq.doc_no as string };
+}
+
+async function addLine(ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
   return withTx(ctx, async (c) => {
-    const job = await lockJob(c, ctx, jobId);
-    if (!EDITABLE.includes(job.status)) throw invalid(`Lines cannot be added while the job is ${STATUS_LABEL[job.status]}.`);
+    const o = await lockOwner(c, ctx, owner);
     const type = required(f.line_type, "Line type");
     let description = optStr(f.description);
     let unitPrice: string | null = null;
@@ -224,12 +164,12 @@ export async function addJobLine(ctx: Ctx, jobId: string, f: Record<string, unkn
     let stdHours: string | null = null;
     let serviceId: string | null = null;
     let itemId: string | null = null;
-    let vatCode = "SR";
+    let vatCode = String(await getSetting(c, "tax.default_code", o.branchId, "SR"));
     if (type === "labour") {
       serviceId = required(f.service_id, "Service");
       const s = await c.query("SELECT * FROM service WHERE id = $1 AND active", [serviceId]);
       if (!s.rowCount) throw invalid("Service not found.");
-      // WS-03: standard time copied from the master; later master changes do not change open jobs.
+      // WS-03: standard time copied from the master; later master changes do not change open work.
       stdHours = s.rows[0].standard_hours;
       qty = str(f.qty) || s.rows[0].standard_hours;
       unitPrice = s.rows[0].labour_rate;
@@ -243,8 +183,9 @@ export async function addJobLine(ctx: Ctx, jobId: string, f: Record<string, unkn
       description = description || `${i.rows[0].part_no} ${i.rows[0].description}`;
       vatCode = i.rows[0].vat_code;
     } else if (type !== "outside") throw invalid("Unknown line type.");
+    if (!(await c.query("SELECT 1 FROM tax_code WHERE code = $1 AND active", [vatCode])).rowCount) throw invalid(`Tax code ${vatCode} is not active.`);
     // Advisors may change the price only with the Edit level on selling price.
-    const priceLevel = fieldLevel(ctx, "selling_price", job.branch_id);
+    const priceLevel = fieldLevel(ctx, "selling_price", o.branchId);
     if (str(f.unit_price)) {
       if (priceLevel !== "edit" && unitPrice !== null && D(str(f.unit_price)).cmp(unitPrice) !== 0) throw forbidden("You cannot change the selling price.");
       unitPrice = parseDec(f.unit_price, "Unit price", { min: 0, dp: 2 }).toFixed(2);
@@ -253,35 +194,41 @@ export async function addJobLine(ctx: Ctx, jobId: string, f: Record<string, unkn
     const q = parseDec(qty, "Quantity", { min: "0.001", dp: 3 });
     if (q.lte(0)) throw invalid("Quantity must be more than zero.");
     const discount = str(f.discount_amount) ? parseDec(f.discount_amount, "Discount", { min: 0, dp: 2 }) : D(0);
-    if (discount.gt(0) && fieldLevel(ctx, "discount", job.branch_id) !== "edit") throw forbidden("You cannot give a discount.");
+    if (discount.gt(0) && fieldLevel(ctx, "discount", o.branchId) !== "edit") throw forbidden("You cannot give a discount.");
     if (discount.gt(r2(q.mul(unitPrice)))) throw invalid("Discount cannot be more than the line amount.");
-    const below = await isBelowMargin(c, job.branch_id, itemId, q.toString(), unitPrice, discount.toFixed(2));
-    const extra = ["approved", "awaiting_parts", "in_progress", "quality_check"].includes(job.status);
-    const no = (await c.query("SELECT coalesce(max(line_no),0)+1 n FROM job_line WHERE job_card_id = $1", [jobId])).rows[0].n;
+    const below = await isBelowMargin(c, o.branchId, itemId, q.toString(), unitPrice, discount.toFixed(2));
+    const no = (await c.query("SELECT coalesce(max(line_no),0)+1 n FROM job_line WHERE enquiry_id = $1", [o.enquiryId])).rows[0].n;
     const r = await c.query(
-      `INSERT INTO job_line (job_card_id, branch_id, line_no, line_type, service_id, item_id, description, qty, standard_hours, unit_price, discount_amount, vat_code,
+      `INSERT INTO job_line (enquiry_id, job_card_id, branch_id, line_no, line_type, service_id, item_id, description, qty, standard_hours, unit_price, discount_amount, vat_code,
                              technician_id, extra_work, below_margin, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
-      [jobId, job.branch_id, no, type, serviceId, itemId, description, q.toFixed(3), stdHours, unitPrice, discount.toFixed(2), vatCode, optStr(f.technician_id), extra, below, ctx.userId],
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+      [o.enquiryId, o.jobId, o.branchId, no, type, serviceId, itemId, description, q.toFixed(3), stdHours, unitPrice, discount.toFixed(2), vatCode,
+        o.jobId ? optStr(f.technician_id) : null, o.extra, below, ctx.userId],
     );
-    await audit(c, ctx, "job_line", r.rows[0].id, "create", { job: job.doc_no, description, qty: q.toFixed(3), unit_price: unitPrice, discount: discount.toFixed(2), below_margin: below }, job.branch_id);
+    await audit(c, ctx, "job_line", r.rows[0].id, "create", { ref: o.ref, description, qty: q.toFixed(3), unit_price: unitPrice, discount: discount.toFixed(2), below_margin: below, extra_work: o.extra }, o.branchId);
     return { id: r.rows[0].id, belowMargin: below };
   });
 }
 
-export async function removeJobLine(ctx: Ctx, lineId: string) {
+/** A work line on the enquiry, priced for the quotation. */
+export const addEnquiryLine = (ctx: Ctx, enquiryId: string, f: Record<string, unknown>) => addLine(ctx, { kind: "enquiry", id: enquiryId }, f);
+/** Extra work found on an open job card; it needs a revised quotation approved before work or billing (JC-07). */
+export const addJobLine = (ctx: Ctx, jobId: string, f: Record<string, unknown>) => addLine(ctx, { kind: "job", id: jobId }, f);
+
+export async function removeLine(ctx: Ctx, lineId: string) {
   return withTx(ctx, async (c) => {
     const l = await c.query("SELECT * FROM job_line WHERE id = $1 FOR UPDATE", [lineId]);
-    if (!l.rowCount) throw notFound("Job line");
-    const job = await lockJob(c, ctx, l.rows[0].job_card_id);
-    if (!EDITABLE.includes(job.status)) throw invalid("This job can no longer be changed.");
-    if (D(l.rows[0].issued_qty).gt(0)) throw invalid("Parts were issued on this line. Return them to the store first.");
-    if (l.rows[0].approval_status === "approved") throw invalid("The customer approved this line. Create a revised quotation instead.");
+    if (!l.rowCount) throw notFound("Line");
+    const line = l.rows[0];
+    const o = await lockOwner(c, ctx, line.job_card_id ? { kind: "job", id: line.job_card_id } : { kind: "enquiry", id: line.enquiry_id });
+    if (D(line.issued_qty).gt(0)) throw invalid("Parts were issued on this line. Return them to the store first.");
+    if (line.approval_status === "approved") throw invalid("The customer approved this line. Create a revised quotation instead.");
     await c.query("UPDATE job_line SET removed = true, version = version + 1 WHERE id = $1", [lineId]);
     await releaseCommitment(c, lineId);
-    await audit(c, ctx, "job_line", lineId, "remove", { job: job.doc_no }, job.branch_id);
+    await audit(c, ctx, "job_line", lineId, "remove", { ref: o.ref }, o.branchId);
   });
 }
+export const removeJobLine = removeLine;
 
 /** Manual status change, limited to the allowed next steps (JC-06), with the late-job rule (DL-02). */
 export async function changeStatus(ctx: Ctx, jobId: string, to: string, f: { reason?: string; delay_reason?: string; delay_note?: string; version?: string } = {}) {

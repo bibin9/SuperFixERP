@@ -19,7 +19,7 @@ export function Money({ v }: { v: string | number | null | undefined }) {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  checked_in: "", inspection: "", awaiting_approval: "amber", approved: "green", awaiting_parts: "amber", in_progress: "violet",
+  booked: "", quoted: "amber", approved: "green", prepared: "amber", sent_manually: "green", awaiting_parts: "amber", in_progress: "violet",
   quality_check: "violet", ready: "green", delivered: "green", invoiced: "grey", closed: "grey", cancelled: "red",
   sent: "amber", ready_to_send: "", draft: "grey", pending_internal_approval: "amber", partly_approved: "green", declined: "red", expired: "grey", superseded: "grey",
   open: "amber", converted: "green", lost: "red", pending: "amber", rejected: "red", sent_back: "amber",

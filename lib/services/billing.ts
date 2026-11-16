@@ -146,10 +146,13 @@ export async function listInvoices(ctx: Ctx) {
  */
 export async function recordReceipt(ctx: Ctx, f: { invoice_id: string; method: string; amount: unknown; reference?: string; idempotency_key: string }) {
   const amount = parseDec(f.amount, "Amount", { min: "0.01", dp: 2 });
-  if (!["cash", "card", "bank_transfer", "cheque"].includes(f.method)) throw invalid("Choose a payment method.");
   if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
   const hash = crypto.createHash("sha256").update(JSON.stringify([f.invoice_id, f.method, amount.toFixed(2), str(f.reference)])).digest("hex");
   return withTx(ctx, async (c) => {
+    // Payment methods are a master (FSD v0.10): each names the posting event it debits.
+    const pm = (await c.query("SELECT * FROM payment_method WHERE code = $1 AND active", [f.method])).rows[0];
+    if (!pm) throw invalid("Choose a payment method.");
+    if (pm.needs_reference && !str(f.reference)) throw invalid(`${pm.name} needs a reference.`);
     const prior = await c.query("SELECT id, doc_no, request_hash FROM receipt WHERE idempotency_key = $1", [f.idempotency_key]);
     if (prior.rowCount) {
       if (prior.rows[0].request_hash !== hash) throw conflict("This request key was already used for a different payment.");
@@ -164,7 +167,7 @@ export async function recordReceipt(ctx: Ctx, f: { invoice_id: string; method: s
     const onAccount = amount.minus(alloc);
     const docNo = await nextDocNo(c, invoice.branch_id, "receipt");
     const date = today();
-    const debitEvent = { cash: "cash_drawer", card: "card_clearing", bank_transfer: "bank", cheque: "pdc_received" }[f.method]!;
+    const debitEvent = pm.posting_event as string;
     const jr = await postJournal(c, ctx, {
       branchId: invoice.branch_id, date, sourceType: "receipt", sourceId: invoice.id, narration: `Receipt ${docNo} against ${invoice.doc_no}`,
       lines: [

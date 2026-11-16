@@ -20,72 +20,90 @@ async function as(user) {
 }
 const shot = (p, n) => p.screenshot({ path: `${OUT}/${n}.png`, fullPage: true });
 
-// 1. Advisor: home, job card with quotation, the sent link
+// 1. Advisor: home, then the enquiry with its quotation sent to the customer (no job card yet)
 const priya = await as("priya");
 await shot(priya, "01-advisor-home");
-await priya.goto(`${BASE}/jobs`);
-await priya.click("text=YAS-1483");
-await priya.waitForSelector("text=Job lines");
-await shot(priya, "02-job-card-advisor");
+await priya.goto(`${BASE}/enquiries`);
+await priya.click("text=YAS-ENQ-26-00001");
+await priya.waitForSelector("text=Work to quote");
+await shot(priya, "02-enquiry-quotation-sent");
+if (await priya.locator("button:has-text('Create job card')").count()) fail("job card offered before approval");
 if (await priya.locator("text=Avg cost").count()) fail("advisor sees cost");
 const link = await priya.locator("a[href^='/q/']").first().getAttribute("href");
+// Manual messaging: the text is prepared, staff send it themselves and mark it as sent
+await priya.click("button:has-text('Prepare the approval message again')");
+await priya.waitForSelector("text=Send it yourself");
+await shot(priya, "03-manual-whatsapp-message");
+await priya.click("button:has-text('Mark as sent')");
+await priya.waitForSelector("text=Message marked as sent");
 
-// 2. Customer approves on the public page (no sign-in)
+// 2. Customer approves on the public page (no sign-in), declining the brake pads
 const pub = await (await browser.newContext({ viewport: { width: 420, height: 900 } })).newPage();
 await pub.goto(`${BASE}${link}`);
-await shot(pub, "03-customer-approval-page");
+await shot(pub, "04-customer-approval-page");
 await pub.locator("input[type=checkbox]").last().uncheck();
 await pub.click("text=Approve ticked work");
 await pub.waitForSelector("text=Your answer has been sent");
-await shot(pub, "04-customer-approved");
 
-// 3. Advisor: job is now approved; a big discount needs the manager
+// 3. Advisor creates the job card from the approved quotation
 await priya.reload();
-if (!(await priya.locator(".pill", { hasText: "Approved" }).count())) fail("job not approved after customer answer");
+await priya.waitForSelector("button:has-text('Create job card')");
+await shot(priya, "05-enquiry-approved-create-job");
+await priya.click("button:has-text('Create job card')");
+await priya.waitForSelector("text=created from the approved quotation");
+await shot(priya, "06-job-card-from-approved-quote");
+const jobUrl = priya.url().split("?")[0];
+
+// 4. Extra work on the job with a big discount needs the manager
 const align = await priya.locator("form:has(input[value=labour]) select[name=service_id] option", { hasText: "Wheel alignment" }).getAttribute("value");
 await priya.selectOption("form:has(input[value=labour]) select[name=service_id]", align);
 await priya.fill("form:has(input[value=labour]) input[name=discount_amount]", "40");
 await priya.click("button:has-text('Add labour')");
 await priya.click("button:has-text('Save new revision')");
 await priya.waitForSelector("text=sent for manager approval");
-await shot(priya, "05-discount-needs-approval");
+await shot(priya, "07-extra-work-needs-approval");
 
-// 4. Manager approves from the inbox
+// 5. Manager approves from the inbox
 const yousef = await as("yousef");
 await yousef.goto(`${BASE}/approvals`);
-await shot(yousef, "06-manager-approvals");
+await shot(yousef, "08-manager-approvals");
 await yousef.click("button:has-text('Approve')");
 await yousef.waitForSelector("text=Approved");
 
-// 5. Technician sees no prices; Al Qusais advisor cannot open a Yas job
+// 6. Technician sees no prices; Al Qusais advisor cannot open a Yas job
 const ramesh = await as("ramesh");
 await ramesh.goto(`${BASE}/jobs`);
-await shot(ramesh, "07-technician-my-jobs");
+await shot(ramesh, "09-technician-my-jobs");
 const sara = await as("sara");
-const yasJobUrl = priya.url().split("?")[0];
-await sara.goto(yasJobUrl);
-if (!(await sara.locator("text=could not be shown").count())) fail("QUS advisor opened a YAS job");
-await shot(sara, "08-other-branch-blocked");
+await sara.goto(jobUrl);
+await sara.waitForSelector("text=could not be shown", { timeout: 8000 }).catch(() => fail("QUS advisor opened a YAS job"));
+await shot(sara, "10-other-branch-blocked");
 
-// 6. Invoice the ready job and take payment
+// 7. Invoice the ready job and take payment
 await priya.goto(`${BASE}/jobs?status=ready`);
-await priya.click("text=YAS-1484");
+await priya.click("text=YAS-1483");
 await priya.click("text=Prepare tax invoice");
-await shot(priya, "09-invoice-draft-checks");
+await shot(priya, "11-invoice-draft-checks");
 await priya.click("button:has-text('Post tax invoice')");
 await priya.waitForSelector("text=Tax Invoice");
-await shot(priya, "10-tax-invoice");
+await shot(priya, "12-tax-invoice");
 await priya.click("button:has-text('Record payment')");
 await priya.waitForSelector("text=Receipt");
+
+// 8. Master forms
+const admin = await as("admin");
+await admin.goto(`${BASE}/admin/masters`);
+await shot(admin, "13-master-forms");
+await admin.goto(`${BASE}/admin/masters/payment-methods`);
+await shot(admin, "14-payment-methods-master");
 const owner = await as("saeed");
 await owner.goto(`${BASE}/accounts`);
-await shot(owner, "11-trial-balance-owner");
+await shot(owner, "15-trial-balance-owner");
 await owner.goto(`${BASE}/stock`);
-await shot(owner, "12-stock-owner");
-const admin = await as("admin");
+await shot(owner, "16-stock-owner");
 await admin.goto(`${BASE}/admin/roles`);
-await shot(admin, "13-roles-and-field-permissions");
+await shot(admin, "17-roles-and-field-permissions");
 await admin.goto(`${BASE}/admin/audit`);
-await shot(admin, "14-audit-log");
+await shot(admin, "18-audit-log");
 await browser.close();
 console.log(process.exitCode ? "smoke test FAILED" : "smoke test passed");

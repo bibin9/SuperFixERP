@@ -11,7 +11,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
   return (
     <>
       <PageHead title={plate(v)} sub={`${v.make} ${v.model} ${v.model_year ?? ""} · VIN ${v.vin ?? "not available"} · owner ${custName(v)}`}>
-        {can(ctx, "jobs", "create") && <Link className="btn" href={`/jobs/new?customer=${v.owner_customer_id}&vehicle=${v.id}`}>Check in</Link>}
+        {can(ctx, "customers", "create") && <Link className="btn" href={`/enquiries/new?customer=${v.owner_customer_id}&vehicle=${v.id}`}>New enquiry</Link>}
       </PageHead>
       {deferred.length > 0 && <div className="flash warn"><b>Deferred work to offer:</b> {deferred.map((x) => `${x.description} (from ${x.doc_no}, follow up ${d(x.follow_up_date)})`).join("; ")}</div>}
       <div className="card">

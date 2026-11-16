@@ -5,7 +5,9 @@ import { resetTestDb, adminQuery, appQueryAs, branchId, id } from "./helpers";
 import { closePool } from "../lib/db";
 import { ctxFor } from "../lib/ctx-helper";
 import { login, sessionCtx, disableUser, switchBranch } from "../lib/services/auth";
-import { getJob, listJobs, createJobCard, addJobLine } from "../lib/services/jobs";
+import { getJob, listJobs, addEnquiryLine } from "../lib/services/jobs";
+import { createEnquiry, createJobCard, listEnquiries, getEnquiry } from "../lib/services/enquiries";
+import { saveQuotation, sendQuotation, recordDecisionsByStaff } from "../lib/services/quotations";
 import { getVehicle, createCustomer, createVehicle } from "../lib/services/customers";
 import { stockList } from "../lib/services/stock";
 import { saveRoleMatrix } from "../lib/services/admin";
@@ -53,12 +55,15 @@ test("branch separation: Al Qusais advisor cannot read a Yas job card, through t
   const sara = await ctxFor("sara", "QUS");
   const yasJob = await id("job_card", "doc_no = $1", ["YAS-1483"]);
   await rejects(getJob(sara, yasJob), "not_found");
-  const jobs = await listJobs(sara);
-  assert.ok(jobs.length > 0, "allowed case: sara sees her own branch's jobs");
-  assert.ok(jobs.every((j) => j.branch_code === "QUS"));
+  const enqs = await listEnquiries(sara);
+  assert.ok(enqs.length > 0, "allowed case: sara sees her own branch's enquiries");
+  assert.ok(enqs.every((e) => e.branch_code === "QUS"));
+  assert.ok((await listJobs(sara)).every((j) => j.branch_code === "QUS"));
+  const yasEnq = await id("enquiry", "doc_no = $1", ["YAS-ENQ-26-00001"]);
+  await rejects(getEnquiry(sara, yasEnq), "not_found");
   // database layer: the app role with QUS scope sees no YAS rows in any transaction table
   const qus = await branchId("QUS");
-  for (const t of ["job_card", "job_line", "quotation", "quotation_line", "stock_move", "journal_line"]) {
+  for (const t of ["enquiry", "job_card", "job_line", "quotation", "quotation_line", "stock_move", "journal_line", "message_log"]) {
     const rows = await appQueryAs([qus], `SELECT count(*) n FROM ${t} WHERE branch_id <> $1`, [qus]);
     assert.equal(rows[0].n, "0", `${t} leaked rows`);
   }
@@ -67,13 +72,13 @@ test("branch separation: Al Qusais advisor cannot read a Yas job card, through t
   assert.notEqual((await adminQuery("SELECT complaints FROM job_card WHERE doc_no = 'YAS-1483'"))[0].complaints, "x");
   // owner sees all branches
   const owner = await ctxFor("saeed", "HQ");
-  const all = await listJobs(owner);
+  const all = await listEnquiries(owner);
   assert.ok(all.some((j) => j.branch_code === "QUS") && all.some((j) => j.branch_code === "YAS"));
 });
 
 test("shared vehicles: another branch sees the service history but not the prices (BR-04)", async () => {
   const sara = await ctxFor("sara", "QUS");
-  const lc = await id("vehicle", "plate_number = $1", ["48213"]);
+  const lc = await id("vehicle", "plate_number = $1", ["77120"]); // Patrol, job YAS-1483
   const v = await getVehicle(sara, lc);
   assert.ok(v.history.length >= 1);
   assert.ok(v.history.every((h) => h.amount === null && h.can_open === false));
@@ -85,7 +90,7 @@ test("shared vehicles: another branch sees the service history but not the price
 test("technicians see only their own jobs and never prices (FP-01..FP-03)", async () => {
   const ramesh = await ctxFor("ramesh", "YAS");
   assert.equal((await listJobs(ramesh)).length, 0);
-  const job = await id("job_card", "doc_no = $1", ["YAS-1484"]);
+  const job = await id("job_card", "doc_no = $1", ["YAS-1483"]);
   await rejects(getJob(ramesh, job), "not_found");
   await adminQuery("UPDATE job_line SET technician_id = (SELECT id FROM app_user WHERE username = 'ramesh') WHERE job_card_id = $1 AND line_no = 1", [job]);
   const j = await getJob(ramesh, job);
@@ -96,7 +101,7 @@ test("technicians see only their own jobs and never prices (FP-01..FP-03)", asyn
   for (const q of j.quotations) assert.ok(!("grand_total" in q));
   for (const l of j.quotationLines) assert.ok(!("line_total" in l) && !("unit_price" in l));
   assert.equal(JSON.stringify(j).includes("432.60"), false);
-  await rejects(createJobCard(ramesh, { customer_id: j.job.customer_id, vehicle_id: j.job.vehicle_id }), "forbidden");
+  await rejects(createJobCard(ramesh, await id("enquiry", "doc_no = $1", ["YAS-ENQ-26-00001"])), "forbidden");
 });
 
 test("advisors see selling prices but not purchase cost; stock keepers see cost only for their own branch (BR-03)", async () => {
@@ -114,13 +119,13 @@ test("advisors see selling prices but not purchase cost; stock keepers see cost 
 
 test("an advisor cannot add lines to another branch's job, nor change the list price", async () => {
   const priya = await ctxFor("priya", "YAS");
-  const qusJob = await id("job_card", "doc_no = $1", ["QUS-0731"]);
-  const before = (await adminQuery("SELECT count(*) n FROM job_line WHERE job_card_id = $1", [qusJob]))[0].n;
-  await assert.rejects(addJobLine(priya, qusJob, { line_type: "outside", description: "x", unit_price: "10" }));
-  assert.equal((await adminQuery("SELECT count(*) n FROM job_line WHERE job_card_id = $1", [qusJob]))[0].n, before);
-  const yasJob = await id("job_card", "doc_no = $1", ["YAS-1483"]);
+  const qusEnq = await id("enquiry", "doc_no = $1", ["QUS-ENQ-26-00001"]);
+  const before = (await adminQuery("SELECT count(*) n FROM job_line WHERE enquiry_id = $1", [qusEnq]))[0].n;
+  await assert.rejects(addEnquiryLine(priya, qusEnq, { line_type: "outside", description: "x", unit_price: "10" }));
+  assert.equal((await adminQuery("SELECT count(*) n FROM job_line WHERE enquiry_id = $1", [qusEnq]))[0].n, before);
+  const yasEnq = await id("enquiry", "doc_no = $1", ["YAS-ENQ-26-00001"]);
   const item = await id("item", "part_no = $1", ["BRK-PAD-FR-LC"]);
-  await rejects(addJobLine(priya, yasJob, { line_type: "part", item_id: item, unit_price: "100.00" }), "forbidden");
+  await rejects(addEnquiryLine(priya, yasEnq, { line_type: "part", item_id: item, unit_price: "100.00" }), "forbidden");
 });
 
 test("permission matrix changes are logged with old and new values (FP-06)", async () => {
@@ -157,7 +162,18 @@ test("document numbers stay unique and sequential under concurrent saves", async
   const priya = await ctxFor("priya", "YAS");
   const lc = await id("vehicle", "plate_number = $1", ["48213"]);
   const cust = await id("customer", "first_name = $1", ["Faisal"]);
-  const made = await Promise.all(Array.from({ length: 8 }, () => createJobCard(priya, { customer_id: cust, vehicle_id: lc })));
+  const svc = await id("service", "code = $1", ["DIAG"]);
+  const approved: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const e = await createEnquiry(priya, { customer_id: cust, vehicle_id: lc, service_asked: "check", source: "walk_in", odometer_in: "300000" });
+    await addEnquiryLine(priya, e.id, { line_type: "labour", service_id: svc });
+    const q = await saveQuotation(priya, e.id, {});
+    await sendQuotation(priya, q.id);
+    const ql = await adminQuery("SELECT id FROM quotation_line WHERE quotation_id = $1", [q.id]);
+    await recordDecisionsByStaff(priya, q.id, { [ql[0].id]: "approved" }, "in_person", null);
+    approved.push(e.id);
+  }
+  const made = await Promise.all(approved.map((e) => createJobCard(priya, e)));
   const nums = made.map((m) => Number(m.docNo.split("-")[1])).sort((a, b) => a - b);
   assert.equal(new Set(nums).size, 8);
   assert.equal(nums[7] - nums[0], 7);

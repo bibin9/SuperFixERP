@@ -104,6 +104,7 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('discount.max_pct.branch_manager','25','Discounts','Max discount % for a branch manager'),
  ('discount.max_pct.owner','100','Discounts','Max discount % for the owner'),
  ('pricing.min_margin_pct','10','Pricing','Minimum margin %; below it a price needs manager approval (FP-05)'),
+ ('tax.default_code','"SR"','Tax','Tax code used for outside work and any line whose master has none'),
  ('quotation.validity_days','7','Quotations','Default quotation validity in days'),
  ('quotation.deferred_follow_up_days','30','Quotations','Follow-up date for declined (deferred) work'),
  ('quick_invoice.limit','500','Quick invoice','Max total for a quick invoice job, AED (Q6 default)'),
@@ -114,7 +115,7 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('archive.live_months','12','Archive','Live window before archiving (Q12 default)'),
  ('ontime.measured_at','"ready"','Workshop','On-time measured at ready or delivered (Q7 default)'),
  ('cash.variance_tolerance','5','Cash','Cash closing variance tolerance, AED'),
- ('payments.gateway','"none"','Integrations','Payment link provider (Q2 open; adapter not connected)'),
+ ('payments.gateway','"manual"','Integrations','Payment link provider (manual only: staff record payments, no gateway is called)'),
  ('wps.agent_routing_code','""','Payroll','WPS agent routing code (Q4 open)'),
  ('wps.employer_mohre_id','""','Payroll','13-digit MOHRE establishment ID (Q4 open)'),
  ('payroll.daily_wage_divisor','30','Payroll','Daily wage = monthly / this (Q5 default)'),
@@ -206,6 +207,7 @@ SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
 
 -- Message templates (WA-03)
 INSERT INTO message_template (event, language, body) VALUES
+ ('enquiry_reply','en','Dear {title} {name}, thank you for contacting Superfix {branch} about {plate}. Your enquiry number is {job_no}. We will send your quotation shortly.'),
  ('quotation_for_approval','en','Dear {title} {name}, your quotation {doc_no} for {plate} at Superfix {branch} is ready. Total AED {amount} incl. VAT. Please review and approve here: {link}'),
  ('quotation_for_approval','ar','عزيزي {title} {name}، عرض السعر {doc_no} لسيارتك {plate} جاهز. الإجمالي {amount} درهم شامل الضريبة. للموافقة: {link}'),
  ('approved','en','Dear {title} {name}, thank you. Work on {plate} (job {job_no}) is approved and has started at Superfix {branch}.'),

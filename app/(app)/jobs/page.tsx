@@ -11,10 +11,10 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Rec
   return (
     <>
       <PageHead title={tech ? "My jobs" : "Job cards"} sub={tech ? "Jobs with work assigned to you." : "Your branches only; the owner sees all branches."}>
-        {can(ctx, "jobs", "create") && <Link className="btn" href="/jobs/new">New check-in</Link>}
+        {can(ctx, "customers", "create") && <Link className="btn" href="/enquiries/new">New enquiry</Link>}
       </PageHead>
       <Flash sp={sp} />
-      <div className="tabs">{["", "checked_in", "awaiting_approval", "approved", "awaiting_parts", "in_progress", "quality_check", "ready", "invoiced", "closed"].map((s) => (
+      <div className="tabs">{["", "approved", "awaiting_parts", "in_progress", "quality_check", "ready", "invoiced", "closed"].map((s) => (
         <Link key={s} className={(sp.status ?? "") === s ? "on" : ""} href={`/jobs${s ? `?status=${s}` : ""}`}>{s ? STATUS_LABEL[s] : "All"}</Link>
       ))}</div>
       <div className="card">

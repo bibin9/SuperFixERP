@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/admin/branches", "Branches", can("admin")],
       ["/admin/users", "Users & access", can("admin")],
       ["/admin/roles", "Roles & permissions", can("admin")],
+      ["/admin/masters", "Master forms", can("settings")],
       ["/admin/workflows", "Approval workflows", can("settings")],
       ["/admin/numbering", "Document numbering", can("settings")],
       ["/admin/settings", "Settings", can("settings")],

@@ -19,7 +19,7 @@ export async function saveBranch(ctx: Ctx, f: Record<string, unknown>) {
     const row = {
       code: required(f.code, "Code").toUpperCase(), name_en: required(f.name_en, "Name"), name_ar: optStr(f.name_ar),
       branch_type: str(f.branch_type) || "workshop", emirate: required(f.emirate, "Emirate"), address: optStr(f.address), phone: optStr(f.phone),
-      whatsapp_number: optStr(f.whatsapp_number), whatsapp_mode: str(f.whatsapp_mode) || "manual", opening_hours: optStr(f.opening_hours), cost_centre: optStr(f.cost_centre),
+      whatsapp_number: optStr(f.whatsapp_number), whatsapp_mode: "manual", opening_hours: optStr(f.opening_hours), cost_centre: optStr(f.cost_centre),
     };
     if (!/^[A-Z0-9]{2,6}$/.test(row.code)) throw invalid("Code must be 2 to 6 capital letters or digits.");
     if (f.id) {

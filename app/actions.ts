@@ -6,13 +6,15 @@ import { AppError } from "@/lib/errors";
 import { COOKIE, requireCtx, requestMeta } from "@/lib/session";
 import { login, logout, switchBranch, disableUser } from "@/lib/services/auth";
 import { createCustomer, updateCustomer, createVehicle } from "@/lib/services/customers";
-import { createEnquiry, markEnquiryLost, createJobCard, addJobLine, removeJobLine, changeStatus, assignTechnician } from "@/lib/services/jobs";
+import { addJobLine, addEnquiryLine, removeLine, changeStatus, assignTechnician } from "@/lib/services/jobs";
+import { createEnquiry, updateEnquiry, markEnquiryLost, createJobCard } from "@/lib/services/enquiries";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff, submitPublicDecisions } from "@/lib/services/quotations";
 import { act } from "@/lib/services/workflow";
 import { receiveStock, issueToJobLine } from "@/lib/services/stock";
 import { postInvoice, recordReceipt } from "@/lib/services/billing";
-import { whatsappForJob } from "@/lib/services/messaging";
+import { prepareMessage, confirmMessageSent } from "@/lib/services/messaging";
 import * as admin from "@/lib/services/admin";
+import { saveMaster, setMasterActive } from "@/lib/services/master-forms";
 
 const obj = (fd: FormData) => Object.fromEntries([...fd.entries()].filter(([k]) => !k.startsWith("$")).map(([k, v]) => [k, String(v)]));
 const withQ = (path: string, key: string, msg: string) => `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(msg)}`;
@@ -83,66 +85,58 @@ export async function addVehicleAction(fd: FormData) {
 
 export async function createEnquiryAction(fd: FormData) {
   const ctx = await requireCtx();
-  await run("/enquiries", async () => { const r = await createEnquiry(ctx, obj(fd)); return `/enquiries?ok=${encodeURIComponent(`Enquiry ${r.docNo} saved`)}`; });
+  await run(String(fd.get("$back") || "/enquiries/new"), async () => {
+    const r = await createEnquiry(ctx, obj(fd));
+    return `/enquiries/${r.id}?ok=${encodeURIComponent(`Enquiry ${r.docNo} saved`)}`;
+  });
+}
+
+export async function updateEnquiryAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const id = String(fd.get("id"));
+  await run(`/enquiries/${id}`, () => updateEnquiry(ctx, id, obj(fd)), "Enquiry saved");
 }
 
 export async function lostEnquiryAction(fd: FormData) {
   const ctx = await requireCtx();
-  await run("/enquiries", () => markEnquiryLost(ctx, String(fd.get("id")), String(fd.get("reason") || "")), "Marked lost");
+  await run(String(fd.get("$back") || "/enquiries"), () => markEnquiryLost(ctx, String(fd.get("id")), String(fd.get("reason") || "")), "Marked lost");
 }
 
-// ---------- job cards ----------
-export async function createJobAction(fd: FormData) {
-  const ctx = await requireCtx();
-  await run(String(fd.get("$back") || "/jobs/new"), async () => { const r = await createJobCard(ctx, obj(fd)); return `/jobs/${r.id}?ok=${encodeURIComponent(`Job card ${r.docNo} created`)}`; });
-}
-
+// ---------- work lines and quotations (enquiry first, job card for extra work) ----------
 export async function addLineAction(fd: FormData) {
   const ctx = await requireCtx();
-  const jobId = String(fd.get("job_id"));
-  await run(`/jobs/${jobId}`, async () => {
-    const r = await addJobLine(ctx, jobId, obj(fd));
-    return `/jobs/${jobId}?ok=${encodeURIComponent(r.belowMargin ? "Line added. Needs manager approval: price below allowed level" : "Line added")}`;
+  const f = obj(fd);
+  const back = String(fd.get("$back"));
+  await run(back, async () => {
+    const r = f.owner_kind === "job" ? await addJobLine(ctx, f.owner_id, f) : await addEnquiryLine(ctx, f.owner_id, f);
+    return withQ(back, "ok", r.belowMargin ? "Line added. Needs manager approval: price below allowed level" : "Line added");
   });
 }
 
 export async function removeLineAction(fd: FormData) {
   const ctx = await requireCtx();
-  await run(`/jobs/${fd.get("job_id")}`, () => removeJobLine(ctx, String(fd.get("line_id"))), "Line removed");
-}
-
-export async function assignTechAction(fd: FormData) {
-  const ctx = await requireCtx();
-  await run(`/jobs/${fd.get("job_id")}`, () => assignTechnician(ctx, String(fd.get("line_id")), String(fd.get("technician_id")) || null), "Technician assigned");
-}
-
-export async function statusAction(fd: FormData) {
-  const ctx = await requireCtx();
-  const f = obj(fd);
-  await run(`/jobs/${f.job_id}`, () => changeStatus(ctx, f.job_id, f.to, f), "Status updated");
+  await run(String(fd.get("$back")), () => removeLine(ctx, String(fd.get("line_id"))), "Line removed");
 }
 
 export async function saveQuotationAction(fd: FormData) {
   const ctx = await requireCtx();
-  const jobId = String(fd.get("job_id"));
-  await run(`/jobs/${jobId}`, async () => {
-    const r = await saveQuotation(ctx, jobId, obj(fd));
-    const msg = r.status === "pending_internal_approval" ? `Quotation ${r.docNo} saved and sent for manager approval: ${r.reasons.join("; ")}` : `Quotation ${r.docNo} saved and ready to send`;
-    return `/jobs/${jobId}?ok=${encodeURIComponent(msg)}`;
+  const back = String(fd.get("$back"));
+  await run(back, async () => {
+    const r = await saveQuotation(ctx, String(fd.get("enquiry_id")), obj(fd));
+    return withQ(back, "ok", r.status === "pending_internal_approval" ? `Quotation ${r.docNo} saved and sent for manager approval: ${r.reasons.join("; ")}` : `Quotation ${r.docNo} saved and ready to send`);
   });
 }
 
+/** Creates the customer approval link and prepares the WhatsApp text. Staff send it themselves. */
 export async function sendQuotationAction(fd: FormData) {
   const ctx = await requireCtx();
-  const qid = String(fd.get("quotation_id"));
-  const jobId = String(fd.get("job_id"));
+  const back = String(fd.get("$back"));
   const base = String(fd.get("$origin") || "http://localhost:3000");
-  await run(`/jobs/${jobId}`, async () => {
-    const { token } = await sendQuotation(ctx, qid);
-    const link = `${base}/q/${token}`;
-    const amount = String(fd.get("amount") || "");
-    const wa = await whatsappForJob(ctx, jobId, "quotation_for_approval", { link, doc_no: String(fd.get("doc_no")), amount });
-    return `/jobs/${jobId}?ok=${encodeURIComponent("Quotation sent. Open WhatsApp to deliver the link.")}&wa=${encodeURIComponent(wa.url)}`;
+  await run(back, async () => {
+    const { token, enquiryId, jobId } = await sendQuotation(ctx, String(fd.get("quotation_id")));
+    const msg = await prepareMessage(ctx, jobId ? { jobId } : { enquiryId }, "quotation_for_approval",
+      { link: `${base}/q/${token}`, doc_no: String(fd.get("doc_no")), amount: String(fd.get("amount") || "") });
+    return withQ(back, "msg", msg.id);
   });
 }
 
@@ -150,7 +144,7 @@ export async function staffDecisionAction(fd: FormData) {
   const ctx = await requireCtx();
   const f = obj(fd);
   const decisions = Object.fromEntries(Object.entries(f).filter(([k]) => k.startsWith("d_")).map(([k, v]) => [k.slice(2), v as "approved" | "declined"]));
-  await run(`/jobs/${f.job_id}`, async () => { await recordDecisionsByStaff(ctx, f.quotation_id, decisions, f.channel as "in_person", f.note || null); }, "Customer decision recorded");
+  await run(String(fd.get("$back")), async () => { await recordDecisionsByStaff(ctx, f.quotation_id, decisions, f.channel as "in_person", f.note || null); }, "Customer decision recorded");
 }
 
 export async function publicDecisionAction(fd: FormData) {
@@ -165,14 +159,48 @@ export async function publicDecisionAction(fd: FormData) {
   redirect(target);
 }
 
-export async function whatsappAction(fd: FormData) {
+// ---------- job cards (only from an approved quotation) ----------
+export async function createJobAction(fd: FormData) {
   const ctx = await requireCtx();
-  const jobId = String(fd.get("job_id"));
-  await run(`/jobs/${jobId}`, async () => {
-    const wa = await whatsappForJob(ctx, jobId, String(fd.get("event")));
-    return `/jobs/${jobId}?wa=${encodeURIComponent(wa.url)}`;
+  const enquiryId = String(fd.get("enquiry_id"));
+  await run(`/enquiries/${enquiryId}`, async () => {
+    const r = await createJobCard(ctx, enquiryId, obj(fd));
+    return `/jobs/${r.id}?ok=${encodeURIComponent(`Job card ${r.docNo} created from the approved quotation${r.backOrdered ? ". A part is back-ordered" : ""}`)}`;
   });
 }
+
+export async function assignTechAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run(`/jobs/${fd.get("job_id")}`, () => assignTechnician(ctx, String(fd.get("line_id")), String(fd.get("technician_id")) || null), "Technician assigned");
+}
+
+export async function statusAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const f = obj(fd);
+  await run(`/jobs/${f.job_id}`, () => changeStatus(ctx, f.job_id, f.to, f), "Status updated");
+}
+
+// ---------- manual messages ----------
+export async function whatsappAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const back = String(fd.get("$back"));
+  const jobId = optional(fd, "job_id");
+  const enquiryId = optional(fd, "enquiry_id");
+  await run(back, async () => {
+    const msg = await prepareMessage(ctx, jobId ? { jobId } : { enquiryId: enquiryId! }, String(fd.get("event")));
+    return withQ(back, "msg", msg.id);
+  });
+}
+
+export async function confirmMessageAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const u = new URL(String(fd.get("$back")), "http://local");
+  u.searchParams.delete("msg"); u.searchParams.delete("ok"); u.searchParams.delete("err");
+  const back = u.pathname + u.search;
+  await run(back, () => confirmMessageSent(ctx, String(fd.get("id"))), "Message marked as sent");
+}
+
+const optional = (fd: FormData, k: string) => (fd.get(k) ? String(fd.get(k)) : null);
 
 // ---------- approvals ----------
 export async function approvalAction(fd: FormData) {
@@ -264,4 +292,18 @@ export async function workflowToggleAction(fd: FormData) {
 export async function stepAction(fd: FormData) {
   const ctx = await requireCtx();
   await run("/admin/workflows", () => admin.saveStepLimits(ctx, String(fd.get("id")), obj(fd)), "Step saved");
+}
+
+// ---------- master forms ----------
+export async function saveMasterAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const key = String(fd.get("$master"));
+  const editKey = fd.get("$key") ? String(fd.get("$key")) : null;
+  const back = editKey ? `/admin/masters/${key}?edit=${encodeURIComponent(editKey)}` : `/admin/masters/${key}`;
+  await run(back, async () => { await saveMaster(ctx, key, obj(fd), editKey); return `/admin/masters/${key}?ok=Saved`; });
+}
+export async function masterActiveAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const key = String(fd.get("$master"));
+  await run(`/admin/masters/${key}`, () => setMasterActive(ctx, key, String(fd.get("$key")), fd.get("active") === "true"), "Updated");
 }

@@ -25,7 +25,8 @@ export async function dashboard(ctx: Ctx, scope: "current" | "all") {
       `SELECT j.id, j.doc_no, j.status, j.promised_at, br.code FROM job_card j JOIN branch br ON br.id = j.branch_id
         WHERE ($1::uuid IS NULL OR j.branch_id = $1) AND j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled') ORDER BY j.promised_at LIMIT 10`, [b])).rows;
     const enq = (await c.query(
-      `SELECT count(*) FILTER (WHERE status = 'open') open, count(*) FILTER (WHERE status = 'open' AND follow_up_at < now()) overdue FROM enquiry WHERE ($1::uuid IS NULL OR branch_id = $1)`, [b])).rows[0];
+      `SELECT count(*) FILTER (WHERE status IN ('open','booked')) open, count(*) FILTER (WHERE status IN ('open','booked','quoted') AND follow_up_at < now()) overdue,
+              count(*) FILTER (WHERE status = 'quoted') quoted, count(*) FILTER (WHERE status = 'approved') approved FROM enquiry WHERE ($1::uuid IS NULL OR branch_id = $1)`, [b])).rows[0];
     const sales = (await c.query(
       `SELECT coalesce(sum(taxable_total),0) net, coalesce(sum(grand_total - paid_amount),0) open FROM sales_invoice WHERE ($1::uuid IS NULL OR branch_id = $1) AND doc_date = (now() AT TIME ZONE 'Asia/Dubai')::date`, [b])).rows[0];
     return { byStatus, late, enq, sales };
