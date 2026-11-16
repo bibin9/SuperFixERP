@@ -208,8 +208,8 @@ SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
 -- Message templates (WA-03)
 INSERT INTO message_template (event, language, body) VALUES
  ('enquiry_reply','en','Dear {title} {name}, thank you for contacting Superfix {branch} about {plate}. Your enquiry number is {job_no}. We will send your quotation shortly.'),
- ('quotation_for_approval','en','Dear {title} {name}, your quotation {doc_no} for {plate} at Superfix {branch} is ready. Total AED {amount} incl. VAT. Please review and approve here: {link}'),
- ('quotation_for_approval','ar','عزيزي {title} {name}، عرض السعر {doc_no} لسيارتك {plate} جاهز. الإجمالي {amount} درهم شامل الضريبة. للموافقة: {link}'),
+ ('quotation_for_approval','en','Dear {title} {name}, your quotation {doc_no} for {plate} at Superfix {branch} is ready. Total AED {amount} incl. VAT. Tap this link to see each item and approve or decline it: {link} Or reply YES to approve everything. We start work only after your approval.'),
+ ('quotation_for_approval','ar','عزيزي {title} {name}، عرض السعر {doc_no} لسيارتك {plate} جاهز. الإجمالي {amount} درهم شامل الضريبة. اضغط على الرابط لمراجعة كل بند والموافقة عليه أو رفضه: {link} أو أرسل نعم للموافقة على الكل. نبدأ العمل فقط بعد موافقتك.'),
  ('approved','en','Dear {title} {name}, thank you. Work on {plate} (job {job_no}) is approved and has started at Superfix {branch}.'),
  ('car_ready','en','Dear {title} {name}, your vehicle {plate} (job {job_no}) is ready for collection at Superfix {branch}.'),
  ('invoice','en','Dear {title} {name}, invoice {doc_no} for job {job_no}: AED {amount} incl. VAT. Thank you for choosing Superfix {branch}.');

@@ -136,6 +136,25 @@ test("phone approval needs a note (QT-02)", async () => {
   await rejects(recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "phone", null), "validation");
 });
 
+test("a YES typed in WhatsApp is recorded by the advisor as a WhatsApp reply, with the customer's words; staff cannot pose as the link", async () => {
+  const { ctx: priya, enqId } = await newEnquiry();
+  await addEnquiryLine(priya, enqId, { line_type: "labour", service_id: svc["DIAG"] });
+  const q = await saveQuotation(priya, enqId, {});
+  await sendQuotation(priya, q.id);
+  const ls = await qLines(q.id);
+  await rejects(recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "whatsapp_reply", null), "validation");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await rejects(recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "whatsapp_link" as any, null), "validation");
+  const line = async () => (await adminQuery("SELECT decision, decision_channel, decision_note FROM quotation_line WHERE id = $1", [ls[0].id]))[0];
+  assert.equal((await line()).decision, "pending");
+  await recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "whatsapp_reply", "YES (16/11 19:30)");
+  const l = await line();
+  assert.equal(l.decision, "approved");
+  assert.equal(l.decision_channel, "whatsapp_reply");
+  assert.equal(l.decision_note, "YES (16/11 19:30)");
+  assert.equal((await adminQuery("SELECT status FROM enquiry WHERE id = $1", [enqId]))[0].status, "approved");
+});
+
 test("full job to invoice to payment: VAT, ceiling, balanced books, idempotency and no double billing", async () => {
   const priya = await ctxFor("priya", "YAS");
   const job = await id("job_card", "doc_no = $1", ["YAS-1483"]); // seeded: approved, parts issued, Ready

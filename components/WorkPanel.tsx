@@ -93,7 +93,7 @@ export function QuotationPanel(p: {
                 <tr key={l.id}><td>{l.line_no}</td><td>{l.description}</td><td className="num">{D(l.qty).toString()}</td><td className="num"><Money v={l.gross_amount} /></td>
                   <td className="num">{"line_discount" in l ? <Money v={D(l.line_discount).plus(l.doc_discount_share).toFixed(2)} /> : "—"}</td>
                   <td className="num"><Money v={l.taxable_amount} /></td><td className="num"><Money v={l.vat_amount} /></td><td className="num"><Money v={l.line_total} /></td>
-                  <td><Status s={l.decision} /> <span className="small muted">{l.decision_channel?.replace("_", " ")}</span></td></tr>
+                  <td><Status s={l.decision} /> <span className="small muted">{({ whatsapp_link: "customer link", whatsapp_reply: "WhatsApp reply", in_person: "in person" } as Record<string, string>)[l.decision_channel] ?? l.decision_channel ?? ""}</span></td></tr>
               ))}</tbody>
             </table>
           )}
@@ -108,15 +108,16 @@ export function QuotationPanel(p: {
           )}
           {p.canEdit && q.status === "sent" && (
             <form action={staffDecisionAction} style={{ marginTop: 12 }}>
-              <h3>Record the customer&apos;s answer given in person, by phone or by email</h3>
+              <h3>Record the customer&apos;s answer given in person, by phone, by email or as a WhatsApp reply</h3>
               <input type="hidden" name="quotation_id" value={q.id} /><input type="hidden" name="$back" value={p.back} />
               <table><tbody>{p.quotationLines.filter((l) => l.decision === "pending").map((l) => (
                 <tr key={l.id}><td>{l.description}</td><td style={{ whiteSpace: "nowrap" }}>
                   <label className="inline"><input type="radio" name={`d_${l.id}`} value="approved" defaultChecked /> Approve</label>{"  "}
                   <label className="inline"><input type="radio" name={`d_${l.id}`} value="declined" /> Decline</label></td></tr>
               ))}</tbody></table>
-              <div className="row"><select name="channel"><option value="in_person">In person</option><option value="phone">Phone</option><option value="email">Email</option></select>
-                <input name="note" placeholder="Note (required for phone)" /><button className="btn green shrink">Record answer</button></div>
+              <div className="row"><select name="channel"><option value="in_person">In person</option><option value="phone">Phone</option><option value="email">Email</option><option value="whatsapp_reply">WhatsApp reply</option></select>
+                <input name="note" placeholder="Note (required for phone or WhatsApp reply)" /><button className="btn green shrink">Record answer</button></div>
+              <p className="small muted">If the customer approved through the link, there is nothing to do here: the answer appears on its own. If they replied YES in WhatsApp instead, choose WhatsApp reply and paste what they wrote into the note.</p>
             </form>
           )}
         </>

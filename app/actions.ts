@@ -8,7 +8,7 @@ import { login, logout, switchBranch, disableUser } from "@/lib/services/auth";
 import { createCustomer, updateCustomer, createVehicle } from "@/lib/services/customers";
 import { addJobLine, addEnquiryLine, removeLine, changeStatus, assignTechnician } from "@/lib/services/jobs";
 import { createEnquiry, updateEnquiry, markEnquiryLost, createJobCard } from "@/lib/services/enquiries";
-import { saveQuotation, sendQuotation, recordDecisionsByStaff, submitPublicDecisions } from "@/lib/services/quotations";
+import { saveQuotation, sendQuotation, recordDecisionsByStaff, submitPublicDecisions, type StaffChannel } from "@/lib/services/quotations";
 import { act } from "@/lib/services/workflow";
 import { receiveStock, issueToJobLine } from "@/lib/services/stock";
 import { postInvoice, recordReceipt } from "@/lib/services/billing";
@@ -144,7 +144,7 @@ export async function staffDecisionAction(fd: FormData) {
   const ctx = await requireCtx();
   const f = obj(fd);
   const decisions = Object.fromEntries(Object.entries(f).filter(([k]) => k.startsWith("d_")).map(([k, v]) => [k.slice(2), v as "approved" | "declined"]));
-  await run(String(fd.get("$back")), async () => { await recordDecisionsByStaff(ctx, f.quotation_id, decisions, f.channel as "in_person", f.note || null); }, "Customer decision recorded");
+  await run(String(fd.get("$back")), async () => { await recordDecisionsByStaff(ctx, f.quotation_id, decisions, f.channel as StaffChannel, f.note || null); }, "Customer decision recorded");
 }
 
 export async function publicDecisionAction(fd: FormData) {

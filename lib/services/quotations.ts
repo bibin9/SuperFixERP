@@ -161,6 +161,7 @@ async function applyDecisions(c: PoolClient, actorId: string | null, qid: string
   if (qt.status !== "sent") throw conflict("This quotation is no longer waiting for the customer's answer.");
   if (qt.valid_until < today()) throw invalid("This quotation has expired.");
   if (channel === "phone" && !note) throw invalid("A phone approval needs a note.");
+  if (channel === "whatsapp_reply" && !note) throw invalid("A WhatsApp reply needs a note of what the customer wrote.");
   const enq = (await c.query("SELECT * FROM enquiry WHERE id = $1 FOR UPDATE", [qt.enquiry_id])).rows[0];
   const job = qt.job_card_id ? (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [qt.job_card_id])).rows[0] : null;
   const lines = (await c.query("SELECT * FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [qid])).rows;
@@ -200,8 +201,13 @@ async function applyDecisions(c: PoolClient, actorId: string | null, qid: string
   return { status, enquiryId: enq.id as string, jobId: qt.job_card_id as string | null };
 }
 
-/** Advisor records an approval given in person, by phone or by email (QT-02). */
-export async function recordDecisionsByStaff(ctx: Ctx, qid: string, decisions: Decisions, channel: "in_person" | "phone" | "email", note: string | null) {
+export const STAFF_CHANNELS = ["in_person", "phone", "email", "whatsapp_reply"] as const;
+export type StaffChannel = (typeof STAFF_CHANNELS)[number];
+
+/** Advisor records an answer given in person, by phone, by email or as a typed WhatsApp reply (QT-02). */
+export async function recordDecisionsByStaff(ctx: Ctx, qid: string, decisions: Decisions, channel: StaffChannel, note: string | null) {
+  // Staff can never record a decision as if the customer used the approval link themselves.
+  if (!(STAFF_CHANNELS as readonly string[]).includes(channel)) throw invalid("Choose how the customer gave the answer.");
   return withTx(ctx, async (c) => {
     const q = await c.query("SELECT branch_id FROM quotation WHERE id = $1", [qid]);
     if (!q.rowCount) throw notFound("Quotation");
