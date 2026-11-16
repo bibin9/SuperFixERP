@@ -1,0 +1,46 @@
+import { requireCtx } from "@/lib/session";
+import { stockList } from "@/lib/services/stock";
+import { masters } from "@/lib/services/masters";
+import { can, canSee } from "@/lib/access";
+import { receiveStockAction } from "@/app/actions";
+import { Flash, Money, PageHead } from "@/components/ui";
+import { D } from "@/lib/money";
+
+export default async function Stock({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+  const ctx = await requireCtx();
+  const sp = await searchParams;
+  const rows = await stockList(ctx, sp.q ?? "");
+  const m = await masters(ctx);
+  const cost = canSee(ctx, "purchase_cost");
+  return (
+    <>
+      <PageHead title="Stock by branch" sub="Quantities at every branch are visible to all branches; cost and value only for your own branches with cost access (BR-03)." />
+      <Flash sp={sp} />
+      {can(ctx, "stock", "create") && (
+        <div className="card"><h2>Receive stock at this branch</h2>
+          <form action={receiveStockAction} className="row">
+            <div className="field"><label>Item</label><select name="item_id">{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select></div>
+            <div className="field"><label>Quantity</label><input name="qty" required /></div>
+            <div className="field"><label>Unit cost (AED)</label><input name="unit_cost" required /></div>
+            <div className="field"><label>Type</label><select name="kind"><option value="receipt">Receipt (before supplier bill)</option><option value="opening">Opening stock</option></select></div>
+            <div className="field"><label>Reference</label><input name="ref" placeholder="GRN / delivery note" /></div>
+            <div className="shrink"><button className="btn">Receive</button></div>
+          </form>
+          <p className="small muted">Received quantity goes first to jobs waiting for this part (PC-08). Full purchasing (PO, GRN, supplier bill) is phase 2 work still to build.</p>
+        </div>
+      )}
+      <div className="card">
+        <form className="row" style={{ marginBottom: 10 }}><input name="q" defaultValue={sp.q} placeholder="Part no. or description" /><button className="btn ghost shrink">Filter</button></form>
+        <table>
+          <thead><tr><th>Part</th><th>Branch</th><th className="num">On hand</th><th className="num">Committed</th><th className="num">Free</th>{cost && <th className="num">Avg cost</th>}{cost && <th className="num">Value</th>}</tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.item_id + r.branch_code}><td>{r.part_no}<div className="small muted">{r.description}</div></td><td>{r.branch_code}</td>
+              <td className="num">{D(r.on_hand).toString()}</td><td className="num">{D(r.committed).toString()}</td><td className="num"><b>{D(r.free).toString()}</b></td>
+              {cost && <td className="num">{"avg_cost" in r ? <Money v={r.avg_cost} /> : <span className="muted">—</span>}</td>}
+              {cost && <td className="num">{"stock_value" in r ? <Money v={r.stock_value} /> : <span className="muted">—</span>}</td>}</tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </>
+  );
+}
