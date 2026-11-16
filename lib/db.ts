@@ -46,7 +46,7 @@ async function run<T>(setup: (c: PoolClient) => Promise<void>, fn: (c: PoolClien
 export function withTx<T>(ctx: Ctx, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   return run(async (c) => {
     await c.query(
-      "SELECT set_config('app.user_id', $1, true), set_config('app.branch_ids', $2, true), set_config('app.all_branches', $3, true)",
+      "SELECT set_config('app.user_id', $1, true), set_config('app.branch_ids', $2, true), set_config('app.all_branches', $3, true), set_config('TimeZone', 'Asia/Dubai', true)",
       [ctx.userId, ctx.branchIds.join(","), ctx.allBranches ? "on" : "off"],
     );
   }, fn);
@@ -54,7 +54,7 @@ export function withTx<T>(ctx: Ctx, fn: (c: PoolClient) => Promise<T>): Promise<
 
 /** No user context: only shared, non-branch tables are visible (sign-in, sessions). */
 export function withAnonTx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
-  return run(async () => {}, fn);
+  return run(async (c) => { await c.query("SELECT set_config('TimeZone', 'Asia/Dubai', true)"); }, fn);
 }
 
 /**
@@ -64,7 +64,7 @@ export function withAnonTx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
 export function withBranchSystemTx<T>(branchId: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   return run(async (c) => {
     await c.query(
-      "SELECT set_config('app.user_id', '00000000-0000-0000-0000-000000000000', true), set_config('app.branch_ids', $1, true), set_config('app.all_branches', 'off', true)",
+      "SELECT set_config('app.user_id', '00000000-0000-0000-0000-000000000000', true), set_config('app.branch_ids', $1, true), set_config('app.all_branches', 'off', true), set_config('TimeZone', 'Asia/Dubai', true)",
       [branchId],
     );
   }, fn);

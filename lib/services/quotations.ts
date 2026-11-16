@@ -7,7 +7,7 @@ import { audit } from "./audit";
 import { getSetting } from "./settings";
 import { submitForApproval, registerHandler } from "./workflow";
 import { calcDocument, D, Decimal } from "../money";
-import { commitForLine, releaseCommitment, today } from "./stock";
+import { addDaysLocal, commitForLine, releaseCommitment, today } from "./stock";
 import { setStatus, ENQUIRY_QUOTABLE, JOB_EDITABLE } from "./jobs";
 import { optInt, str } from "../validate";
 
@@ -90,14 +90,14 @@ export async function saveQuotation(ctx: Ctx, enquiryId: string, f: { doc_discou
     await c.query("UPDATE approval_request SET status = 'recalled', decided_at = now() WHERE doc_type = 'discount' AND status = 'pending' AND doc_id IN (SELECT id FROM quotation WHERE enquiry_id = $1)", [enquiryId]);
     const rev = (await c.query("SELECT coalesce(max(revision),0)+1 r FROM quotation WHERE enquiry_id = $1", [enquiryId])).rows[0].r;
     const validDays = optInt(f.valid_days, "Validity days", 1, 90) ?? Number(await getSetting(c, "quotation.validity_days", job.branch_id, 7));
-    const validUntil = new Date(Date.now() + validDays * 86400_000);
+    const validUntil = addDaysLocal(validDays);
     const docNo = quoteNo(enq.doc_no, rev);
     const approvedTotal = kept.reduce((s, x) => s.plus(x.total), D(0));
     const q = await c.query(
       `INSERT INTO quotation (branch_id, enquiry_id, job_card_id, revision, doc_no, status, valid_until, doc_discount_amount, gross_amount, discount_total, taxable_total, vat_total, grand_total,
                               approved_total, needs_internal_approval, internal_approval_reason, terms, created_by, updated_by)
        VALUES ($1,$17,$2,$3,$4,'draft',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16) RETURNING id`,
-      [job.branch_id, jobId, rev, docNo, validUntil.toISOString().slice(0, 10), docDiscount.toFixed(2), calc.gross.toFixed(2), calc.discount.toFixed(2),
+      [job.branch_id, jobId, rev, docNo, validUntil, docDiscount.toFixed(2), calc.gross.toFixed(2), calc.discount.toFixed(2),
         calc.taxable.toFixed(2), calc.vat.toFixed(2), calc.total.toFixed(2), approvedTotal.toFixed(2), reasons.length > 0, reasons.join("; ") || null, str(f.terms) || null, ctx.userId, enquiryId]);
     const qid = q.rows[0].id;
     for (const [i, x] of calc.lines.entries()) {

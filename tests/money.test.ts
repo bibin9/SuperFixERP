@@ -50,3 +50,13 @@ test("discount percent per line and per document", () => {
   assert.equal(p.maxLinePct.toFixed(2), "15.00");
   assert.equal(p.docPct.toFixed(2), "10.00");
 });
+
+test("dates follow the UAE calendar: a quote saved at 01:30 Dubai time is valid for the full setting", async () => {
+  const { mock } = await import("node:test");
+  const { today, addDaysLocal } = await import("../lib/services/stock");
+  mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-16T21:30:00Z") }); // 01:30 on 17 Nov in Dubai
+  try {
+    assert.equal(today(), "2026-11-17");
+    assert.equal(addDaysLocal(10), "2026-11-27");
+  } finally { mock.timers.reset(); }
+});

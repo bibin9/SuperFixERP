@@ -10,6 +10,8 @@ import { postJournal } from "./ledger";
 /** Stock engine (M06/M07): one ledger, weighted average cost, commitments to job lines. */
 
 export const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
+/** The UAE calendar date n days from today (YYYY-MM-DD), so dates never shift between midnight and 4 am. */
+export const addDaysLocal = (n: number) => { const d = new Date(today() + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 async function lockBalance(c: PoolClient, itemId: string, branchId: string) {
   await c.query("INSERT INTO stock_balance (item_id, branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [itemId, branchId]);

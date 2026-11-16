@@ -8,7 +8,7 @@ import { nextDocNo } from "./numbering";
 import { postJournal } from "./ledger";
 import { setStatus } from "./jobs";
 import { D, parseDec } from "../money";
-import { today } from "./stock";
+import { today, addDaysLocal } from "./stock";
 import { str } from "../validate";
 
 /** M11 tax invoices from job cards and receipts with bill-by-bill allocation. */
@@ -79,7 +79,7 @@ export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: strin
     const cust = (await c.query("SELECT * FROM customer WHERE id = $1", [job.customer_id])).rows[0];
     const docNo = await nextDocNo(c, job.branch_id, "invoice");
     const date = today();
-    const due = new Date(Date.now() + cust.payment_terms_days * 86400_000).toISOString().slice(0, 10);
+    const due = addDaysLocal(Number(cust.payment_terms_days));
     const billTo = cust.customer_type === "individual" ? [cust.title, cust.first_name, cust.last_name].filter(Boolean).join(" ") : `M/s. ${cust.company_name}`;
     const labour = b.lines.filter((l) => l.line_type === "labour").reduce((s, l) => s.plus(l.taxable_amount), D(0));
     const other = b.taxable.minus(labour);
