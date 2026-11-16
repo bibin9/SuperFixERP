@@ -25,6 +25,20 @@ const STATUS_COLOR: Record<string, string> = {
   open: "amber", converted: "green", lost: "red", pending: "amber", rejected: "red", sent_back: "amber",
 };
 
+const WORDS: Record<string, string> = {
+  whatsapp: "WhatsApp", whatsapp_reply: "WhatsApp reply", whatsapp_link: "WhatsApp link", walk_in: "Walk-in", in_person: "In person",
+  sms: "SMS", email: "Email", lpo: "LPO", vat: "VAT", trn: "TRN", job_no: "Job number", doc_no: "Document number", max_pct: "Maximum %",
+  sent_manually: "Sent manually", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
+};
+/** Plain words for stored codes such as walk_in or whatsapp_reply. Free text is returned unchanged. */
+export const label = (v: string | null | undefined) => {
+  if (!v) return "";
+  if (WORDS[v]) return WORDS[v];
+  if (STATUS_LABEL[v]) return STATUS_LABEL[v];
+  if (!/^[a-z]+(_[a-z]+)*$/.test(v)) return v;
+  return v.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()).replace(/\bwhatsapp\b/gi, "WhatsApp");
+};
+
 export function Status({ s }: { s: string }) {
   const label = STATUS_LABEL[s] ?? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
   return <span className={`pill ${STATUS_COLOR[s] ?? ""}`}>{label}</span>;
@@ -38,12 +52,12 @@ export const custName = (r: { customer_type?: string; title?: string | null; fir
 
 export function PageHead({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
   return (
-    <div className="row" style={{ alignItems: "flex-start", marginBottom: 14 }}>
+    <div className="row" style={{ alignItems: "center", marginBottom: 14 }}>
       <div>
         <h1>{title}</h1>
         {sub && <p className="sub">{sub}</p>}
       </div>
-      <div className="shrink" style={{ display: "flex", gap: 8 }}>{children}</div>
+      <div className="shrink" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{children}</div>
     </div>
   );
 }

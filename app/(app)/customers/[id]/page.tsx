@@ -4,7 +4,7 @@ import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { CustomerForm } from "@/components/CustomerForm";
 import { addVehicleAction } from "@/app/actions";
-import { Flash, Link, PageHead, custName, plate, dt } from "@/components/ui";
+import { Flash, Link, PageHead, custName, plate, dt, label } from "@/components/ui";
 
 export default async function CustomerPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
@@ -58,7 +58,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
       </div>
       {can(ctx, "customers", "edit") && <div className="card"><h2>Details</h2><CustomerForm back={back} countries={m.countries} titles={m.titles} c={c} dups={sp.dups ? JSON.parse(sp.dups) : undefined} /></div>}
       <div className="card"><h2>Consent history (PDPL)</h2>
-        <table><tbody>{consents.map((x) => <tr key={x.id}><td>{x.consent ? "Opted in" : "Not opted in"}</td><td>{x.channel}</td><td className="muted">{dt(x.at)}</td></tr>)}</tbody></table>
+        <table><tbody>{consents.map((x) => <tr key={x.id}><td>{x.consent ? "Opted in" : "Not opted in"}</td><td>{label(x.channel)}</td><td className="muted">{dt(x.at)}</td></tr>)}</tbody></table>
       </div>
     </>
   );

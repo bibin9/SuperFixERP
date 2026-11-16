@@ -13,7 +13,7 @@ export default async function Roles({ searchParams }: { searchParams: Promise<Re
   const lvl = Object.fromEntries(fields.filter((f) => f.role_id === role.id).map((f) => [f.field_group, f.level]));
   return (
     <>
-      <PageHead title="Roles and permissions" sub="Roles are records, not code. Every change is logged with old and new values (FP-06)." />
+      <PageHead title="Roles and permissions" sub="Roles are records, not code. Every change is logged with old and new values." />
       <Flash sp={sp} />
       <div className="tabs">{roles.map((r) => <Link key={r.id} className={r.id === role.id ? "on" : ""} href={`/admin/roles?role=${r.id}`}>{r.name} ({r.holders})</Link>)}</div>
       <form action={saveMatrixAction}>
@@ -29,7 +29,7 @@ export default async function Roles({ searchParams }: { searchParams: Promise<Re
             </table>
           </div>
           <div className="card"><h2>Field permissions (who sees prices and costs)</h2>
-            <p className="small muted">Hidden fields are removed on the server before anything reaches the browser, on screens, prints, exports and approvals (FP-02).</p>
+            <p className="small muted">Hidden fields are removed on the server before anything reaches the browser, on screens, prints, exports and approvals.</p>
             <table>
               <thead><tr><th>Field group</th><th>Level</th></tr></thead>
               <tbody>{groups.map((g) => (
@@ -43,7 +43,7 @@ export default async function Roles({ searchParams }: { searchParams: Promise<Re
       </form>
       <div className="card" style={{ marginTop: 16 }}><h2>Add role</h2>
         <form action={createRoleAction} className="row"><input name="code" placeholder="code, e.g. cashier" required /><input name="name" placeholder="Name" required /><button className="btn shrink">Add role</button></form>
-        <p className="small muted">New roles start with no screens and every sensitive field hidden (FP-07).</p>
+        <p className="small muted">New roles start with no screens and every sensitive field hidden.</p>
       </div>
     </>
   );

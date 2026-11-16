@@ -7,6 +7,7 @@ import { optStr, required, optInt, str } from "../validate";
 import { commitForLine } from "./stock";
 import { history as approvalHistory } from "./workflow";
 import { ENQUIRY_QUOTABLE, LINE_FIELDS, QLINE_FIELDS, Q_FIELDS, setStatus } from "./jobs";
+import { expireQuotations } from "./quotations";
 
 /**
  * M02/M03 enquiries (CV-10). FSD v0.10 flow: enquiry, then quotation, then customer approval, then
@@ -87,14 +88,14 @@ export async function updateEnquiry(ctx: Ctx, id: string, f: Record<string, unkn
 
 export async function listEnquiries(ctx: Ctx, status = "") {
   if (!can(ctx, "customers", "view")) throw forbidden();
-  return withTx(ctx, async (c) => (await c.query(
+  return withTx(ctx, async (c) => { await expireQuotations(c); return (await c.query(
     `SELECT e.*, b.code branch_code, c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, u.full_name assigned_name,
             v.registered_in, v.plate_code, v.plate_number, v.make, v.model, j.doc_no job_no,
             (e.follow_up_at < now() AND e.status IN ('open','booked','quoted')) overdue
        FROM enquiry e JOIN branch b ON b.id = e.branch_id LEFT JOIN customer c ON c.id = e.customer_id LEFT JOIN app_user u ON u.id = e.assigned_to
        LEFT JOIN vehicle v ON v.id = e.vehicle_id LEFT JOIN job_card j ON j.id = e.converted_job_id
       WHERE ($1 = '' OR e.status = $1) AND e.doc_no NOT LIKE 'LEGACY-%' ORDER BY e.created_at DESC LIMIT 200`, [status],
-  )).rows);
+  )).rows; });
 }
 
 export async function markEnquiryLost(ctx: Ctx, id: string, reason: string) {
@@ -124,6 +125,7 @@ export async function getEnquiry(ctx: Ctx, id: string) {
       `SELECT l.*, sb.avg_cost, i.part_no, sb.on_hand - sb.committed - sb.reserved free_here
          FROM job_line l LEFT JOIN stock_balance sb ON sb.item_id = l.item_id AND sb.branch_id = l.branch_id LEFT JOIN item i ON i.id = l.item_id
         WHERE l.enquiry_id = $1 AND NOT l.removed ORDER BY l.line_no`, [id])).rows;
+    await expireQuotations(c, id);
     const quotations = (await c.query("SELECT * FROM quotation WHERE enquiry_id = $1 ORDER BY revision DESC", [id])).rows;
     const latest = quotations[0];
     const qlines = latest ? (await c.query("SELECT * FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [latest.id])).rows : [];

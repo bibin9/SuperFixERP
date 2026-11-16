@@ -6,7 +6,7 @@ import { masters } from "@/lib/services/masters";
 import { messagesFor } from "@/lib/services/messaging";
 import { can, fieldLevel } from "@/lib/access";
 import { updateEnquiryAction, lostEnquiryAction, createJobAction, whatsappAction } from "@/app/actions";
-import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
+import { Flash, Link, Money, PageHead, Status, custName, plate, dt, label } from "@/components/ui";
 import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ManualMessage } from "@/components/ManualMessage";
@@ -45,7 +45,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
 
       <div className="grid2">
         <div className="card"><h2>Customer, vehicle and check-in</h2>
-          <p className="small">Asked about: <b>{e.service_asked}</b> · source {e.source} · advisor {e.assigned_name ?? "—"} · follow up {dt(e.follow_up_at) || "—"}</p>
+          <p className="small">Asked about: <b>{e.service_asked}</b> · source {label(e.source)} · advisor {e.assigned_name ?? "—"} · follow up {dt(e.follow_up_at) || "—"}</p>
           {canEditEnq ? (
             <form action={updateEnquiryAction}>
               <input type="hidden" name="id" value={id} />
@@ -85,6 +85,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
               <button className="btn green">Create job card</button>
             </form>
           ) : e.status === "converted" ? <p>Job card <Link href={`/jobs/${e.converted_job_id}`}>{e.job_no}</Link> was created from the approved quotation.</p>
+            : e.status === "quoted" && q?.status === "expired" ? <p className="small"><b>{q?.doc_no} expired</b> without an answer from the customer. Check the work and prices below, then save a new quotation and send it again.</p>
             : e.status === "quoted" ? <p className="small">Waiting for the customer&apos;s answer on {q?.doc_no}. Record it below if they answer in person or by phone. The job card can be created once they approve.</p>
             : e.status === "lost" ? <p className="small">This enquiry is closed.</p>
             : <p className="small">{e.customer_id && e.vehicle_id ? "Add the work below, save the quotation and send it to the customer. The job card is created after the customer approves." : "Pick the customer and the vehicle, then add the work to quote."}</p>}
@@ -106,7 +107,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
 
       <div className="grid2">
         <div className="card"><h2>Approval history</h2>
-          <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{a.action.replace("_", " ")}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small muted">{dt(a.at)}</td><td className="small">{a.comment}</td></tr>)}</tbody></table>
+          <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{label(a.action)}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small muted">{dt(a.at)}</td><td className="small">{a.comment}</td></tr>)}</tbody></table>
           {!approvals.length && <p className="muted small">None.</p>}
         </div>
         <div className="card"><h2>Customer messages</h2>

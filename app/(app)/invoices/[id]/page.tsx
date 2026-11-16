@@ -4,7 +4,7 @@ import { getInvoice } from "@/lib/services/billing";
 import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { receiptAction } from "@/app/actions";
-import { Flash, Link, Money, d } from "@/components/ui";
+import { Flash, Link, Money, d, label } from "@/components/ui";
 import { D } from "@/lib/money";
 
 export default async function InvoicePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
@@ -48,7 +48,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
       </div>
       <div className="card no-print">
         <h2>Payments</h2>
-        <table><tbody>{receipts.map((r) => <tr key={r.doc_no}><td>{r.doc_no}</td><td>{r.method}</td><td>{d(r.doc_date)}</td><td className="num"><Money v={r.amount} /></td></tr>)}</tbody></table>
+        <table><tbody>{receipts.map((r) => <tr key={r.doc_no}><td>{r.doc_no}</td><td>{label(r.method)}</td><td>{d(r.doc_date)}</td><td className="num"><Money v={r.amount} /></td></tr>)}</tbody></table>
         {can(ctx, "invoices", "create", i.branch_id) && open.gt(0) && (
           <form action={receiptAction} className="row" style={{ marginTop: 10 }}>
             <input type="hidden" name="invoice_id" value={id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />

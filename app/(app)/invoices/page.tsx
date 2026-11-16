@@ -10,7 +10,7 @@ export default async function Invoices() {
   const rows = await listInvoices(ctx);
   return (
     <>
-      <PageHead title="Tax invoices" sub="Posted invoices in your branches. Posted invoices are never edited or deleted (IV-05)." />
+      <PageHead title="Tax invoices" sub="Posted invoices in your branches. Posted invoices are never edited or deleted." />
       <div className="card">
         <table>
           <thead><tr><th>Invoice</th><th>Date</th><th>Branch</th><th>Bill to</th><th className="num">Total</th><th className="num">Open</th></tr></thead>

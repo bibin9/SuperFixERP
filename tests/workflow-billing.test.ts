@@ -6,7 +6,7 @@ import { resetTestDb, adminQuery, id } from "./helpers";
 import { closePool } from "../lib/db";
 import { ctxFor } from "../lib/ctx-helper";
 import { addEnquiryLine, addJobLine, changeStatus } from "../lib/services/jobs";
-import { createEnquiry, createJobCard, updateEnquiry } from "../lib/services/enquiries";
+import { createEnquiry, createJobCard, updateEnquiry, getEnquiry } from "../lib/services/enquiries";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff, getPublicQuotation, submitPublicDecisions } from "../lib/services/quotations";
 import { inbox, act } from "../lib/services/workflow";
 import { receiveStock, issueToJobLine } from "../lib/services/stock";
@@ -298,4 +298,16 @@ test("the job card odometer cannot be lower than the reading taken at check-in",
   await recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "in_person", null);
   await rejects(createJobCard(priya, enqId, { odometer_in: String(odo - 500) }), "validation");
   assert.ok((await createJobCard(priya, enqId, { odometer_in: String(odo) })).id);
+});
+
+test("a sent quotation past its validity shows as Expired to staff and can no longer be approved (QT expiry)", async () => {
+  const { ctx: priya, enqId } = await newEnquiry();
+  await addEnquiryLine(priya, enqId, { line_type: "labour", service_id: svc["DIAG"] });
+  const q = await saveQuotation(priya, enqId, {});
+  await sendQuotation(priya, q.id);
+  await adminQuery("UPDATE quotation SET valid_until = current_date - 1 WHERE id = $1", [q.id]);
+  const view = await getEnquiry(priya, enqId);
+  assert.equal(view.quotations[0].status, "expired");
+  const ls = await qLines(q.id);
+  await rejects(recordDecisionsByStaff(priya, q.id, { [ls[0].id]: "approved" }, "in_person", null), "conflict");
 });

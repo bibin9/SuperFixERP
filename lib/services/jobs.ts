@@ -88,6 +88,7 @@ export async function getJob(ctx: Ctx, id: string) {
          LEFT JOIN app_user u ON u.id = l.technician_id LEFT JOIN item i ON i.id = l.item_id
          LEFT JOIN stock_commitment sc ON sc.job_line_id = l.id AND sc.status = 'active'
         WHERE l.job_card_id = $1 AND NOT l.removed ORDER BY l.line_no`, [id])).rows;
+    await c.query("UPDATE quotation SET status = 'expired', updated_at = now(), version = version + 1 WHERE job_card_id = $1 AND status IN ('draft','pending_internal_approval','ready_to_send','sent') AND valid_until < current_date", [id]);
     const quotations = (await c.query("SELECT * FROM quotation WHERE job_card_id = $1 ORDER BY revision DESC", [id])).rows;
     const latest = quotations[0];
     const qlines = latest ? (await c.query("SELECT * FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [latest.id])).rows : [];

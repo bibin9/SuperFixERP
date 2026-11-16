@@ -103,7 +103,7 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('discount.max_pct.foreman','0','Discounts','Max discount % for a foreman'),
  ('discount.max_pct.branch_manager','25','Discounts','Max discount % for a branch manager'),
  ('discount.max_pct.owner','100','Discounts','Max discount % for the owner'),
- ('pricing.min_margin_pct','10','Pricing','Minimum margin %; below it a price needs manager approval (FP-05)'),
+ ('pricing.min_margin_pct','10','Pricing','Minimum margin %; below it a price needs manager approval'),
  ('tax.default_code','"SR"','Tax','Tax code used for outside work and any line whose master has none'),
  ('quotation.validity_days','7','Quotations','Default quotation validity in days'),
  ('quotation.deferred_follow_up_days','30','Quotations','Follow-up date for declined (deferred) work'),

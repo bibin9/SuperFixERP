@@ -248,7 +248,7 @@ export async function submitPublicDecisions(token: string, decisions: Decisions)
 }
 
 /** QT expiry: open quotations past their validity become Expired. Nothing is committed before approval. */
-export async function expireQuotations(c: PoolClient) {
-  const r = await c.query("UPDATE quotation SET status = 'expired', version = version + 1 WHERE status IN ('draft','pending_internal_approval','ready_to_send','sent') AND valid_until < current_date RETURNING id");
+export async function expireQuotations(c: PoolClient, enquiryId: string | null = null) {
+  const r = await c.query("UPDATE quotation SET status = 'expired', updated_at = now(), version = version + 1 WHERE status IN ('draft','pending_internal_approval','ready_to_send','sent') AND valid_until < current_date AND ($1::uuid IS NULL OR enquiry_id = $1) RETURNING id", [enquiryId]);
   return r.rowCount;
 }

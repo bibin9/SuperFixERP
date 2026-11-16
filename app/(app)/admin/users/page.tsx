@@ -10,7 +10,7 @@ export default async function Users({ searchParams }: { searchParams: Promise<Re
   const [users, branches, { roles }] = await Promise.all([listUsers(ctx), listBranches(ctx), listRoles(ctx)]);
   return (
     <>
-      <PageHead title="Users and access" sub="Each user holds one role per branch. ALL gives every branch (owner, head office). Disable user removes all access at once (BR-08)." />
+      <PageHead title="Users and access" sub="Each user holds one role per branch. ALL gives every branch (owner, head office). Disable user removes all access at once." />
       <Flash sp={sp} />
       <div className="card"><h2>New user</h2>
         <form action={createUserAction} className="row">

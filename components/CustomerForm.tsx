@@ -1,9 +1,17 @@
+"use client";
+import { useState } from "react";
 import { saveCustomerAction } from "@/app/actions";
 
 type Opt = { code: string; name: string; id_types?: string[] };
 
 export function CustomerForm({ back, countries, titles, c, dups }: { back: string; countries: Opt[]; titles: { code: string; name_en: string }[]; c?: Record<string, any>; dups?: { kind: string; id: string; label: string }[] }) {
   const v = (k: string) => (c?.[k] ?? "") as string;
+  const [ctype, setCtype] = useState<string>(v("customer_type") || "individual");
+  const [country, setCountry] = useState<string>(v("country_code") || "AE");
+  const isPerson = ctype === "individual";
+  const idTypes = countries.find((x) => x.code === country)?.id_types ?? [];
+  const savedId = v("id_type");
+  const idOptions = savedId && !idTypes.includes(savedId) ? [...idTypes, savedId] : idTypes;
   return (
     <form action={saveCustomerAction}>
       <input type="hidden" name="$back" value={back} />
@@ -13,32 +21,35 @@ export function CustomerForm({ back, countries, titles, c, dups }: { back: strin
       {dups && dups.length > 0 && (
         <div className="flash warn">
           <b>Possible duplicate found in another record:</b>
-          <ul>{dups.map((d) => <li key={d.id}>{d.kind}: <a href={`/customers/${d.id}`}>{d.label}</a> (use this one)</li>)}</ul>
+          <ul>{dups.map((d) => <li key={d.id}>Same {({ mobile: "mobile", vin: "VIN", plate: "plate" } as Record<string, string>)[d.kind] ?? d.kind}: <a href={`/customers/${d.id}`}>{d.label}</a> (use this one)</li>)}</ul>
           To save as new anyway, give a reason (for example, family members share a phone):
           <input name="duplicate_reason" required style={{ marginTop: 6 }} />
         </div>
       )}
       <div className="row">
         <div className="field"><label>Customer type</label>
-          <select name="customer_type" defaultValue={v("customer_type") || "individual"}>
+          <select name="customer_type" value={ctype} onChange={(e) => setCtype(e.target.value)}>
             <option value="individual">Individual</option><option value="corporate">Corporate / fleet</option><option value="government">Government</option>
           </select></div>
         <div className="field"><label>Country</label>
-          <select name="country_code" defaultValue={v("country_code") || "AE"}>{countries.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
+          <select name="country_code" value={country} onChange={(e) => setCountry(e.target.value)}>{countries.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
         <div className="field"><label>Mobile (with or without country code)</label><input name="mobile" defaultValue={v("mobile")} required placeholder="050 123 4567" /></div>
       </div>
       <div className="row">
-        <div className="field shrink" style={{ minWidth: 110 }}><label>Title (individuals)</label>
-          <select name="title" defaultValue={v("title")}><option value="">—</option>{titles.map((t) => <option key={t.code} value={t.code}>{t.name_en}</option>)}</select></div>
-        <div className="field"><label>First name</label><input name="first_name" defaultValue={v("first_name")} /></div>
-        <div className="field"><label>Last name</label><input name="last_name" defaultValue={v("last_name")} /></div>
-        <div className="field"><label>Company name (companies)</label><input name="company_name" defaultValue={v("company_name")} /></div>
+        {isPerson ? (<>
+          <div className="field shrink" style={{ minWidth: 110 }}><label>Title</label>
+            <select name="title" defaultValue={v("title")}><option value="">—</option>{titles.map((t) => <option key={t.code} value={t.code}>{t.name_en}</option>)}</select></div>
+          <div className="field"><label>First name</label><input name="first_name" defaultValue={v("first_name")} required /></div>
+          <div className="field"><label>Last name</label><input name="last_name" defaultValue={v("last_name")} /></div>
+        </>) : (<>
+          <div className="field"><label>Company name</label><input name="company_name" defaultValue={v("company_name")} required /></div>
+        </>)}
       </div>
       <div className="row">
         <div className="field"><label>Name in Arabic</label><input name="name_ar" dir="rtl" defaultValue={v("name_ar")} /></div>
         <div className="field"><label>Email</label><input name="email" type="email" defaultValue={v("email")} /></div>
         <div className="field"><label>ID type</label>
-          <select name="id_type" defaultValue={v("id_type")}><option value="">—</option>{[...new Set(countries.flatMap((x) => x.id_types ?? []))].map((t) => <option key={t}>{t}</option>)}</select></div>
+          <select name="id_type" key={country} defaultValue={idOptions.includes(savedId) ? savedId : ""}><option value="">—</option>{idOptions.map((t) => <option key={t}>{t}</option>)}</select></div>
         <div className="field"><label>ID number</label><input name="id_number" defaultValue={v("id_number")} /></div>
       </div>
       <div className="row">

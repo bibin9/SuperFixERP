@@ -1,6 +1,6 @@
 import { requireCtx } from "@/lib/session";
 import { auditLog, loginEvents } from "@/lib/services/admin";
-import { PageHead, dt } from "@/components/ui";
+import { PageHead, dt, label } from "@/components/ui";
 
 export default async function Audit({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
@@ -13,19 +13,19 @@ export default async function Audit({ searchParams }: { searchParams: Promise<Re
         <form className="row" style={{ marginBottom: 8 }}><input name="entity" defaultValue={sp.entity} placeholder="Record type, e.g. quotation" /><input name="user" defaultValue={sp.user} placeholder="User name" /><input name="action" defaultValue={sp.action} placeholder="Action" /><button className="btn ghost shrink">Filter</button></form>
         <table>
           <thead><tr><th>When</th><th>User</th><th>Branch</th><th>Record</th><th>Action</th><th>Changes</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.id}><td className="small">{dt(r.at)}</td><td>{r.full_name ?? "system"}</td><td>{r.branch_code}</td><td className="small">{r.entity}</td><td>{r.action}</td>
+          <tbody>{rows.map((r) => <tr key={r.id}><td className="small">{dt(r.at)}</td><td>{r.full_name ?? "system"}</td><td>{r.branch_code}</td><td className="small">{label(r.entity)}</td><td>{label(r.action)}</td>
             <td className="small" style={{ maxWidth: 420, wordBreak: "break-word" }}><Changes c={r.changes} /></td></tr>)}</tbody>
         </table>
       </div>
       <div className="card"><h2>Sign-ins and branch switches</h2>
-        <table><tbody>{logins.map((e) => <tr key={e.id}><td className="small">{dt(e.at)}</td><td>{e.username}</td><td>{e.event}</td><td>{e.branch_code}</td><td className="small muted">{e.ip}</td></tr>)}</tbody></table>
+        <table><tbody>{logins.map((e) => <tr key={e.id}><td className="small">{dt(e.at)}</td><td>{e.username}</td><td>{label(e.event)}</td><td>{e.branch_code}</td><td className="small muted">{e.ip}</td></tr>)}</tbody></table>
       </div>
     </>
   );
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const show = (v: any) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const show = (v: any) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : typeof v === "string" ? label(v) : String(v));
 /** Audit changes as "field: old → new" lines instead of raw JSON. */
 function Changes({ c }: { c: any }) {
   if (!c || typeof c !== "object") return null;

@@ -71,10 +71,10 @@ export const MASTERS: MDef[] = [
       { name: "sort", label: "Order", type: "number", dp: 0, min: 0 },
     ] },
   { key: "titles", title: "Customer titles", group: "Front office", table: "customer_title", pk: ["code"], hasActive: true, order: "name_en",
-    note: "Titles used on quotations, invoices and messages (CV-02).",
+    note: "Titles used on quotations, invoices and messages.",
     fields: [{ name: "code", label: "Code", type: "text", required: true }, { name: "name_en", label: "Title (English)", type: "text", required: true }, { name: "name_ar", label: "Title (Arabic)", type: "text" }] },
   { key: "countries", title: "Countries, phone formats and ID types", group: "Front office", table: "country", pk: ["code"], hasActive: true, order: "name",
-    note: "Choosing the country on a customer sets the dialling code, the mobile check and the ID types (CV-02).",
+    note: "Choosing the country on a customer sets the dialling code, the mobile check and the ID types.",
     fields: [
       { name: "code", label: "ISO code", type: "text", required: true, pattern: "^[A-Z]{2}$" }, { name: "name", label: "Name", type: "text", required: true },
       { name: "dial_code", label: "Dialling code", type: "text", required: true, pattern: "^\\+[0-9]{1,4}$" },
@@ -82,7 +82,7 @@ export const MASTERS: MDef[] = [
       { name: "id_types", label: "ID types (comma separated)", type: "list", required: true },
     ] },
   { key: "plates", title: "Plate set-up per emirate and country", group: "Front office", table: "plate_template", pk: ["code"], hasActive: true, order: "country_code, name",
-    note: "Plate parts per place of registration (CV-11).",
+    note: "Plate parts per place of registration.",
     fields: [
       { name: "code", label: "Code", type: "text", required: true }, { name: "name", label: "Name", type: "text", required: true },
       { name: "country_code", label: "Country", type: "select", required: true, sql: "SELECT code, name FROM country WHERE active ORDER BY name" },

@@ -14,7 +14,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
   const cost = canSee(ctx, "purchase_cost");
   return (
     <>
-      <PageHead title="Stock by branch" sub="Quantities at every branch are visible to all branches; cost and value only for your own branches with cost access (BR-03)." />
+      <PageHead title="Stock by branch" sub="Quantities at every branch are visible to all branches; cost and value only for your own branches with cost access." />
       <Flash sp={sp} />
       {can(ctx, "stock", "create") && (
         <div className="card"><h2>Receive stock at this branch</h2>
@@ -26,7 +26,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
             <div className="field"><label>Reference</label><input name="ref" placeholder="GRN / delivery note" /></div>
             <div className="shrink"><button className="btn">Receive</button></div>
           </form>
-          <p className="small muted">Received quantity goes first to jobs waiting for this part (PC-08). Full purchasing (PO, GRN, supplier bill) is phase 2 work still to build.</p>
+          <p className="small muted">Received quantity goes first to jobs waiting for this part. Full purchasing (PO, GRN, supplier bill) is phase 2 work still to build.</p>
         </div>
       )}
       <div className="card">

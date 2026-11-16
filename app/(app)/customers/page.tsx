@@ -9,7 +9,7 @@ export default async function Customers({ searchParams }: { searchParams: Promis
   const rows = await listCustomers(ctx, sp.q ?? "");
   return (
     <>
-      <PageHead title="Customers" sub="One customer database shared by every branch (CV-12).">
+      <PageHead title="Customers" sub="One customer database shared by every branch.">
         {can(ctx, "customers", "create") && <Link className="btn" href="/customers/new">New customer</Link>}
       </PageHead>
       <Flash sp={sp} />

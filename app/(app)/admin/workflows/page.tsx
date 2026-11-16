@@ -14,7 +14,7 @@ export default async function Workflows({ searchParams }: { searchParams: Promis
       {wfs.map((w) => (
         <div className="card" key={w.id}>
           <div className="row" style={{ alignItems: "center" }}>
-            <h2 style={{ margin: 0 }}>{w.name} <span className="muted small">({w.doc_type})</span></h2>
+            <h2 style={{ margin: 0 }}>{w.name}</h2>
             <form action={workflowToggleAction} className="shrink"><input type="hidden" name="id" value={w.id} /><input type="hidden" name="enabled" value={String(!w.enabled)} />
               <button className={`btn sm ${w.enabled ? "ghost" : "green"}`}>{w.enabled ? "Switch off" : "Switch on"}</button></form>
           </div>
@@ -30,7 +30,7 @@ export default async function Workflows({ searchParams }: { searchParams: Promis
           </table>
         </div>
       ))}
-      <p className="small muted">Discount limits per role are under Settings (discount.max_pct.*). The discount workflow starts only when a user goes above their limit or below the minimum margin.</p>
+      <p className="small muted">Discount limits per role are under Settings, in the discount limit lines. The discount workflow starts only when a user goes above their limit or below the minimum margin.</p>
     </>
   );
 }

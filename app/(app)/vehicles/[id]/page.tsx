@@ -16,7 +16,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
       {deferred.length > 0 && <div className="flash warn"><b>Deferred work to offer:</b> {deferred.map((x) => `${x.description} (from ${x.doc_no}, follow up ${d(x.follow_up_date)})`).join("; ")}</div>}
       <div className="card">
         <h2>Service history, all branches</h2>
-        <p className="muted small">Other branches&apos; jobs show date, branch, job number, work done and odometer only (BR-04).</p>
+        <p className="muted small">Other branches&apos; jobs show date, branch, job number, work done and odometer only.</p>
         <table>
           <thead><tr><th>Date</th><th>Branch</th><th>Job</th><th>Status</th><th>Odometer</th><th>Work done</th><th className="num">Approved value</th></tr></thead>
           <tbody>{history.map((h) => (

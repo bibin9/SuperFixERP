@@ -9,7 +9,7 @@ export default async function NewCustomer({ searchParams }: { searchParams: Prom
   const m = await masters(ctx);
   return (
     <>
-      <PageHead title="New customer" sub="Mobile, VIN and plate are checked against every branch before saving (CV-08)." />
+      <PageHead title="New customer" sub="Mobile, VIN and plate are checked against every branch before saving." />
       <Flash sp={sp} />
       <div className="card"><CustomerForm back="/customers/new" countries={m.countries} titles={m.titles} dups={sp.dups ? JSON.parse(sp.dups) : undefined} c={sp.form ? JSON.parse(sp.form) : undefined} /></div>
     </>
