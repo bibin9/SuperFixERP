@@ -22,9 +22,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/jobs", "Job cards", can("jobs") || can("workshop")],
       ["/approvals", "Approvals", can("approvals"), pending],
     ]],
-    ["Parts and billing", [
-      ["/stock", "Stock", can("stock")],
+    ["Workshop", [
+      ["/workshop", "Workshop board", can("workshop")],
+      ["/my-jobs", "My jobs", role?.roleCode === "technician"],
+    ]],
+    ["Parts", [
+      ["/stock", "Stock on hand", can("stock")],
+      ["/stock/planning", "Planning and back orders", can("stock")],
+      ["/stock/queue", "Store queue", can("stock")],
+      ["/stock/transfers", "Transfers", can("stock")],
+      ["/stock/adjustments", "Adjustments and counts", can("stock")],
+    ]],
+    ["Purchasing", [
+      ["/purchasing", "Purchase orders", can("purchasing")],
+      ["/purchasing/bills", "Supplier bills", can("purchasing") || can("accounting")],
+      ["/purchasing/petty-cash", "Petty cash", can("purchasing") || can("accounting")],
+    ]],
+    ["Billing", [
       ["/invoices", "Invoices", can("invoices")],
+    ]],
+    ["Accounting", [
       ["/accounts", "Trial balance", can("accounting")],
     ]],
     ["Administration", [
@@ -50,7 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" /><span>Super Fix Auto Centers</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
-          Local build · phase 1
+          Local build · phase 2
           <form action={logoutAction}><button type="submit">Sign out</button></form>
         </div>
       </aside>

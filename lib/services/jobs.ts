@@ -56,7 +56,7 @@ export async function listJobs(ctx: Ctx, status = "") {
             (j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled')) late
        FROM job_card j JOIN branch b ON b.id = j.branch_id JOIN vehicle v ON v.id = j.vehicle_id JOIN customer c ON c.id = j.customer_id
       WHERE ($1 = '' OR j.status = $1)
-        AND (NOT $2 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND l.technician_id = $3))
+        AND (NOT $2 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND (l.technician_id = $3 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $3))))
       ORDER BY j.created_at DESC LIMIT 200`, [status, ownOnly, ctx.userId],
   )).rows);
 }
@@ -78,7 +78,7 @@ export async function getJob(ctx: Ctx, id: string) {
     const ownOnly = !can(ctx, "jobs", "view", job.branch_id);
     if (ownOnly) {
       if (!can(ctx, "workshop", "view", job.branch_id)) throw forbidden();
-      const mine = await c.query("SELECT 1 FROM job_line WHERE job_card_id = $1 AND technician_id = $2", [id, ctx.userId]);
+      const mine = await c.query("SELECT 1 FROM job_line l WHERE l.job_card_id = $1 AND (l.technician_id = $2 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $2))", [id, ctx.userId]);
       if (!mine.rowCount) throw notFound("Job card");
     }
     const lines = (await c.query(
@@ -238,6 +238,8 @@ export async function changeStatus(ctx: Ctx, jobId: string, to: string, f: { rea
     if (f.version && Number(f.version) !== job.version) throw conflict();
     if (!nextStatuses(job.status).includes(to)) throw invalid(`A job cannot move from ${STATUS_LABEL[job.status]} to ${STATUS_LABEL[to] ?? to}.`);
     if (["approved", "invoiced"].includes(to)) throw invalid("This status is set automatically.");
+    if (to === "ready") throw invalid("A job becomes Ready when it passes the quality check.");
+    if (to === "delivered") throw invalid("Use the delivery form to hand the car over.");
     if (to === "closed" && !str(f.reason)) throw invalid("Give a reason for closing.");
     if (f.delay_reason) {
       await c.query("UPDATE job_card SET delay_reason = $2, delay_note = $3 WHERE id = $1", [jobId, f.delay_reason, optStr(f.delay_note)]);

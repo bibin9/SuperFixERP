@@ -13,7 +13,7 @@ export const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Du
 /** The UAE calendar date n days from today (YYYY-MM-DD), so dates never shift between midnight and 4 am. */
 export const addDaysLocal = (n: number) => { const d = new Date(today() + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
-async function lockBalance(c: PoolClient, itemId: string, branchId: string) {
+export async function lockBalance(c: PoolClient, itemId: string, branchId: string) {
   await c.query("INSERT INTO stock_balance (item_id, branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [itemId, branchId]);
   return (await c.query("SELECT * FROM stock_balance WHERE item_id = $1 AND branch_id = $2 FOR UPDATE", [itemId, branchId])).rows[0];
 }
@@ -52,19 +52,72 @@ export async function releaseCommitment(c: PoolClient, lineId: string) {
 }
 
 /**
- * PC-08: received quantity goes to waiting back orders first, oldest commitment first.
+ * PC-08: received quantity goes to waiting back orders first. A line the receipt was raised for
+ * (transfer or PO linked to a job line) is filled first, then the oldest commitment.
  */
-async function fillBackOrders(c: PoolClient, itemId: string, branchId: string) {
+export async function fillBackOrders(c: PoolClient, itemId: string, branchId: string, preferLineIds: string[] = []) {
   const waiting = await c.query(
-    "SELECT * FROM stock_commitment WHERE item_id = $1 AND branch_id = $2 AND status = 'active' AND back_ordered > 0 ORDER BY created_at FOR UPDATE",
-    [itemId, branchId]);
+    `SELECT * FROM stock_commitment WHERE item_id = $1 AND branch_id = $2 AND status = 'active' AND back_ordered > 0
+      ORDER BY (job_line_id = ANY($3::uuid[])) DESC, created_at FOR UPDATE`,
+    [itemId, branchId, preferLineIds]);
+  const filled: string[] = [];
   for (const sc of waiting.rows) {
     const bal = (await c.query("SELECT * FROM stock_balance WHERE item_id = $1 AND branch_id = $2 FOR UPDATE", [itemId, branchId])).rows[0];
     const take = Decimal.min(D(sc.back_ordered), Decimal.max(freeQty(bal), 0));
     if (take.lte(0)) break;
-    await c.query("UPDATE stock_commitment SET qty = qty + $2, back_ordered = back_ordered - $2 WHERE id = $1", [sc.id, take.toFixed(3)]);
+    const done = D(sc.back_ordered).minus(take).lte(0);
+    await c.query(`UPDATE stock_commitment SET qty = qty + $2, back_ordered = back_ordered - $2,
+                   source_type = CASE WHEN $3 THEN NULL ELSE source_type END, source_ref = CASE WHEN $3 THEN NULL ELSE source_ref END,
+                   expected_date = CASE WHEN $3 THEN NULL ELSE expected_date END WHERE id = $1`, [sc.id, take.toFixed(3), done]);
     await c.query("UPDATE stock_balance SET committed = committed + $3 WHERE item_id = $1 AND branch_id = $2", [itemId, branchId, take.toFixed(3)]);
+    filled.push(sc.job_line_id);
   }
+  return filled;
+}
+
+/**
+ * Stock in at weighted average cost (IN-02) inside the caller's transaction: updates the balance,
+ * writes the stock ledger and fills waiting back orders. The caller posts the journal.
+ */
+export async function stockIn(c: PoolClient, ctx: Ctx, f: { branchId: string; itemId: string; qty: Decimal; unitCost: Decimal; moveType: string; ref: string; preferLineIds?: string[] }) {
+  const bal = await lockBalance(c, f.itemId, f.branchId);
+  const avg = newAverageCost(bal.on_hand, bal.avg_cost, f.qty, f.unitCost);
+  const onHand = D(bal.on_hand).plus(f.qty);
+  const value = r2(f.qty.mul(f.unitCost));
+  await c.query("UPDATE stock_balance SET on_hand = $3, avg_cost = $4, last_move_at = now() WHERE item_id = $1 AND branch_id = $2", [f.itemId, f.branchId, onHand.toFixed(3), avg.toFixed(4)]);
+  await c.query(
+    `INSERT INTO stock_move (branch_id, item_id, move_type, doc_ref, qty_in, unit_cost, value, balance_qty, balance_avg_cost, user_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [f.branchId, f.itemId, f.moveType, f.ref, f.qty.toFixed(3), f.unitCost.toFixed(4), value.toFixed(2), onHand.toFixed(3), avg.toFixed(4), ctx.userId]);
+  const filled = await fillBackOrders(c, f.itemId, f.branchId, f.preferLineIds ?? []);
+  return { value, avg, onHand, filled };
+}
+
+/**
+ * Stock out at the current average cost. Only free stock can leave (PC-02, IN-05); `fromReserved`
+ * takes the quantity out of the branch's reservation instead (an approved transfer being dispatched).
+ */
+export async function stockOut(c: PoolClient, ctx: Ctx, f: { branchId: string; itemId: string; qty: Decimal; moveType: string; ref: string; fromReserved?: boolean }) {
+  const bal = await lockBalance(c, f.itemId, f.branchId);
+  if (f.fromReserved) {
+    if (D(bal.reserved).lt(f.qty)) throw invalid("The reserved quantity for this transfer is no longer there.");
+  } else if (freeQty(bal).lt(f.qty)) {
+    const part = (await c.query("SELECT part_no FROM item WHERE id = $1", [f.itemId])).rows[0]?.part_no ?? "this part";
+    const jobs = (await c.query(
+      `SELECT DISTINCT j.doc_no FROM stock_commitment sc JOIN job_line l ON l.id = sc.job_line_id JOIN job_card j ON j.id = l.job_card_id
+        WHERE sc.item_id = $1 AND sc.branch_id = $2 AND sc.status = 'active' AND sc.qty > 0 LIMIT 3`, [f.itemId, f.branchId])).rows.map((r) => r.doc_no);
+    throw invalid(`Not enough free stock of ${part}: ${Decimal.max(freeQty(bal), 0).toString()} free.${jobs.length ? ` Committed to job ${jobs.join(", ")}.` : ""}`);
+  }
+  const cost = D(bal.avg_cost);
+  const value = r2(f.qty.mul(cost));
+  const onHand = D(bal.on_hand).minus(f.qty);
+  await c.query(`UPDATE stock_balance SET on_hand = $3, reserved = reserved - $4, last_move_at = now() WHERE item_id = $1 AND branch_id = $2`,
+    [f.itemId, f.branchId, onHand.toFixed(3), f.fromReserved ? f.qty.toFixed(3) : "0"]);
+  await c.query(
+    `INSERT INTO stock_move (branch_id, item_id, move_type, doc_ref, qty_out, unit_cost, value, balance_qty, balance_avg_cost, user_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [f.branchId, f.itemId, f.moveType, f.ref, f.qty.toFixed(3), cost.toFixed(4), value.toFixed(2), onHand.toFixed(3), cost.toFixed(4), ctx.userId]);
+  return { value, cost };
 }
 
 /**

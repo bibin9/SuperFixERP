@@ -3,6 +3,7 @@ import { Pool, PoolClient, types } from "pg";
 // DATE columns stay as YYYY-MM-DD strings; NUMERIC stays as exact strings (pg default).
 types.setTypeParser(1082, (v) => v);
 import { dbConfig } from "./env";
+import { notFound } from "./errors";
 import type { Ctx } from "./access";
 
 // The pool connects as superfix_app, which is subject to row-level security.
@@ -36,6 +37,8 @@ async function run<T>(setup: (c: PoolClient) => Promise<void>, fn: (c: PoolClien
     return out;
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
+    // A malformed record id in a URL (for example /stock/transfers/abc) is a missing record, not a crash.
+    if ((e as { code?: string }).code === "22P02" && /type uuid/.test((e as Error).message)) throw notFound("Record");
     throw e;
   } finally {
     c.release();

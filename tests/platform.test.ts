@@ -89,8 +89,12 @@ test("shared vehicles: another branch sees the service history but not the price
 
 test("technicians see only their own jobs and never prices (FP-01..FP-03)", async () => {
   const ramesh = await ctxFor("ramesh", "YAS");
-  assert.equal((await listJobs(ramesh)).length, 0);
   const job = await id("job_card", "doc_no = $1", ["YAS-1483"]);
+  // The seed assigns Ramesh to work; take him off all of it to check that he then sees no job.
+  await adminQuery("DELETE FROM time_event WHERE technician_id = (SELECT id FROM app_user WHERE username = 'ramesh')");
+  await adminQuery("DELETE FROM job_assignment WHERE technician_id = (SELECT id FROM app_user WHERE username = 'ramesh')");
+  await adminQuery("UPDATE job_line SET technician_id = NULL WHERE technician_id = (SELECT id FROM app_user WHERE username = 'ramesh')");
+  assert.equal((await listJobs(ramesh)).length, 0);
   await rejects(getJob(ramesh, job), "not_found");
   await adminQuery("UPDATE job_line SET technician_id = (SELECT id FROM app_user WHERE username = 'ramesh') WHERE job_card_id = $1 AND line_no = 1", [job]);
   const j = await getJob(ramesh, job);

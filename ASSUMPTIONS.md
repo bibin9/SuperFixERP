@@ -42,6 +42,17 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Sign-in.** Username and password only, with lockout after repeated failures and an idle timeout. PIN sign-in and device registration are not built.
 - **Seed data is synthetic.** Branch names and job numbers come from the BayPilot prototype. Customers, the company TRN (100000000000003) and all amounts are made up.
 
+## Phase 2 decisions (parts, purchasing, workshop)
+
+- **Transfers in transit.** Dispatch moves value to "Stock in transit" at the sending branch; receipt takes it out at the receiving branch. A short receipt needs a reason and its value stays in transit until accounting (phase 4) adds inter-branch accounts and a write-off step.
+- **Damaged goods** on a receipt are recorded but not taken into stock or billed; the bill is matched to the good quantity.
+- **Bill matching.** A bill line matches when the quantity equals the received, unbilled quantity and the price is within the larger of 1% or AED 5 (both settings). A mismatch waits for the accountant and posts nothing until approved. A bill against receipts belongs to the receiving branch.
+- **Reverse charge** VAT on imported goods is not calculated yet; suppliers carry a reverse-charge flag for phase 4.
+- **Clocking.** A technician works on one line at a time. Clocking into another pauses the first as "Switched job" after they confirm. Clocked time counts only working periods. Clock-in is not yet linked to attendance (phase 5).
+- **Quality check.** Only a foreman or manager (workshop edit right) records it. A late job needs a delay reason before it can pass.
+- **Delivery.** All walkthrough items must be ticked; odometer out cannot be lower than check-in. The signature is optional so a car can be released to someone who cannot sign, but "Received by" is required.
+- **Wall screen.** The board link is a random code per branch, shows plates, make, model, bay and technicians only, and can be replaced at any time.
+
 ## Not built yet (later FSD phases)
 
-Purchasing (PO, GRN, supplier bills), stock transfers between branches, the workshop clocking board, QC checklists, credit notes, cash closing, the VAT 201 report, HR and payroll, reports and archive, the Arabic interface, photos and signatures, and the QR code on invoices. The workflows for purchase orders, transfers, adjustments and credit notes are already seeded, so those modules can plug into the approval engine.
+Credit notes, deposits and cash closing (phase 3); journals, bank, VAT 201 and period close (phase 4); HR and payroll (phase 5); reports and archive (phase 6); the Arabic interface and the QR code on invoices.

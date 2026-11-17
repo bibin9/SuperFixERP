@@ -169,11 +169,6 @@ export async function createJobAction(fd: FormData) {
   });
 }
 
-export async function assignTechAction(fd: FormData) {
-  const ctx = await requireCtx();
-  await run(`/jobs/${fd.get("job_id")}`, () => assignTechnician(ctx, String(fd.get("line_id")), String(fd.get("technician_id")) || null), "Technician assigned");
-}
-
 export async function statusAction(fd: FormData) {
   const ctx = await requireCtx();
   const f = obj(fd);
@@ -218,7 +213,7 @@ export async function receiveStockAction(fd: FormData) {
 
 export async function issueAction(fd: FormData) {
   const ctx = await requireCtx();
-  await run(`/jobs/${fd.get("job_id")}`, () => issueToJobLine(ctx, String(fd.get("line_id")), String(fd.get("qty"))), "Parts issued to the job");
+  await run(String(fd.get("$back") || `/jobs/${fd.get("job_id")}`), () => issueToJobLine(ctx, String(fd.get("line_id")), String(fd.get("qty"))), "Parts issued to the job");
 }
 
 // ---------- billing ----------

@@ -1,4 +1,4 @@
-import { addLineAction, removeLineAction, assignTechAction, saveQuotationAction, sendQuotationAction, staffDecisionAction, issueAction } from "@/app/actions";
+import { addLineAction, removeLineAction, saveQuotationAction, sendQuotationAction, staffDecisionAction, issueAction } from "@/app/actions";
 import { Money, Status } from "./ui";
 import { D } from "@/lib/money";
 
@@ -38,10 +38,7 @@ export function WorkLines(p: {
                   <input name="qty" defaultValue={D(l.qty).minus(l.issued_qty).toString()} style={{ width: 70, minWidth: 60 }} /><button className="btn sm shrink">Issue</button></form>
               )}</> : <>{D(l.free_here ?? 0).gte(l.qty) ? <span className="pill green">in stock here</span> : <span className="pill amber">short here</span>}<div className="muted">committed when the job card is created</div></>)
             : <span className="muted">—</span>}</td>
-            {isJob && <td className="small">{p.canEdit && l.line_type === "labour" ? (
-              <form action={assignTechAction} className="row"><input type="hidden" name="job_id" value={p.owner.id} /><input type="hidden" name="line_id" value={l.id} />
-                <select name="technician_id" defaultValue={l.technician_id ?? ""} style={{ minHeight: 32 }}><option value="">—</option>{p.m.technicians.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>
-                <button className="btn ghost sm shrink">Set</button></form>) : l.technician_name ?? ""}</td>}
+            {isJob && <td className="small">{l.technician_name ?? (l.line_type === "labour" && p.open ? <span className="muted">assign below</span> : "")}</td>}
             <td>{p.canEdit && p.open && l.approval_status === "pending" && <form action={removeLineAction}><input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={p.back} /><button className="btn ghost sm">Remove</button></form>}</td>
           </tr>
         ))}

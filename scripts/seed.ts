@@ -10,6 +10,7 @@ import { receiveStock, issueToJobLine } from "../lib/services/stock";
 import { createCustomer, createVehicle } from "../lib/services/customers";
 import { addEnquiryLine, changeStatus } from "../lib/services/jobs";
 import { createEnquiry, createJobCard } from "../lib/services/enquiries";
+import { setAssignments, clock, recordQc } from "../lib/services/workshop";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff } from "../lib/services/quotations";
 
 export const DEMO_PASSWORD = "Superfix@2026";
@@ -101,9 +102,38 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean } = { de
   await recordDecisionsByStaff(priya, q2.id, Object.fromEntries(ql2.map((l) => [l.id, l.description.startsWith("WPR") ? "declined" : "approved"])), "in_person", null);
   const j2 = await createJobCard(priya, e2.id, { job_type: "service", promised_at: soon(3) });
   for (const l of await partLines(adminUrl, j2.id)) await issueToJobLine(anil, l.id, l.qty);
-  await changeStatus(priya, j2.id, "in_progress");
+  // Workshop floor: the foreman assigns Ramesh, who clocks the work; the foreman passes the quality check.
+  const khalid = await ctxFor("khalid", "YAS");
+  const ramesh = await ctxFor("ramesh", "YAS");
+  const rameshId = (await q(adminUrl, "SELECT id FROM app_user WHERE username = 'ramesh'"))[0].id;
+  for (const l of await q(adminUrl, "SELECT id FROM job_line WHERE job_card_id = $1 AND line_type = 'labour' AND approval_status = 'approved'", [j2.id])) {
+    await setAssignments(khalid, l.id, [rameshId]);
+    await clock(ramesh, l.id, "clock_in", { confirmSwitch: true });
+    await clock(ramesh, l.id, "clock_out");
+  }
   await changeStatus(priya, j2.id, "quality_check");
-  await changeStatus(priya, j2.id, "ready");
+  const qcAll = Object.fromEntries((await q(adminUrl, "SELECT code FROM lookup_value WHERE list = 'qc_checklist'")).map((r) => [r.code, "done"]));
+  await recordQc(khalid, j2.id, qcAll, {});
+
+  // Enquiry 4 (YAS): AC and battery approved; on the workshop floor now. Ramesh and Arjun share the AC work and
+  // Arjun is clocked in on the battery, so the board and the technician phone screen have live work to show.
+  const noura = (await createCustomer(priya, { customer_type: "individual", title: "Ms", first_name: "Noura", last_name: "Al Hammadi", country_code: "AE", mobile: "052 610 7741", id_type: "Emirates ID", id_number: "784199012345671" })).id!;
+  const prado = (await createVehicle(priya, { owner_customer_id: noura, registered_in: "AUH", plate_code: "2", plate_number: "60417", vin: "JTEBH3FJ70K123456", make: "Toyota", model: "Prado", model_year: "2019", colour: "Black", odometer: "120300" })).id!;
+  const e4 = await createEnquiry(priya, { customer_id: noura, vehicle_id: prado, service_asked: "AC weak, battery weak", source: "walk_in", odometer_in: "120410", fuel_level: "4", complaints: "AC not cold at noon; slow to start in the morning" });
+  await addEnquiryLine(priya, e4.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
+  await addEnquiryLine(priya, e4.id, { line_type: "labour", service_id: svc["BATT-FIT"] });
+  await addEnquiryLine(priya, e4.id, { line_type: "part", item_id: items["BAT-70AH"], qty: "1" });
+  const q4 = await saveQuotation(priya, e4.id, {});
+  if (q4.status === "ready_to_send") await sendQuotation(priya, q4.id);
+  const ql4 = await ctxLines(adminUrl, q4.id);
+  await recordDecisionsByStaff(priya, q4.id, Object.fromEntries(ql4.map((l) => [l.id, "approved"])), "in_person", null);
+  const j4 = await createJobCard(priya, e4.id, { job_type: "repair", promised_at: soon(5) });
+  const arjunId = (await q(adminUrl, "SELECT id FROM app_user WHERE username = 'arjun'"))[0].id;
+  const bay = (await q(adminUrl, "SELECT id FROM bay WHERE branch_id = (SELECT id FROM branch WHERE code = 'YAS') AND active ORDER BY code LIMIT 1"))[0]?.id ?? null;
+  const l4 = await q(adminUrl, "SELECT id, description FROM job_line WHERE job_card_id = $1 AND line_type = 'labour' ORDER BY line_no", [j4.id]);
+  await setAssignments(khalid, l4[0].id, [rameshId, arjunId], bay);
+  if (l4[1]) await setAssignments(khalid, l4[1].id, [arjunId], bay);
+  if (l4[1]) await clock(await ctxFor("arjun", "YAS"), l4[1].id, "clock_in");
 
   // Enquiry 3 (QUS, Al Qusais): fleet 10k service quoted at another branch, used to show branch separation.
   const sara = await ctxFor("sara", "QUS");

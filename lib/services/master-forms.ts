@@ -47,7 +47,20 @@ export const MASTERS: MDef[] = [
       { name: "list_price", label: "List price (AED, before VAT)", type: "number", dp: 2, min: 0, required: true },
       { name: "vat_code", label: "Tax code", type: "select", sql: TAX, required: true },
       { name: "item_type", label: "Item type", type: "select", required: true, values: [["stock", "Stock item"], ["consumable", "Consumable"], ["non_stock", "Non-stock"], ["service", "Service item"]] },
-      { name: "preferred_supplier", label: "Preferred supplier", type: "text" },
+      { name: "preferred_supplier_id", label: "Preferred supplier", type: "select", sql: "SELECT id::text, code || ' · ' || name_en FROM supplier WHERE active ORDER BY code", hint: "Used when a back order raises a purchase order" },
+    ] },
+  { key: "suppliers", title: "Suppliers", group: "Stock", table: "supplier", pk: ["id"], autoId: true, hasActive: true, order: "code",
+    note: "Suppliers for purchase orders and bills. A supplier with a TRN can be charged VAT; a supplier without one cannot.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[A-Z0-9-]{2,20}$", hint: "Capitals, digits and dashes" },
+      { name: "name_en", label: "Name (English)", type: "text", required: true }, { name: "name_ar", label: "Name (Arabic)", type: "text" },
+      { name: "trn", label: "TRN", type: "text", pattern: "^[0-9]{15}$", hint: "15 digits" },
+      { name: "trade_licence", label: "Trade licence", type: "text" },
+      { name: "country_code", label: "Country", type: "select", required: true, sql: "SELECT code, name FROM country WHERE active ORDER BY name" },
+      { name: "phone", label: "Phone", type: "text" }, { name: "email", label: "Email", type: "text" },
+      { name: "payment_terms_days", label: "Payment terms (days)", type: "number", dp: 0, min: 0, required: true },
+      { name: "credit_limit", label: "Credit limit (AED)", type: "number", dp: 2, min: 0, required: true },
+      { name: "iban", label: "IBAN", type: "text" }, { name: "brands", label: "Brands supplied", type: "text" },
     ] },
   { key: "tax-codes", title: "Tax codes and VAT rates", group: "Accounts", table: "tax_code", pk: ["code"], hasActive: true, order: "code",
     note: "VAT rate as a fraction (0.05 = 5%). A quotation or invoice keeps the rate it was made with.",
@@ -134,7 +147,7 @@ export async function getMaster(ctx: Ctx, key: string) {
   assertCan(ctx, "settings", "view");
   const d = masterDef(key);
   return withTx(ctx, async (c) => {
-    const rows = (await c.query(`SELECT ${cols(d).map((x) => `${q(x)}${["id", "branch_id", "account_id"].includes(x) ? "::text" : ""} ${q(x)}`).join(", ")} FROM ${q(d.table)} ORDER BY ${d.order}`)).rows;
+    const rows = (await c.query(`SELECT ${cols(d).map((x) => `${q(x)}${["id", "branch_id", "account_id", "preferred_supplier_id"].includes(x) ? "::text" : ""} ${q(x)}`).join(", ")} FROM ${q(d.table)} ORDER BY ${d.order}`)).rows;
     const options: Record<string, [string, string][]> = {};
     for (const f of d.fields) {
       if (f.values) options[f.name] = f.values;

@@ -8,6 +8,7 @@ import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
 import { ManualMessage } from "@/components/ManualMessage";
 import { messagesFor } from "@/lib/services/messaging";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { WorkshopPanel } from "@/components/WorkshopPanel";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
 
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
@@ -26,7 +27,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const open = !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
   const msgs = canEdit ? await messagesFor(ctx, { jobId: id }) : [];
   const late = job.promised_at && new Date(job.promised_at) < new Date() && !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
-  const manual = nextStatuses(job.status).filter((s) => !["approved", "invoiced", "cancelled", "closed"].includes(s));
+  const manual = nextStatuses(job.status).filter((s) => !["approved", "ready", "delivered", "invoiced", "cancelled", "closed"].includes(s));
   const delayReasons = m.lookups.filter((l) => l.list === "delay_reason");
   return (
     <>
@@ -52,7 +53,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
               {late && <div className="field"><label>Delay reason (required)</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select><input name="delay_note" placeholder="Note" style={{ marginTop: 6 }} /></div>}
               <div className="row">{manual.map((s) => <button key={s} name="to" value={s} className="btn sm shrink">{STATUS_LABEL[s]}</button>)}</div>
             </form>
-          ) : <p className="muted small">Status moves automatically from here (quotation answer, invoice, payment).</p>}
+          ) : <p className="muted small">Status moves automatically from here (quality check, delivery, invoice, payment).</p>}
           {can(ctx, "jobs", "cancel", b) && nextStatuses(job.status).includes("cancelled") && (
             <form action={statusAction} style={{ marginTop: 10 }}>
               <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
@@ -71,6 +72,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
 
       <WorkLines owner={{ kind: "job", id }} back={back} lines={lines} m={m} canEdit={canEdit} canSeePrices={canSeePrices} canIssue={canIssue}
         discountEdit={discountEdit} priceEdit={fieldLevel(ctx, "selling_price", b) === "edit"} open={open} />
+      <div id="parts"><WorkshopPanel ctx={ctx} job={job} lines={lines} m={m} back={back} /></div>
       <QuotationPanel enquiryId={job.enquiry_id} back={back} origin={origin} quotations={quotations} quotationLines={quotationLines} lines={lines}
         canEdit={canEdit && open} canSeePrices={canSeePrices} discountEdit={discountEdit} open={open} isJob />
 

@@ -159,8 +159,10 @@ await tc("TC-JC06-01", async (sp) => { sp(priya); await priya.goto(jobUrl); cons
 await tc("TC-JC06-02", async (sp) => { sp(priya); await priya.goto(jobUrl); const btns = await priya.locator(".card:has(h2:has-text('Move job')) button[name=to]").allInnerTexts();
   must(!btns.some((b) => /Delivered|Ready/i.test(b)), "jump offered: " + btns); return "Next statuses offered: " + btns.join(", "); });
 await tc("TC-PC03-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const t = await priya.locator(".card:has(h2:has-text('Job lines'))").innerText(); must(/committed/.test(t), "no committed qty shown"); return t.match(/committed[^\n]*/)[0]; });
-await tc("TC-WS02-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const rv = await priya.locator("select[name=technician_id] option", { hasText: "Ramesh" }).first().getAttribute("value"); await priya.selectOption("select[name=technician_id] >> nth=0", rv);
-  await act(priya, "button:has-text('Set') >> nth=0"); const v = await priya.locator("select[name=technician_id]").first().inputValue(); must(v, "technician not kept"); return "Technician assigned to the labour line"; });
+await tc("TC-WS02-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const card = priya.locator(".card:has(h2:has-text('Workshop'))");
+  await card.locator("summary:has-text('Change')").first().click(); await card.locator("label.check:has-text('Ramesh') input").first().check();
+  await act(priya, ".card:has(h2:has-text('Workshop')) button:has-text('Save') >> nth=0"); const t = await priya.locator(".card:has(h2:has-text('Workshop'))").innerText();
+  must(/Ramesh/.test(t), "technician not kept"); return "Technician assigned to the labour line from the Workshop panel"; });
 await tc("TC-JC09-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.selectOption("select[name=event]", "approved"); await priya.click("button:has-text('Prepare WhatsApp')"); await priya.waitForSelector("text=Send it yourself");
   must(await priya.locator("a:has-text('Open WhatsApp')").count() && await priya.locator("button:has-text('Mark as sent')").count(), "manual controls missing"); return "Prepared, with Open WhatsApp, Copy and Mark as sent; not sent automatically"; });
 await tc("TC-JC07-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.selectOption("form:has(input[value=labour]) select[name=service_id]", { index: 1 }); await act(priya, "button:has-text('Add labour')");
@@ -178,7 +180,7 @@ await tc("TC-QT04-02", async (sp) => { sp(yousef); await yousef.goto(B + "/appro
   must(await priya.locator("button:has-text('Prepare approval message')").count(), "not ready to send after approval"); return "Manager approved; quotation now ready to send"; });
 await tc("TC-WF09-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const t = await priya.locator(".card:has(h2:has-text('Approval history'))").innerText(); must(/approve/i.test(t) && /Yousef/i.test(t), "history: " + t); return "History: " + t.replace(/\s+/g, " ").slice(0, 120); });
 await tc("TC-QT02-02", async (sp) => { sp(priya); await priya.goto(jobUrl); await act(priya, "button:has-text('Prepare approval message')"); await act(priya, "button:has-text('Mark as sent')");
-  await priya.goto(jobUrl); await priya.selectOption("select[name=channel]", "whatsapp_reply"); await priya.fill("input[name=note]", "YES - customer reply 23:40"); await priya.click("button:has-text('Record answer')"); await priya.waitForSelector("text=Customer decision recorded");
+  await priya.goto(jobUrl); await priya.selectOption("select[name=channel]", "whatsapp_reply"); await priya.fill("form:has(button:has-text('Record answer')) input[name=note]", "YES - customer reply 23:40"); await priya.click("button:has-text('Record answer')"); await priya.waitForSelector("text=Customer decision recorded");
   const t = await priya.locator(".card:has(h2:has-text('Quotation'))").innerText(); must(/WhatsApp reply/.test(t), "channel not shown"); return "Recorded as Approved · WhatsApp reply"; });
 
 // ---------- Prices / roles ----------
@@ -219,10 +221,15 @@ await tc("TC-NF04-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/a
 await tc("TC-NF05-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/branches"); const n = await admin.locator("tbody tr").count(); must(n >= 3, "branches " + n); return n + " branches under one company"; });
 
 // ---------- Design / navigation ----------
-await tc("TC-UX-NAV-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/users"); const g = admin.locator("button.grp", { hasText: "Parts and billing" });
-  await g.click(); must(!(await admin.locator("nav a", { hasText: "Stock" }).count()), "group did not collapse"); await admin.reload(); must(!(await admin.locator("nav a", { hasText: "Stock" }).count()), "collapse not remembered");
-  await g.click(); must(await admin.locator("nav a", { hasText: "Stock" }).count(), "group did not expand"); must(await admin.locator("nav a.active", { hasText: "Users" }).count(), "current page not highlighted");
-  return "Groups collapse and expand, the choice is remembered, and the current page is highlighted"; });
+await tc("TC-UX-NAV-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/users"); await admin.waitForTimeout(500);
+  must(!(await admin.locator("nav a", { hasText: "Stock on hand" }).count()), "other module groups start open");
+  must(await admin.locator("nav a.active", { hasText: "Users" }).count(), "current page's group not open or not highlighted");
+  await admin.locator("button.grp", { hasText: "Parts" }).click();
+  must(await admin.locator("nav a", { hasText: "Stock on hand" }).count(), "group did not open");
+  must(!(await admin.locator("nav a", { hasText: "Users & access" }).count()), "opening one group did not close the other");
+  await admin.locator("button.grp", { hasText: "Parts" }).click(); must(!(await admin.locator("nav a", { hasText: "Stock on hand" }).count()), "group did not close");
+  const heads = await admin.locator("button.grp").allInnerTexts();
+  return "One group per module (" + heads.map((h) => h.replace(/[›\d\s]+$/, "")).join(", ") + "); only the current page's group opens; opening one closes the others"; });
 await tc("TC-UX01-01", async (sp) => { const c = await browser.newContext({ viewport: { width: 390, height: 844 } }); const p = await c.newPage(); sp(p);
   await p.goto(`${B}/login`); await p.fill("input[name=username]", "priya"); await p.fill("input[name=password]", PW); await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]);
   must(!(await p.locator("nav a", { hasText: "Enquiries" }).isVisible()), "menu covers the page on a phone"); await p.click("label.menubtn"); must(await p.locator("nav a", { hasText: "Enquiries" }).isVisible(), "menu does not open");

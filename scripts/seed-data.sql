@@ -231,3 +231,60 @@ FROM (VALUES
  ('stock_adjustment',1,'Branch manager','branch_manager',NULL,NULL,'doc_branch'),
  ('credit_note',1,'Branch manager','branch_manager',NULL,NULL,'doc_branch')
 ) s(doc, seq, name, role, mn, mx, scope) JOIN workflow w ON w.doc_type = s.doc;
+
+-- ---------- Phase 2: parts, purchasing and workshop ----------
+INSERT INTO account (code, name, account_group, account_type, sub_type) VALUES
+ ('1105','Petty cash','Cash-in-hand','asset','cash'),
+ ('1320','Stock in transit','Stock-in-hand','asset','stock'),
+ ('2000','Trade payables','Sundry creditors','liability','payable'),
+ ('4900','Stock gains','Indirect incomes','income','normal'),
+ ('5110','Purchase price differences','Direct expenses','expense','normal'),
+ ('5200','Stock write-off','Indirect expenses','expense','normal'),
+ ('5300','Workshop consumables','Indirect expenses','expense','normal'),
+ ('5400','General expenses','Indirect expenses','expense','normal');
+INSERT INTO account_mapping (event_key, account_id, description)
+SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
+ ('petty_cash','1105','Petty cash box'),('stock_in_transit','1320','Stock sent to another branch, not yet received'),
+ ('trade_payable','2000','Supplier bills'),('vat_input','2210','Input VAT on purchases'),('stock_gain','4900','Stock found or counted above the books'),
+ ('purchase_price_variance','5110','Bill price different from the received price, within tolerance'),
+ ('stock_writeoff','5200','Damaged, expired, lost or counted short'),('consumables_expense','5300','Stock used inside the workshop'),
+ ('general_expense','5400','Petty cash and bill lines that are not stock')
+) v(k, a, d);
+-- ---------- workflows, numbering, lists, settings ----------
+INSERT INTO workflow (doc_type, name, enabled) VALUES ('supplier_bill','Supplier bill that does not match the PO or GRN', true);
+INSERT INTO workflow_step (workflow_id, seq, name, approver_role_id, approver_role_scope)
+SELECT w.id, 1, 'Accountant', (SELECT id FROM role WHERE code = 'accountant'), 'any_branch' FROM workflow w
+ WHERE w.doc_type = 'supplier_bill' AND EXISTS (SELECT 1 FROM role WHERE code = 'accountant')
+   AND NOT EXISTS (SELECT 1 FROM workflow_step s WHERE s.workflow_id = w.id);
+
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
+CROSS JOIN (VALUES ('transfer','-TR-'),('stock_adjustment','-ADJ-'),('stock_count','-CNT-'),('purchase_order','-PO-'),('grn','-GRN-'),('supplier_bill','-PB-'),('petty_cash','-PC-')) t(doc_type, suffix)
+;
+
+INSERT INTO lookup_value (list, code, name_en, sort) VALUES
+ ('adjustment_reason','count_difference','Count difference',1),('adjustment_reason','damage','Damaged',2),('adjustment_reason','expiry','Expired',3),
+ ('adjustment_reason','internal_use','Internal use',4),('adjustment_reason','found','Found stock',5),
+ ('pause_reason','break','Break',1),('pause_reason','parts','Waiting for parts',2),('pause_reason','approval','Waiting for approval',3),('pause_reason','other','Other',4),
+ ('qc_checklist','work_done','All approved work done',1),('qc_checklist','road_test','Road test',2),('qc_checklist','no_leaks','No leaks',3),
+ ('qc_checklist','torque','Wheel nuts torqued',4),('qc_checklist','warning_lights','No warning lights',5),('qc_checklist','clean','Car clean, covers removed',6),
+ ('delivery_checklist','walkthrough','Work explained to the customer',1),('delivery_checklist','valuables','Valuables returned',2),('delivery_checklist','invoice','Invoice explained',3),
+ ('expense_type','fuel','Fuel',1),('expense_type','stationery','Stationery',2),('expense_type','cleaning','Cleaning',3),('expense_type','refreshments','Refreshments',4),
+ ('expense_type','small_repairs','Small repairs',5),('expense_type','other','Other',6)
+;
+
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('workshop.board_refresh_seconds','30','Workshop','How often the workshop board refreshes'),
+ ('purchasing.price_tolerance_pct','1','Purchasing','Supplier bill price may differ from the PO price by this % (or the amount below, whichever is larger)'),
+ ('purchasing.price_tolerance_amount','5','Purchasing','Supplier bill price may differ from the PO price by this amount per line, AED'),
+ ('planning.buffer_days','1','Stock','Days added to the latest expected arrival of back-ordered parts to suggest a planned start')
+;
+
+INSERT INTO supplier (code, name_en, trn, payment_terms_days, credit_limit, phone, brands) VALUES
+ ('AGMC','AGMC Parts','100123456700003',30,50000,'+97142222001','Toyota, Akebono'),
+ ('AFLUB','Al Futtaim Lubricants','100123456700011',30,30000,'+97142222002','Mobil'),
+ ('BRIDGE','Bridgestone Middle East','100123456700029',45,80000,'+97142222003','Bridgestone'),
+ ('EXIDE','Exide Gulf','100123456700037',30,20000,'+97142222004','AC Delco, Exide'),
+ ('BOSCH','Bosch','100123456700045',30,20000,'+97142222005','Bosch'),
+ ('PREST','Prestone','100123456700052',30,10000,'+97142222006','Prestone');
+UPDATE item i SET preferred_supplier_id = s.id FROM supplier s WHERE s.name_en = i.preferred_supplier;
