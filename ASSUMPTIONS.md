@@ -67,6 +67,17 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Cash closing** is one count per cashier per day; after closing, that cashier cannot take more cash that day.
 - **E-invoicing.** The JSON follows the PINT AE field names so an accredited service provider can map it later; nothing is sent anywhere.
 
+## Phase 4 decisions (accounting)
+
+- **Voucher approval.** Every manual voucher goes to approval (owner by default; the accountant is the backup so the owner's own voucher can still be approved). It gets its number when posted.
+- **Debit and credit notes to suppliers** are entered as vouchers against the supplier's account; they reduce the balance owed but are not allocated bill by bill.
+- **Head-office allocation** is by revenue or by fixed shares (a setting). Headcount comes with HR in phase 5.
+- **Dates.** Allocation and depreciation for the current month are dated today, not month end, so they never sit in the future.
+- **Reverse charge.** The supplier is owed the net amount; output VAT and input VAT are both posted, and the return shows the VAT in boxes 3 and 10.
+- **Year end** runs from the last day of December; the profit moves to retained earnings per branch.
+- **Opening from Tally.** One opening batch only. Opening stock goes in through Stock opening receipts, so leave account 1300 out of the ledger CSV. The masters import needs the admin's settings permission. The one-month parallel run (TM-04) is a process step for Superfix at go-live, supported by the Tally comparison and ledger balances on any date.
+- **Bank statement import** reads CSV (date, description, reference, amount or debit and credit). Lines already imported are skipped.
+
 ## Not built yet (later FSD phases)
 
-Journals, bank reconciliation and period close (phase 4); HR and payroll (phase 5); reports, statements and archive (phase 6); the Arabic interface.
+HR and payroll (phase 5); reports, statements and archive (phase 6); the Arabic interface.

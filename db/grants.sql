@@ -10,3 +10,6 @@ REVOKE ALL ON schema_migrations FROM superfix_app;
 -- A posted invoice line changes only in the credited quantity and amount (credit notes, phase 3).
 GRANT UPDATE (credited_qty, credited_amount) ON sales_invoice_line TO superfix_app;
 REVOKE DELETE ON credit_note, credit_note_line, warranty_claim, customer_advance, cash_session FROM superfix_app;
+-- Phase 4: posted accounting documents are never deleted.
+REVOKE DELETE ON voucher, voucher_line, supplier_payment, supplier_payment_allocation, card_settlement, ho_allocation, fixed_asset, depreciation_run, depreciation_line, opening_item, migration_batch, accounting_period FROM superfix_app;
+REVOKE UPDATE ON voucher_line, depreciation_line FROM superfix_app;

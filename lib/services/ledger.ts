@@ -8,7 +8,8 @@ import { nextDocNo } from "./numbering";
 
 /** Posting engine (M12). Turns business events into balanced journals in the caller's transaction. */
 
-export type PostLine = { event: string; debit?: Decimal | string; credit?: Decimal | string; customerId?: string | null; narration?: string };
+/** One ledger line: by business event (mapped account) or a chosen account; optionally on another branch (inter-branch journals). */
+export type PostLine = { event?: string; accountId?: string; debit?: Decimal | string; credit?: Decimal | string; customerId?: string | null; supplierId?: string | null; narration?: string | null; branchId?: string };
 
 async function accountFor(c: PoolClient, event: string) {
   const r = await c.query("SELECT a.id FROM account_mapping m JOIN account a ON a.id = m.account_id WHERE m.event_key = $1 AND a.active", [event]);
@@ -32,8 +33,10 @@ export async function postJournal(c: PoolClient, ctx: Ctx | null, j: { branchId:
   );
   const jid = r.rows[0].id;
   for (const l of lines) {
-    await c.query("INSERT INTO journal_line (journal_id, branch_id, account_id, debit, credit, customer_id, narration) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-      [jid, j.branchId, await accountFor(c, l.event), l.debit.toFixed(2), l.credit.toFixed(2), l.customerId ?? null, l.narration ?? null]);
+    const acc = l.accountId ?? (l.event ? await accountFor(c, l.event) : null);
+    if (!acc) throw invalid("A journal line has no account.");
+    await c.query("INSERT INTO journal_line (journal_id, branch_id, account_id, debit, credit, customer_id, supplier_id, narration) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+      [jid, l.branchId ?? j.branchId, acc, l.debit.toFixed(2), l.credit.toFixed(2), l.customerId ?? null, l.supplierId ?? null, l.narration ?? null]);
   }
   return { id: jid as string, docNo };
 }

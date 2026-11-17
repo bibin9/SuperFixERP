@@ -47,8 +47,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/billing/cash", "Cash closing", can("invoices")],
     ]],
     ["Accounting", [
-      ["/accounts", "Trial balance", can("accounting")],
+      ["/accounts", "Financial statements", can("accounting")],
+      ["/accounts/ledger", "Ledgers and vouchers", can("accounting")],
+      ["/accounts/receivables", "Receivables", can("accounting")],
+      ["/accounts/payables", "Payables and payments", can("accounting")],
+      ["/accounts/bank", "Bank and reconciliation", can("accounting")],
       ["/accounts/vat", "VAT return", can("accounting")],
+      ["/accounts/periods", "Month end", can("accounting")],
     ]],
     ["Administration", [
       ["/admin/branches", "Branches", can("admin")],
@@ -73,7 +78,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" /><span>Super Fix Auto Centers</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
-          Local build · phase 3
+          Local build · phase 4
           <form action={logoutAction}><button type="submit">Sign out</button></form>
         </div>
       </aside>

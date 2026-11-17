@@ -16,7 +16,12 @@ const settle = async (p) => { await p.waitForTimeout(1000); await p.waitForLoadS
 const flash = async (p) => (await p.locator(".flash").allInnerTexts()).join(" | ").replace(/\s+/g, " ");
 const body = async (p) => (await p.locator("body").innerText());
 let pass = 0, fail = 0;
-const step = async (name, fn) => { try { const r = await fn(); pass++; console.log("PASS", name, r ?? ""); } catch (e) { fail++; console.log("FAIL", name, String(e.message).split("\n")[0]); } };
+const results = [];
+const step = async (name, fn) => {
+  const id = name.split(" ")[0];
+  try { const r = await fn(); pass++; results.push({ id, status: "Pass", note: String(r ?? "") }); console.log("PASS", name, r ?? ""); }
+  catch (e) { fail++; results.push({ id, status: "Fail", note: String(e.message).split("\n")[0] }); console.log("FAIL", name, String(e.message).split("\n")[0]); }
+};
 const must = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 const priya = await as("priya");
@@ -113,5 +118,6 @@ await step("TC-P3-16 advisor cannot open the VAT return", async () => {
 await step("TC-P3-17 menu shows Billing items", async () => {
   await priya.goto(B + "/invoices"); const t = await priya.locator("nav, .side").first().innerText(); must(/Counter sale/.test(t) && /Cash closing/.test(t), "menu items missing"); return "ok";
 });
+(await import("node:fs")).writeFileSync(process.env.P3_RESULTS || "/tmp/p3-results.json", JSON.stringify(results, null, 1));
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

@@ -412,6 +412,8 @@ async function vatLines(c: PoolClient, from: string, to: string, branchId: strin
        JOIN supplier s ON s.id = x.supplier_id JOIN branch b ON b.id = x.branch_id WHERE x.status = 'posted' AND x.invoice_date BETWEEN $1 AND $2 ${bf} AND l.vat_amount > 0
       GROUP BY x.id, x.doc_no, x.invoice_date, s.name_en, b.code, l.vat_code`, p)).rows;
   for (const s of bills) out.push({ box: s.vat_code === "RC" ? "10" : "9", doc_type: "Supplier bill", doc_no: s.doc_no, doc_date: ymd(s.invoice_date), branch: s.code, party: s.name_en, amount: D(s.amt).toFixed(2), vat: D(s.vat).toFixed(2), link: `/purchasing/bills/${s.id}` });
+  // Reverse charge: the same VAT is also due as output tax (box 3), so it nets to nil when recoverable.
+  for (const s of bills.filter((x) => x.vat_code === "RC")) out.push({ box: "3", doc_type: "Supplier bill (reverse charge)", doc_no: s.doc_no, doc_date: ymd(s.invoice_date), branch: s.code, party: s.name_en, amount: D(s.amt).toFixed(2), vat: D(s.vat).toFixed(2), link: `/purchasing/bills/${s.id}` });
   const petty = (await c.query(
     `SELECT x.doc_no, x.entry_date, x.net_amount, x.vat_amount, x.supplier_name, b.code FROM petty_cash_entry x JOIN branch b ON b.id = x.branch_id
       WHERE x.kind = 'spend' AND x.vat_amount > 0 AND x.entry_date BETWEEN $1 AND $2 ${bf}`, p)).rows;

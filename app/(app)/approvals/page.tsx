@@ -5,6 +5,7 @@ import { Flash, Link, Money, PageHead, Status, dt } from "@/components/ui";
 
 const DOC_LINK: Record<string, (id: string) => string> = {
   credit_note: (id) => `/billing/credit-notes/${id}`, purchase_order: (id) => `/purchasing/${id}`, stock_transfer: (id) => `/stock/transfers/${id}`,
+  voucher: (id) => `/accounts/vouchers/${id}`, supplier_bill: (id) => `/purchasing/bills/${id}`,
 };
 
 export default async function Approvals({ searchParams }: { searchParams: Promise<Record<string, string>> }) {

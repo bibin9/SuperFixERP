@@ -73,6 +73,16 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **VAT return** (Accounting, VAT return): VAT 201 boxes with supplies by emirate, credit notes and deposits netted off, purchases and petty cash in box 9, a check against the VAT accounts in the ledger, and a list of the documents behind each box. The FTA audit file downloads as CSV, and each invoice has its e-invoice data as JSON (PINT AE fields) for an accredited provider later.
 - **WhatsApp for invoices**: "Prepare WhatsApp" on the invoice builds the message with a link the customer can open without signing in. You send it yourself.
 
+## Phase 4: accounting and the move from Tally
+
+- **Financial statements** (Accounting, Financial statements): trial balance (with group totals), P&L, balance sheet and cash flow, for one branch, several, or the company, with branches side by side. Every amount drills down to the ledger, the journal and the source document. Branch managers see their own branches only; anyone who cannot see bank balances is refused the balance sheet, cash flow and bank ledgers with a plain message.
+- **Ledgers and vouchers**: day book, ledger with running balance on any date, and vouchers (journal, payment, receipt, contra, debit and credit notes). A voucher must balance, a receivable or payable line must name the party, and the voucher goes to approval and gets its number only when posted.
+- **Receivables and payables**: ageing by branch with credit limit and overdue, customer and supplier statements, supplier payments allocated bill by bill (cash, transfer or cheque), money paid on account used later against a bill, and issued cheques marked paid by the bank or cancelled (the payment is reversed and the bills open again).
+- **Bank and reconciliation**: cheques falling due are flagged; card settlements post the bank's commission; bank statements import from CSV, match automatically by amount, date and reference, let you post a bank charge from a line, and lock when finished, with a reconciliation statement.
+- **VAT**: reverse charge on imported services shows in boxes 3 and 10 of the VAT return.
+- **Month end**: a checklist per month (cash sessions signed off, statements finished, stock counts closed, vouchers and bills posted, VAT tick); a month closes only in order and only when the checklist passes, and a closed month refuses postings. Only the owner reopens a month, with a reason that is logged. Year end moves the profit to retained earnings. Head-office costs are charged to branches by revenue or fixed shares. Fixed assets with straight-line depreciation and disposal. Budgets by branch and month against actual.
+- **Opening from Tally** (Month end, Opening): step 1 imports masters (ledgers, suppliers, stock items, customers) from CSV; step 2 checks the opening ledger balances and open bills and reports every problem without writing anything; step 3 loads them by branch and party; step 4 compares with the Tally trial balance and the accountant signs off.
+
 ## Demo data you will see
 
 - **YAS-ENQ-26-00001**: Faisal's 60K service, 103.50 discount, quotation YAS-Q-26-00001-1 sent. The total is 978.08, which matches the FSD 5.1 worked example. Open the customer link to approve, then create the job card.
@@ -83,7 +93,7 @@ Extra work found later is added on the job card and goes to the customer as a re
 ## Tests
 
 ```bash
-npm test                    # 55 tests against a separate superfix_test database (wiped on each run)
+npm test                    # 67 tests against a separate superfix_test database (wiped on each run)
 npm run typecheck
 # Browser smoke test (needs the app running on :3000 and Playwright installed):
 node tests/e2e-smoke.mjs ./shots
@@ -92,9 +102,10 @@ node tests/uat/ui-test-pass.mjs          # 66 test cases from the QA workbook
 node tests/uat/phase2-workshop.mjs       # clocking, quality check, delivery with signature
 node tests/uat/phase2-purchasing.mjs     # PO approval, goods received, matched bill, duplicate refused
 node tests/uat/phase3-billing.mjs        # release gate, invoice, payments, invoice link, credit note, counter sale, deposit, cash closing, VAT return
+node tests/uat/phase4-accounting.mjs     # vouchers, supplier payments and cheques, bank reconciliation, statements, month end, opening balances
 ```
 
-The tests cover the quote-before-job rule (service and database), manual-only messaging, master forms and their audit, branch isolation at the service and database level, hidden prices for technicians, the discount approval workflow (including no self-approval), gap-free numbering under concurrency, the VAT worked example, stock commitments and back orders, the customer approval link, and the invoice and receipt flow including idempotency. Phase 3 adds split, fleet and warranty billing, deposits with VAT, cheques (post-dated and returned), credit notes with approval and restock, counter sales, the release gate, cash closing, the customer invoice link and the VAT return checked against the ledger.
+The tests cover the quote-before-job rule (service and database), manual-only messaging, master forms and their audit, branch isolation at the service and database level, hidden prices for technicians, the discount approval workflow (including no self-approval), gap-free numbering under concurrency, the VAT worked example, stock commitments and back orders, the customer approval link, and the invoice and receipt flow including idempotency. Phase 3 adds split, fleet and warranty billing, deposits with VAT, cheques (post-dated and returned), credit notes with approval and restock, counter sales, the release gate, cash closing, the customer invoice link and the VAT return checked against the ledger. Phase 4 adds vouchers with approval, supplier payments and cheques, statements that agree with each other, bank reconciliation, period close and reopen, HO allocation, assets, budgets and the opening balances from Tally.
 
 ## How it is put together
 

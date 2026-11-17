@@ -293,13 +293,15 @@ export async function createBill(ctx: Ctx, f: { supplier_id: string; supplier_in
     }
     const netT = prepared.reduce((s, x) => s.plus(x.net), D(0));
     const vatT = prepared.reduce((s, x) => s.plus(x.vat), D(0));
+    // Reverse charge (imports, AC-07): the supplier does not charge the VAT; we account for it ourselves, so it is not owed to the supplier.
+    const rcVat = prepared.filter((x) => x.code === "RC").reduce((s, x) => s.plus(x.vat), D(0));
     const docNo = await nextDocNo(c, b, "supplier_bill");
     const due = new Date(f.invoice_date + "T00:00:00Z"); due.setUTCDate(due.getUTCDate() + Number(sup.payment_terms_days));
     const match = mismatch ? "mismatch" : anyGrn ? "matched" : "no_po";
     const bill = (await c.query(
       `INSERT INTO supplier_bill (branch_id, doc_no, supplier_id, supplier_invoice_no, invoice_date, due_date, match_status, net_total, vat_total, grand_total, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [b, docNo, f.supplier_id, invNo, f.invoice_date, due.toISOString().slice(0, 10), match, netT.toFixed(2), vatT.toFixed(2), netT.plus(vatT).toFixed(2), ctx.userId])).rows[0];
+      [b, docNo, f.supplier_id, invNo, f.invoice_date, due.toISOString().slice(0, 10), match, netT.toFixed(2), vatT.toFixed(2), netT.plus(vatT).minus(rcVat).toFixed(2), ctx.userId])).rows[0];
     for (const x of prepared) {
       await c.query(
         `INSERT INTO supplier_bill_line (bill_id, branch_id, grn_line_id, description, expense_type, qty, unit_price, vat_code, net_amount, vat_amount, received_value, match_note)
@@ -326,6 +328,7 @@ async function postBill(c: PoolClient, ctx: Ctx, id: string) {
   const recvNet = lines.filter((l) => l.grn_line_id).reduce((s, l) => s.plus(l.net_amount), D(0));
   const expense = lines.filter((l) => !l.grn_line_id).reduce((s, l) => s.plus(l.net_amount), D(0));
   const variance = recvNet.minus(recv);
+  const rcVat = lines.filter((l) => l.vat_code === "RC").reduce((s, l) => s.plus(l.vat_amount), D(0));
   await postJournal(c, ctx, {
     branchId: bill.branch_id, date: bill.invoice_date instanceof Date ? bill.invoice_date.toISOString().slice(0, 10) : String(bill.invoice_date),
     sourceType: "supplier_bill", sourceId: id, narration: `Supplier bill ${bill.doc_no} (${bill.supplier_invoice_no})`,
@@ -334,7 +337,8 @@ async function postBill(c: PoolClient, ctx: Ctx, id: string) {
       { event: "purchase_price_variance", debit: Decimal.max(variance, 0), credit: Decimal.max(variance.neg(), 0) },
       { event: "general_expense", debit: expense },
       { event: "vat_input", debit: bill.vat_total },
-      { event: "trade_payable", credit: bill.grand_total },
+      { event: "vat_output", credit: rcVat, narration: "Reverse charge VAT accounted for by us" },
+      { event: "trade_payable", credit: bill.grand_total, supplierId: bill.supplier_id },
     ],
   });
   await c.query("UPDATE supplier_bill SET status = 'posted', posted_at = now(), version = version + 1 WHERE id = $1", [id]);

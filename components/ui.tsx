@@ -24,7 +24,7 @@ const STATUS_COLOR: Record<string, string> = {
   sent: "amber", ready_to_send: "", draft: "grey", pending_internal_approval: "amber", partly_approved: "green", declined: "red", expired: "grey", superseded: "grey",
   open: "amber", converted: "green", lost: "red", pending: "amber", rejected: "red", sent_back: "amber",
   pending_approval: "amber", posted: "green", held: "amber", cleared: "green", bounced: "red", submitted: "amber", signed_off: "green",
-  settled: "green", overdue: "red",
+  settled: "green", overdue: "red", issued: "amber", finished: "green", loaded: "amber", active: "green", disposed: "grey",
 };
 
 const WORDS: Record<string, string> = {

@@ -45,6 +45,8 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean } = { de
     }
     // Priya also works at Yas South (one role per branch, BR-07 branch switcher).
     await c.query("INSERT INTO user_branch_role (user_id, branch_id, role_id) SELECT u.id, b.id, r.id FROM app_user u, branch b, role r WHERE u.username = 'priya' AND b.code = 'YSS' AND r.code = 'advisor'");
+    // The owner's own voucher goes to the accountant (a user never approves their own document).
+    await c.query("UPDATE workflow_step s SET backup_user_id = (SELECT id FROM app_user WHERE username = 'maryam') FROM workflow w WHERE w.id = s.workflow_id AND w.doc_type = 'voucher'");
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});

@@ -303,7 +303,7 @@ export async function listInvoices(ctx: Ctx, filter: { status?: string; q?: stri
 
 export type PayIn = { method: string; amount: unknown; reference?: string; cheque_no?: string; cheque_bank?: string; cheque_date?: string; idempotency_key: string };
 
-async function paymentMethod(c: PoolClient, f: PayIn) {
+export async function paymentMethod(c: PoolClient, f: PayIn) {
   const pm = (await c.query("SELECT * FROM payment_method WHERE code = $1 AND active", [f.method])).rows[0];
   if (!pm) throw invalid("Choose a payment method.");
   const isCheque = pm.posting_event === "pdc_received";
@@ -316,7 +316,7 @@ async function paymentMethod(c: PoolClient, f: PayIn) {
 }
 
 /** PY-03: once a cashier's day is closed, no more cash can be taken under that day. */
-async function assertCashOpen(c: PoolClient, ctx: Ctx, branchId: string, pm: Row) {
+export async function assertCashOpen(c: PoolClient, ctx: Ctx, branchId: string, pm: Row) {
   if (pm.posting_event !== "cash_drawer") return;
   const s = await c.query("SELECT status FROM cash_session WHERE branch_id = $1 AND cashier_id = $2 AND session_date = $3", [branchId, ctx.userId, today()]);
   if (s.rowCount) throw invalid("Your cash for today is already closed. Ask another cashier to take this cash payment, or take it tomorrow.");

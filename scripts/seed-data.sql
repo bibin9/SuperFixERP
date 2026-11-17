@@ -326,3 +326,53 @@ INSERT INTO price_list_line (price_level, item_id, price, min_price)
 SELECT 'trade', id, round(list_price * 0.90, 2), round(list_price * 0.80, 2) FROM item WHERE list_price > 0;
 INSERT INTO price_list_line (price_level, item_id, price, min_price)
 SELECT 'fleet', id, round(list_price * 0.93, 2), round(list_price * 0.85, 2) FROM item WHERE list_price > 0;
+
+-- ---------- Phase 4: accounting ----------
+INSERT INTO account (code, name, account_group, account_type, sub_type) VALUES
+ ('1150','Bank - second account','Bank accounts','asset','bank'),
+ ('1500','Furniture, tools and equipment','Fixed assets','asset','normal'),
+ ('1590','Accumulated depreciation','Fixed assets','asset','normal'),
+ ('2050','Cheques issued not yet cleared','Current liabilities','liability','normal'),
+ ('2900','Inter-branch clearing','Branch / divisions','liability','normal'),
+ ('3000','Owner''s capital','Capital account','equity','normal'),
+ ('3100','Retained earnings','Reserves and surplus','equity','normal'),
+ ('5700','Depreciation','Indirect expenses','expense','normal'),
+ ('5710','Loss or gain on asset disposal','Indirect expenses','expense','normal'),
+ ('5800','Head-office costs allocated','Indirect expenses','expense','normal'),
+ ('5810','Bank and card charges','Indirect expenses','expense','normal'),
+ ('5900','Rent','Indirect expenses','expense','normal'),
+ ('5910','Utilities','Indirect expenses','expense','normal');
+UPDATE account SET party_type = 'customer' WHERE code IN ('1200','2300');
+UPDATE account SET party_type = 'supplier' WHERE code = '2000';
+INSERT INTO account_mapping (event_key, account_id, description)
+SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
+ ('pdc_issued','2050','Cheques given to suppliers until the bank clears them'),
+ ('interbranch','2900','Inter-branch clearing (each branch balances on its own)'),
+ ('retained_earnings','3100','Year-end profit or loss'),
+ ('fixed_assets','1500','Fixed asset cost'),('accumulated_depreciation','1590','Depreciation to date'),
+ ('depreciation','5700','Monthly depreciation'),('asset_disposal','5710','Difference on selling or scrapping an asset'),
+ ('ho_allocation','5800','Head-office costs shared to branches'),('bank_charges','5810','Bank charges and card commission')
+) v(k, a, d);
+
+INSERT INTO bank_account (name, bank_name, account_no, iban, account_id) VALUES
+ ('Main current account','Emirates NBD','1015 4433 2201','AE070331234567890123456',(SELECT id FROM account WHERE code = '1120')),
+ ('Second account','ADCB','6000 1188 7710',NULL,(SELECT id FROM account WHERE code = '1150'));
+
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
+CROSS JOIN (VALUES ('voucher','-VCH-'),('supplier_payment','-PV-'),('card_settlement','-CS-'),('fixed_asset','-FA-')) t(doc_type, suffix);
+
+INSERT INTO workflow (doc_type, name, enabled) VALUES ('voucher','Manual accounting voucher', true);
+-- The owner approves vouchers; the owner's own voucher goes to the accountant as backup (a user never approves their own document).
+INSERT INTO workflow_step (workflow_id, seq, name, approver_role_id, approver_role_scope, backup_user_id)
+SELECT w.id, 1, 'Owner', (SELECT id FROM role WHERE code = 'owner'), 'any_branch', NULL FROM workflow w WHERE w.doc_type = 'voucher';
+
+INSERT INTO lookup_value (list, code, name_en, sort) VALUES
+ ('asset_category','tools','Workshop tools and equipment',1),('asset_category','furniture','Furniture and fittings',2),
+ ('asset_category','it','Computers and IT',3),('asset_category','vehicle','Vehicles',4);
+
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('accounting.ho_basis','"revenue"','Accounting','How head-office costs are shared to branches: revenue (share of sales) or fixed (percentages below)'),
+ ('accounting.ho_fixed_pct','{}','Accounting','Fixed percentage per branch code for head-office cost sharing, for example {"YAS": 12, "QUS": 10}'),
+ ('accounting.bank_match_days','3','Accounting','Days either side of the statement date when matching bank lines to the books'),
+ ('accounting.payment_alert_days','7','Accounting','Show cheques and supplier bills due within this many days');
