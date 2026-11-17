@@ -93,13 +93,14 @@ export async function importPunches(ctx: Ctx, text: string, deviceRef: string) {
 }
 
 export async function manualPunch(ctx: Ctx, f: { employee_id: string; date: string; time: string; note: string }) {
-  if (!isDate(f.date) || !/^\d{1,2}:\d{2}$/.test(f.time)) throw invalid("Enter the date and time.");
-  if (!str(f.note)) throw invalid("Say why the punch is added by hand.");
+  if (!isDate(f.date)) throw invalid("Date: choose the day of the punch.", { field: "date" });
+  if (!/^\d{1,2}:\d{2}$/.test(f.time)) throw invalid("Time: enter the time, for example 07:58.", { field: "time" });
+  if (!str(f.note)) throw invalid("Say why the punch is added by hand.", { field: "note" });
   return withTx(ctx, async (c) => {
     const e = (await c.query("SELECT id, branch_id FROM employee WHERE id = $1", [f.employee_id])).rows[0];
     if (!e) throw notFound("Employee");
     if (!can(ctx, "hr", "edit", e.branch_id) && !can(ctx, "hr", "approve", e.branch_id)) throw forbidden();
-    if (`${f.date}` > today()) throw invalid("A punch cannot be in the future.");
+    if (`${f.date}` > today()) throw invalid("A punch cannot be in the future.", { field: "date" });
     await c.query("INSERT INTO punch (branch_id, employee_id, at, source, note, created_by) VALUES ($1,$2,($3::timestamp AT TIME ZONE 'Asia/Dubai'),'manual',$4,$5)",
       [e.branch_id, e.id, `${f.date} ${f.time}`, str(f.note), ctx.userId]).catch((er) => { if (er.code === "23505") throw invalid("There is already a punch at that time."); throw er; });
     await audit(c, ctx, "punch", e.id, "manual", { at: `${f.date} ${f.time}`, note: str(f.note) }, e.branch_id);
@@ -246,8 +247,9 @@ export async function leaveBalances(c: PoolClient, employeeId: string, asOf = to
 }
 
 export async function requestLeave(ctx: Ctx, f: { employee_id?: string; leave_type: string; from_date: string; to_date: string; reason: string }) {
-  if (!isDate(f.from_date) || !isDate(f.to_date)) throw invalid("Choose the leave dates.");
-  if (f.to_date < f.from_date) throw invalid("The leave ends before it starts.");
+  if (!isDate(f.from_date)) throw invalid("From: choose the first day of leave.", { field: "from_date" });
+  if (!isDate(f.to_date)) throw invalid("To: choose the last day of leave.", { field: "to_date" });
+  if (f.to_date < f.from_date) throw invalid("The leave ends before it starts.", { field: "to_date" });
   return withTx(ctx, async (c) => {
     const me = await myEmployee(c, ctx);
     const empId = str(f.employee_id) || me?.id;
@@ -257,7 +259,7 @@ export async function requestLeave(ctx: Ctx, f: { employee_id?: string; leave_ty
     if (e.id !== me?.id) assertCan(ctx, "hr", "create", e.branch_id);
     if (e.status !== "active") throw invalid("This employee has left.");
     const t = (await c.query("SELECT * FROM leave_type WHERE code = $1 AND active", [f.leave_type])).rows[0];
-    if (!t) throw invalid("Choose the leave type.");
+    if (!t) throw invalid("Choose the leave type.", { field: "leave_type" });
     if (f.from_date < String(e.joining_date)) throw invalid("Leave cannot start before the joining date.");
     const overlap = (await c.query("SELECT doc_no FROM leave_request WHERE employee_id = $1 AND status IN ('pending_approval','approved') AND from_date <= $3 AND to_date >= $2", [e.id, f.from_date, f.to_date])).rows[0];
     if (overlap) throw conflict(`These dates overlap leave ${overlap.doc_no}.`);
@@ -266,7 +268,7 @@ export async function requestLeave(ctx: Ctx, f: { employee_id?: string; leave_ty
     // Balance check (FSD 4.13 rule 4): refused below zero, except unpaid leave or types that allow it.
     if (t.accrual !== "none" && !t.allow_negative) {
       const bal = (await leaveBalances(c, e.id, t.accrual === "yearly" ? f.from_date : f.to_date)).find((b) => b.code === t.code)!;
-      if (D(bal.balance!).lt(days)) throw invalid(`Not enough ${t.name_en.toLowerCase()}: ${days} day(s) asked, ${D(bal.balance!).toFixed(1)} available.`);
+      if (D(bal.balance!).lt(days)) throw invalid(`Not enough ${t.name_en.toLowerCase()}: ${days} day(s) asked, ${D(bal.balance!).toFixed(1)} available.`, { field: "to_date" });
     }
     if (t.code === "annual" && (await getSetting<boolean>(c, "hr.annual_needs_six_months", null, true)) && annualLeaveEarned(String(e.joining_date), f.from_date).eq(0) && !t.allow_negative)
       throw invalid("Annual leave starts after six months of service.");
@@ -302,8 +304,8 @@ export async function cancelLeave(ctx: Ctx, id: string) {
 }
 
 export async function adjustLeave(ctx: Ctx, f: { employee_id: string; leave_type: string; days: string; reason: string; adj_date?: string }) {
-  if (!/^-?\d+(\.\d{1,2})?$/.test(str(f.days)) || Number(f.days) === 0) throw invalid("Enter the days to add (or minus to take off).");
-  if (!str(f.reason)) throw invalid("Say why the balance changes (for example: opening balance from Tally).");
+  if (!/^-?\d+(\.\d{1,2})?$/.test(str(f.days)) || Number(f.days) === 0) throw invalid("Enter the days to add (or minus to take off).", { field: "days" });
+  if (!str(f.reason)) throw invalid("Say why the balance changes (for example: opening balance from Tally).", { field: "reason" });
   return withTx(ctx, async (c) => {
     const e = (await c.query("SELECT id, branch_id FROM employee WHERE id = $1", [f.employee_id])).rows[0];
     if (!e) throw notFound("Employee");
@@ -331,10 +333,10 @@ export async function listLeave(ctx: Ctx, f: { status?: string; employeeId?: str
 
 // ---------------------------------------------------------------- overtime (HR-13)
 export async function requestOvertime(ctx: Ctx, f: { employee_id?: string; work_date: string; hours: string; ot_type: string; reason: string }) {
-  if (!isDate(f.work_date)) throw invalid("Choose the date worked.");
-  if (!/^\d+(\.\d{1,2})?$/.test(str(f.hours)) || Number(f.hours) <= 0 || Number(f.hours) > 12) throw invalid("Hours must be more than 0 and at most 12.");
-  if (!["normal", "night", "rest_day", "holiday"].includes(f.ot_type)) throw invalid("Choose the overtime type.");
-  if (!str(f.reason)) throw invalid("Say what the overtime was for.");
+  if (!isDate(f.work_date)) throw invalid("Choose the date worked.", { field: "work_date" });
+  if (!/^\d+(\.\d{1,2})?$/.test(str(f.hours)) || Number(f.hours) <= 0 || Number(f.hours) > 12) throw invalid("Hours must be more than 0 and at most 12.", { field: "hours" });
+  if (!["normal", "night", "rest_day", "holiday"].includes(f.ot_type)) throw invalid("Choose the overtime type.", { field: "ot_type" });
+  if (!str(f.reason)) throw invalid("Say what the overtime was for.", { field: "reason" });
   return withTx(ctx, async (c) => {
     const me = await myEmployee(c, ctx);
     const empId = str(f.employee_id) || me?.id;
@@ -342,7 +344,7 @@ export async function requestOvertime(ctx: Ctx, f: { employee_id?: string; work_
     const e = (await c.query("SELECT * FROM employee WHERE id = $1", [empId])).rows[0];
     if (!e) throw notFound("Employee");
     if (e.id !== me?.id && !can(ctx, "hr", "create", e.branch_id) && !can(ctx, "hr", "approve", e.branch_id)) throw forbidden();
-    if (f.work_date > today()) throw invalid("Overtime is requested for a day already worked.");
+    if (f.work_date > today()) throw invalid("Overtime is requested for a day already worked.", { field: "work_date" });
     if ((await c.query("SELECT 1 FROM payroll_run WHERE period_month = date_trunc('month', $1::date) AND status <> 'calculated'", [f.work_date])).rowCount)
       throw invalid("Payroll for that month is already approved; add it to next month's overtime.");
     const r = await c.query("INSERT INTO overtime_request (branch_id, employee_id, work_date, hours, ot_type, reason, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
@@ -369,5 +371,38 @@ export async function listOvertime(ctx: Ctx, f: { mine?: boolean; month?: string
     return (await c.query(
       `SELECT o.*, to_char(o.work_date,'YYYY-MM-DD') work_d, e.emp_no, e.first_name || ' ' || e.last_name full_name, b.code branch_code
          FROM overtime_request o JOIN employee e ON e.id = o.employee_id JOIN branch b ON b.id = o.branch_id WHERE ${w.join(" AND ")} ORDER BY o.work_date DESC LIMIT 300`, p)).rows;
+  });
+}
+
+/** Leave on the employee file and in self-service: balances, requests and adjustments. */
+export async function employeeLeave(ctx: Ctx, employeeId: string) {
+  return withTx(ctx, async (c) => {
+    const e = (await c.query("SELECT id, branch_id, user_id FROM employee WHERE id = $1", [employeeId])).rows[0];
+    if (!e) throw notFound("Employee");
+    if (e.user_id !== ctx.userId) assertCan(ctx, "hr", "view", e.branch_id);
+    return {
+      balances: await leaveBalances(c, e.id),
+      requests: (await c.query(`SELECT l.*, to_char(l.from_date,'YYYY-MM-DD') from_d, to_char(l.to_date,'YYYY-MM-DD') to_d, lt.name_en type_name FROM leave_request l JOIN leave_type lt ON lt.code = l.leave_type WHERE l.employee_id = $1 ORDER BY l.from_date DESC LIMIT 100`, [e.id])).rows,
+      adjustments: (await c.query(`SELECT a.*, to_char(a.adj_date,'YYYY-MM-DD') adj_d, lt.name_en type_name, u.full_name by_name FROM leave_adjustment a JOIN leave_type lt ON lt.code = a.leave_type LEFT JOIN app_user u ON u.id = a.created_by WHERE a.employee_id = $1 ORDER BY a.created_at DESC`, [e.id])).rows,
+    };
+  });
+}
+
+/** Employee self-service (ESS): my file, today's punches, my week, balances and my requests. Any signed-in user linked to an employee. */
+export async function selfService(ctx: Ctx) {
+  return withTx(ctx, async (c) => {
+    const me = await myEmployee(c, ctx);
+    if (!me) return null;
+    const t = today();
+    return {
+      me,
+      punches: (await c.query("SELECT to_char(at AT TIME ZONE 'Asia/Dubai','HH24:MI') t, source FROM punch WHERE employee_id = $1 AND (at AT TIME ZONE 'Asia/Dubai')::date = $2 ORDER BY at", [me.id, t])).rows,
+      week: await myRoster(c, me),
+      balances: await leaveBalances(c, me.id),
+      leaveTypes: (await c.query("SELECT code, name_en FROM leave_type WHERE active ORDER BY sort")).rows,
+      letterTemplates: (await c.query("SELECT code, name_en FROM letter_template WHERE active ORDER BY name_en")).rows,
+      docs: (await c.query("SELECT kind, data, to_char(expiry_date,'YYYY-MM-DD') expiry FROM employee_record WHERE employee_id = $1 AND status = 'active' AND kind IN ('document','insurance') ORDER BY expiry_date", [me.id])).rows,
+      overtime: (await c.query("SELECT id, to_char(work_date,'YYYY-MM-DD') work_d, hours, ot_type, status FROM overtime_request WHERE employee_id = $1 ORDER BY work_date DESC LIMIT 20", [me.id])).rows,
+    };
   });
 }

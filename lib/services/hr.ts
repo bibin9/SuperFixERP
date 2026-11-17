@@ -15,8 +15,8 @@ import { addDays, daysBetween } from "./payroll-calc";
 
 export const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
-const optDate = (v: unknown, label: string) => { const s = str(v); if (!s) return null; if (!isDate(s)) throw invalid(`${label} is not a valid date.`); return s; };
-const reqDate = (v: unknown, label: string) => { const s = optDate(v, label); if (!s) throw invalid(`${label} is required.`); return s; };
+const optDate = (v: unknown, label: string, field?: string) => { const s = str(v); if (!s) return null; if (!isDate(s)) throw invalid(`${label} is not a valid date.`, { field }); return s; };
+const reqDate = (v: unknown, label: string, field?: string) => { const s = optDate(v, label, field); if (!s) throw invalid(`${label} is required.`, { field }); return s; };
 export const empName = (e: { first_name?: string; last_name?: string } | Record<string, any>) => `${e.first_name} ${e.last_name}`.trim();
 
 /** HR staff: create and edit employee files. Branch managers see their own branches' staff without salaries. */
@@ -52,12 +52,12 @@ export function cfVisible(ctx: Ctx, f: CustomField, branchId?: string | null) {
 }
 function cfValue(f: CustomField, raw: unknown) {
   const s = str(raw);
-  if (!s) { if (f.required) throw invalid(`${f.label} is required.`); return null; }
+  if (!s) { if (f.required) throw invalid(`${f.label} is required.`, { field: `cf_${f.code}` }); return null; }
   switch (f.field_type) {
-    case "number": if (!/^-?\d+(\.\d+)?$/.test(s)) throw invalid(`${f.label} must be a number.`); return s;
-    case "date": if (!isDate(s)) throw invalid(`${f.label} is not a valid date.`); return s;
-    case "dropdown": { const opts = (f.options ?? "").split(",").map((x) => x.trim()).filter(Boolean); if (!opts.includes(s)) throw invalid(`${f.label}: choose one of ${opts.join(", ")}.`); return s; }
-    case "yes_no": if (!["yes", "no"].includes(s)) throw invalid(`${f.label}: choose yes or no.`); return s;
+    case "number": if (!/^-?\d+(\.\d+)?$/.test(s)) throw invalid(`${f.label} must be a number.`, { field: `cf_${f.code}` }); return s;
+    case "date": if (!isDate(s)) throw invalid(`${f.label} is not a valid date.`, { field: `cf_${f.code}` }); return s;
+    case "dropdown": { const opts = (f.options ?? "").split(",").map((x) => x.trim()).filter(Boolean); if (!opts.includes(s)) throw invalid(`${f.label}: choose one of ${opts.join(", ")}.`, { field: `cf_${f.code}` }); return s; }
+    case "yes_no": if (!["yes", "no"].includes(s)) throw invalid(`${f.label}: choose yes or no.`, { field: `cf_${f.code}` }); return s;
     default: return s.slice(0, 500);
   }
 }
@@ -118,32 +118,33 @@ const EMP_FIELDS = ["first_name", "last_name", "name_ar", "nationality", "date_o
 function cleanEmployee(f: Record<string, unknown>) {
   const o: Record<string, unknown> = {};
   o.first_name = str(f.first_name); o.last_name = str(f.last_name);
-  if (!o.first_name || !o.last_name) throw invalid("First and last name are required.");
+  if (!o.first_name) throw invalid("First name is required.", { field: "first_name" });
+  if (!o.last_name) throw invalid("Last name is required.", { field: "last_name" });
   o.name_ar = optStr(f.name_ar);
-  o.nationality = str(f.nationality); if (!o.nationality) throw invalid("Nationality is required.");
-  o.date_of_birth = optDate(f.date_of_birth, "Date of birth");
+  o.nationality = str(f.nationality); if (!o.nationality) throw invalid("Nationality is required.", { field: "nationality" });
+  o.date_of_birth = optDate(f.date_of_birth, "Date of birth", "date_of_birth");
   o.gender = optStr(f.gender); o.marital_status = optStr(f.marital_status);
   o.mobile = optStr(f.mobile); o.email = optStr(f.email); o.emergency_contact = optStr(f.emergency_contact);
-  if (o.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(o.email))) throw invalid("Email is not valid.");
+  if (o.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(o.email))) throw invalid("Email is not valid.", { field: "email" });
   o.department_id = optStr(f.department_id); o.designation_id = optStr(f.designation_id); o.grade = optStr(f.grade);
   o.line_manager_id = optStr(f.line_manager_id);
-  o.joining_date = reqDate(f.joining_date, "Joining date");
+  o.joining_date = reqDate(f.joining_date, "Joining date", "joining_date");
   o.contract_type = str(f.contract_type) || "limited";
-  o.contract_end = optDate(f.contract_end, "Contract end");
-  o.probation_end = optDate(f.probation_end, "Probation end");
-  if (o.contract_end && String(o.contract_end) < String(o.joining_date)) throw invalid("Contract end cannot be before the joining date.");
-  if (o.probation_end && String(o.probation_end) < String(o.joining_date)) throw invalid("Probation end cannot be before the joining date.");
-  if (o.probation_end && daysBetween(String(o.joining_date), String(o.probation_end)) > 183) throw invalid("Probation can be at most six months (UAE Labour Law).");
+  o.contract_end = optDate(f.contract_end, "Contract end", "contract_end");
+  o.probation_end = optDate(f.probation_end, "Probation end", "probation_end");
+  if (o.contract_end && String(o.contract_end) < String(o.joining_date)) throw invalid("Contract end cannot be before the joining date.", { field: "contract_end" });
+  if (o.probation_end && String(o.probation_end) < String(o.joining_date)) throw invalid("Probation end cannot be before the joining date.", { field: "probation_end" });
+  if (o.probation_end && daysBetween(String(o.joining_date), String(o.probation_end)) > 183) throw invalid("Probation can be at most six months (UAE Labour Law).", { field: "probation_end" });
   o.mohre_person_code = optStr(f.mohre_person_code);
-  if (o.mohre_person_code && !/^\d{14}$/.test(String(o.mohre_person_code))) throw invalid("MOHRE person code must be 14 digits.");
+  if (o.mohre_person_code && !/^\d{14}$/.test(String(o.mohre_person_code))) throw invalid("MOHRE person code must be 14 digits.", { field: "mohre_person_code" });
   o.labour_card_no = optStr(f.labour_card_no);
   o.wps_agent_id = optStr(f.wps_agent_id);
   o.pay_method = str(f.pay_method) || "iban";
   o.iban = optStr(String(f.iban ?? "").replace(/\s/g, "").toUpperCase());
-  if (o.iban && !/^AE\d{21}$/.test(String(o.iban))) throw invalid("IBAN must be AE followed by 21 digits.");
+  if (o.iban && !/^AE\d{21}$/.test(String(o.iban))) throw invalid("IBAN must be AE followed by 21 digits.", { field: "iban" });
   o.wps_card_no = optStr(f.wps_card_no);
-  if (o.pay_method === "iban" && !o.iban && o.wps_agent_id) throw invalid("Enter the IBAN, or choose payment by WPS card.");
-  if (o.pay_method === "wps_card" && !o.wps_card_no) throw invalid("Enter the WPS card number.");
+  if (o.pay_method === "iban" && !o.iban && o.wps_agent_id) throw invalid("Enter the IBAN, or choose payment by WPS card.", { field: "iban" });
+  if (o.pay_method === "wps_card" && !o.wps_card_no) throw invalid("Enter the WPS card number.", { field: "wps_card_no" });
   o.shift_id = optStr(f.shift_id);
   o.weekly_off = str(f.weekly_off) === "" ? 5 : Number(f.weekly_off);
   o.user_id = optStr(f.user_id);
@@ -167,7 +168,7 @@ async function readCustom(c: PoolClient, ctx: Ctx, f: Record<string, unknown>, b
 
 export async function createEmployee(ctx: Ctx, f: Record<string, unknown>, files: Record<string, Upload | undefined> = {}) {
   const branchId = str(f.branch_id);
-  if (!branchId) throw invalid("Choose the branch.");
+  if (!branchId) throw invalid("Choose the branch.", { field: "branch_id" });
   assertCan(ctx, "hr", "create", branchId);
   const o = cleanEmployee(f);
   return withTx(ctx, async (c) => {
@@ -192,12 +193,13 @@ export async function updateEmployee(ctx: Ctx, id: string, f: Record<string, unk
     if (!before) throw notFound("Employee");
     if (!isHr(ctx, before.branch_id)) throw forbidden("Only HR can change the employee file.");
     if (Number(f.version) && Number(f.version) !== before.version) throw invalid("Someone else changed this employee. Reload to see their change.");
-    const o = cleanEmployee(f);
-    if (o.line_manager_id === id) throw invalid("An employee cannot report to themselves.");
+    // Bank details are not on the form for roles that cannot see them: keep what is stored.
+    const o = cleanEmployee({ ...f, iban: f.iban ?? before.iban, wps_card_no: f.wps_card_no ?? before.wps_card_no });
+    if (o.line_manager_id === id) throw invalid("An employee cannot report to themselves.", { field: "line_manager_id" });
     if (o.line_manager_id) {
       // No loops in the reporting line.
       const loop = (await c.query(`WITH RECURSIVE up AS (SELECT id, line_manager_id FROM employee WHERE id = $1 UNION SELECT e.id, e.line_manager_id FROM employee e JOIN up ON e.id = up.line_manager_id) SELECT 1 FROM up WHERE id = $2`, [o.line_manager_id, id])).rowCount;
-      if (loop) throw invalid("That line manager reports to this employee; choose someone else.");
+      if (loop) throw invalid("That line manager reports to this employee; choose someone else.", { field: "line_manager_id" });
     }
     const custom = await readCustom(c, ctx, f, before.branch_id, before.custom ?? {}, files);
     const cols = [...EMP_FIELDS];
@@ -242,6 +244,9 @@ export async function getEmployee(ctx: Ctx, id: string) {
     const team = (await c.query("SELECT id, emp_no, first_name, last_name FROM employee WHERE line_manager_id = $1 AND status = 'active' ORDER BY emp_no", [id])).rows;
     const lists = lookups;
     const salaryVisible = self || canSee(ctx, "salary", e.branch_id);
+    // Salary changes in the history follow the salary field permission too.
+    if (!salaryVisible) for (const h of hist) if (["opening_salary", "salary_revision", "final_settlement", "view_payslip"].includes(h.action)) h.changes = null;
+      else if (h.changes) { delete h.changes.iban; delete h.changes.wps_card_no; }
     const { custom: _raw, ...rest } = e;
     void _raw;
     // Bank details are salary-sensitive: shown to HR, the owner and the employee only.
@@ -262,18 +267,18 @@ export async function saveRecord(ctx: Ctx, employeeId: string, kind: string, f: 
     const data: Record<string, string> = {}; let expiry: string | null = null, amount: string | null = null, month: string | null = null;
     for (const fd of k.fields) {
       let v = str(f[fd.name]);
-      if (!v) { if (fd.required) throw invalid(`${fd.label} is required.`); continue; }
-      if (fd.type === "date" && !isDate(v)) throw invalid(`${fd.label} is not a valid date.`);
-      if (fd.type === "month") { if (!/^\d{4}-\d{2}$/.test(v)) throw invalid(`${fd.label} is not a valid month.`); v = `${v}-01`; }
-      if (fd.type === "number") { if (!/^\d+(\.\d{1,2})?$/.test(v)) throw invalid(`${fd.label} must be an amount.`); }
-      if (fd.options && !fd.options.some((o) => o[0] === v)) throw invalid(`${fd.label}: choose from the list.`);
+      if (!v) { if (fd.required) throw invalid(`${fd.label} is required.`, { field: fd.name }); continue; }
+      if (fd.type === "date" && !isDate(v)) throw invalid(`${fd.label} is not a valid date.`, { field: fd.name });
+      if (fd.type === "month") { if (!/^\d{4}-\d{2}$/.test(v)) throw invalid(`${fd.label} is not a valid month.`, { field: fd.name }); v = `${v}-01`; }
+      if (fd.type === "number") { if (!/^\d+(\.\d{1,2})?$/.test(v)) throw invalid(`${fd.label} must be an amount.`, { field: fd.name }); }
+      if (fd.options && !fd.options.some((o) => o[0] === v)) throw invalid(`${fd.label}: choose from the list.`, { field: fd.name });
       data[fd.name] = v;
       if (fd.role === "expiry") expiry = v;
       if (fd.role === "amount") amount = v;
       if (fd.role === "month") month = v;
     }
-    if (kind === "disciplinary" && amount && Number(amount) > 0 && !month) throw invalid("Choose the month to deduct in.");
-    if (kind === "insurance" && expiry && data.start_date && expiry < data.start_date) throw invalid("Expiry is before the start date.");
+    if (kind === "disciplinary" && amount && Number(amount) > 0 && !month) throw invalid("Choose the month to deduct in.", { field: "deduct_month" });
+    if (kind === "insurance" && expiry && data.start_date && expiry < data.start_date) throw invalid("Expiry is before the start date.", { field: "expiry_date" });
     if (kind === "air_ticket") await c.query("UPDATE employee_record SET status = 'closed', updated_at = now() WHERE employee_id = $1 AND kind = 'air_ticket' AND status = 'active'", [employeeId]);
     const att = file && file.bytes.length ? await saveAttachment(c, ctx, e.branch_id, `employee_${kind}`, employeeId, file) : null;
     const r = await c.query(
@@ -320,7 +325,7 @@ export async function startLeaving(ctx: Ctx, employeeId: string) {
 
 // ---------------------------------------------------------------- transfers (HR-05)
 export async function transferEmployee(ctx: Ctx, f: { employee_id: string; to_branch_id: string; effective_date: string; reason: string }) {
-  const eff = reqDate(f.effective_date, "Effective date");
+  const eff = reqDate(f.effective_date, "Effective date", "effective_date");
   return withTx(ctx, async (c) => {
     const e = (await c.query("SELECT * FROM employee WHERE id = $1", [f.employee_id])).rows[0];
     if (!e) throw notFound("Employee");
@@ -330,7 +335,7 @@ export async function transferEmployee(ctx: Ctx, f: { employee_id: string; to_br
     // The branch the employee is at on the effective date (a later transfer may already be planned).
     const last = (await c.query("SELECT to_branch_id FROM staff_transfer WHERE employee_id = $1 AND effective_date < $2 ORDER BY effective_date DESC LIMIT 1", [e.id, eff])).rows[0];
     const from = last?.to_branch_id ?? ((await c.query("SELECT from_branch_id FROM staff_transfer WHERE employee_id = $1 ORDER BY effective_date LIMIT 1", [e.id])).rows[0]?.from_branch_id ?? e.branch_id);
-    if (from === f.to_branch_id) throw invalid("The employee is already at that branch on that date.");
+    if (from === f.to_branch_id) throw invalid("The employee is already at that branch on that date.", { field: "to_branch_id" });
     if (eff < String(e.joining_date)) throw invalid("The transfer cannot be before the joining date.");
     if ((await c.query("SELECT 1 FROM payroll_employee pe JOIN payroll_run r ON r.id = pe.run_id WHERE pe.employee_id = $1 AND r.status <> 'calculated' AND pe.period_end >= $2", [e.id, eff])).rowCount)
       throw invalid("Payroll for that month is already approved. Use a date in an open payroll month.");
@@ -434,7 +439,7 @@ export async function requestLetter(ctx: Ctx, f: { employee_id?: string; templat
     if (!e) throw notFound("Employee");
     if (e.id !== me?.id) assertCan(ctx, "hr", "create", e.branch_id);
     const tpl = (await c.query("SELECT * FROM letter_template WHERE code = $1 AND active", [f.template_code])).rows[0];
-    if (!tpl) throw invalid("Choose the letter.");
+    if (!tpl) throw invalid("Choose the letter.", { field: "template_code" });
     const lang = f.language === "ar" ? "ar" : "en";
     if (lang === "ar" && !tpl.body_ar) throw invalid("This letter has no Arabic version yet. Ask the admin to add it to the letter template.");
     const r = await c.query("INSERT INTO hr_letter (branch_id, employee_id, template_code, language, addressed_to, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
@@ -515,7 +520,7 @@ export async function recruitment(ctx: Ctx) {
 }
 export async function addOpening(ctx: Ctx, f: Record<string, string>) {
   assertCan(ctx, "hr", "create", f.branch_id);
-  if (!str(f.title)) throw invalid("Job title is required.");
+  if (!str(f.title)) throw invalid("Job title is required.", { field: "title" });
   return withTx(ctx, async (c) => {
     await c.query("INSERT INTO job_opening (branch_id, title, department_id, designation_id, positions, created_by) VALUES ($1,$2,$3,$4,$5,$6)",
       [f.branch_id, str(f.title), optStr(f.department_id), optStr(f.designation_id), Math.max(1, Number(f.positions) || 1), ctx.userId]);
@@ -527,7 +532,7 @@ export async function addApplicant(ctx: Ctx, f: Record<string, string>) {
     if (!o) throw notFound("Opening");
     assertCan(ctx, "hr", "create", o.branch_id);
     if (o.status !== "open") throw invalid("This opening is closed.");
-    if (!str(f.full_name)) throw invalid("Applicant name is required.");
+    if (!str(f.full_name)) throw invalid("Applicant name is required.", { field: "full_name" });
     await c.query("INSERT INTO applicant (branch_id, opening_id, full_name, mobile, email, nationality, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)",
       [o.branch_id, o.id, str(f.full_name), optStr(f.mobile), optStr(f.email), optStr(f.nationality), ctx.userId]);
   });
@@ -540,7 +545,7 @@ export async function moveApplicant(ctx: Ctx, id: string, f: Record<string, stri
     if (a.stage === "hired") throw invalid("This applicant is already an employee.");
     const stage = str(f.stage);
     if (!["applied", "interview", "offer", "rejected"].includes(stage)) throw invalid("Choose the stage.");
-    if (stage === "offer" && !str(f.offer_salary)) throw invalid("Enter the offered salary for the offer letter.");
+    if (stage === "offer" && !str(f.offer_salary)) throw invalid("Enter the offered salary for the offer letter.", { field: "offer_salary" });
     await c.query("UPDATE applicant SET stage = $2, interview_notes = coalesce($3, interview_notes), offer_salary = coalesce($4::numeric, offer_salary), offer_date = CASE WHEN $2 = 'offer' THEN $5::date ELSE offer_date END WHERE id = $1",
       [id, stage, optStr(f.interview_notes), optStr(f.offer_salary), today()]);
   });

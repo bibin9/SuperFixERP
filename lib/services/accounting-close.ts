@@ -62,8 +62,10 @@ async function checklistFor(c: PoolClient, first: string): Promise<CheckItem[]> 
   ];
   if (hasPayroll) {
     const pr = (await c.query("SELECT count(*) FILTER (WHERE status IN ('posted','wps_created','paid')) posted, count(*) n FROM payroll_run WHERE period_month = $1", [first])).rows[0];
-    // Payroll is needed only when someone was employed in the month.
-    const staff = Number((await c.query("SELECT count(*) n FROM employee WHERE joining_date <= ($1::date + interval '1 month' - interval '1 day') AND (leaving_date IS NULL OR leaving_date >= $1::date)", [first])).rows[0].n);
+    // Payroll is needed only when someone was employed in the month, and only from the first payroll run in
+    // this system: months before it were paid in the old system (Tally) and their salary entries came with the opening balances.
+    const started = Number((await c.query("SELECT count(*) n FROM payroll_run WHERE period_month <= $1", [first])).rows[0].n) > 0;
+    const staff = !started ? 0 : Number((await c.query("SELECT count(*) n FROM employee WHERE joining_date <= ($1::date + interval '1 month' - interval '1 day') AND (leaving_date IS NULL OR leaving_date >= $1::date)", [first])).rows[0].n);
     if (staff) items.push({ key: "payroll", label: "Payroll for the month is posted", ok: Number(pr.posted) > 0, detail: Number(pr.posted) ? "Posted" : Number(pr.n) ? "Payroll run not posted yet" : "No payroll run yet", link: "/payroll" });
   }
   items.push({ key: "vat", label: "VAT for the month has been reviewed", ok: !!manual.vat, manual: true, detail: manual.vat ? `Ticked by ${manual.vat.by} on ${String(manual.vat.at).slice(0, 10)}` : "Tick once you have checked the VAT return", link: "/accounts/vat" });

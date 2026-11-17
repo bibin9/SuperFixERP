@@ -40,7 +40,7 @@ async function run<T>(setup: (c: PoolClient) => Promise<void>, fn: (c: PoolClien
     // A malformed record id in a URL (for example /stock/transfers/abc) is a missing record, not a crash.
     if ((e as { code?: string }).code === "22P02" && /type uuid/.test((e as Error).message)) throw notFound("Record");
     // Business rules enforced in the database (for example a closed accounting period) come back as plain messages.
-    if ((e as { code?: string }).code === "P0001" && /period .* is closed/i.test((e as Error).message)) throw invalid((e as Error).message);
+    if ((e as { code?: string }).code === "P0001" && /period .* is closed|is archived and is read only/i.test((e as Error).message)) throw invalid((e as Error).message);
     throw e;
   } finally {
     c.release();

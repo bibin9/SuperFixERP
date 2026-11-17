@@ -117,7 +117,9 @@ export async function inbox(ctx: Ctx) {
         ORDER BY t.created_at`,
       [ctx.userId],
     );
-    return r.rows.map((row) => (canSee(ctx, "selling_price", null) ? row : { ...row, amount: null, summary: {} }));
+    // HR requests carry no prices; salary documents follow the salary field; the rest follow selling prices.
+    const field = (t: string) => (["leave_request", "overtime_request", "hr_letter", "loan"].includes(t) ? null : ["salary_revision", "payroll_run", "final_settlement"].includes(t) ? "salary" : "selling_price");
+    return r.rows.map((row) => { const f = field(row.doc_type); return !f || canSee(ctx, f, null) ? row : { ...row, amount: null, summary: {} }; });
   });
 }
 

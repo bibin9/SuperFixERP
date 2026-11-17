@@ -12,6 +12,11 @@ import { addEnquiryLine, changeStatus } from "../lib/services/jobs";
 import { createEnquiry, createJobCard } from "../lib/services/enquiries";
 import { setAssignments, clock, recordQc } from "../lib/services/workshop";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff } from "../lib/services/quotations";
+import { createEmployee, saveRecord } from "../lib/services/hr";
+import { requestOvertime, requestLeave, adjustLeave } from "../lib/services/hr-time";
+import { annualLeaveEarned } from "../lib/services/payroll-calc";
+import { setOpeningSalary } from "../lib/services/payroll";
+import { inbox, act } from "../lib/services/workflow";
 
 export const DEMO_PASSWORD = "Superfix@2026";
 
@@ -31,7 +36,7 @@ export const USERS: [string, string, string | null, string, string][] = [
   ["sara", "Sara Ali", "QUS", "advisor", "QUS"],
 ];
 
-export async function seed(adminUrl: string, opts: { demoJobs?: boolean } = { demoJobs: true }) {
+export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history?: boolean } = { demoJobs: true }) {
   const c = new Client({ connectionString: adminUrl });
   await c.connect();
   try {
@@ -146,6 +151,131 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean } = { de
   await addEnquiryLine(sara, e3.id, { line_type: "labour", service_id: svc["SVC-10K"] });
   await addEnquiryLine(sara, e3.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
   await saveQuotation(sara, e3.id, {});
+  await seedHr(adminUrl);
+  if (opts.history) await seedServiceHistory(adminUrl);
+}
+
+/** Phase 5 demo staff: employee files linked to the demo users, salaries, documents near expiry, overtime and leave. */
+async function seedHr(adminUrl: string) {
+  const one = async (sql: string, p: unknown[] = []) => (await q(adminUrl, sql, p))[0];
+  const id = async (table: string, where: string, p: unknown[]) => (await one(`SELECT id FROM ${table} WHERE ${where}`, p)).id as string;
+  const br = async (code: string) => id("branch", "code = $1", [code]);
+  const dep = async (code: string) => id("department", "code = $1", [code]);
+  const des = async (code: string) => id("designation", "code = $1", [code]);
+  const user = async (u: string) => id("app_user", "username = $1", [u]);
+  const enbd = await id("wps_agent", "code = $1", ["ENBD"]), ansari = await id("wps_agent", "code = $1", ["ALANSARI"]);
+  const day = await id("shift", "code = $1", ["DAY"]), office = await id("shift", "code = $1", ["OFFICE"]);
+  const fatima = await ctxFor("fatima.hr", "HQ");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
+  const plus = (n: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  // [username, first, last, nationality, branch, dept, designation, joining, line manager username, pay [basic, housing, transport], wps agent, pay method, shift]
+  const staff: [string | null, string, string, string, string, string, string, string, string | null, [number, number, number], string, "iban" | "wps_card", string][] = [
+    ["yousef", "Yousef", "Kareem", "JO", "YAS", "MGMT", "BM", "2019-03-01", null, [9000, 4000, 1500], enbd, "iban", office],
+    ["khalid", "Khalid", "Rahman", "PK", "YAS", "WORKSHOP", "FOREMAN", "2017-09-01", "yousef", [5000, 2500, 800], enbd, "iban", day],
+    ["priya", "Priya", "Menon", "IN", "YAS", "FRONT", "ADVISOR", "2021-06-15", "yousef", [4500, 2000, 800], enbd, "iban", office],
+    ["ramesh", "Ramesh", "Kumar", "IN", "YAS", "WORKSHOP", "SR-TECH", "2020-01-10", "khalid", [2000, 1000, 300], ansari, "wps_card", day],
+    ["arjun", "Arjun", "Pillai", "IN", "YAS", "WORKSHOP", "TECH", "2026-06-01", "khalid", [1800, 900, 300], ansari, "wps_card", day],
+    ["anil", "Anil", "Kumar", "IN", "YAS", "PARTS", "STORE", "2022-02-01", "yousef", [2800, 1200, 500], enbd, "iban", day],
+    [null, "Rashid", "Khan", "PK", "YAS", "WORKSHOP", "DRIVER", "2024-04-01", "khalid", [1500, 800, 0], ansari, "wps_card", day],
+    ["omar", "Omar", "Farouk", "EG", "QUS", "MGMT", "BM", "2018-05-01", null, [9000, 4000, 1500], enbd, "iban", office],
+    ["sara", "Sara", "Ali", "EG", "QUS", "FRONT", "ADVISOR", "2023-03-01", "omar", [4000, 1800, 600], enbd, "iban", office],
+    ["maryam", "Maryam", "Haddad", "JO", "HQ", "FIN", "ACCT", "2019-11-01", null, [8000, 3500, 1000], enbd, "iban", office],
+    ["fatima.hr", "Fatima", "Nasser", "AE", "HQ", "HR", "HR-OFF", "2020-08-01", null, [6500, 3000, 1000], enbd, "iban", office],
+  ];
+  const empIds: Record<string, string> = {};
+  let n = 0;
+  for (const [u, fn, ln, nat, b, dp, dg, join, lm, pay, agent, method, shift] of staff) {
+    n++;
+    const key = u ?? `${fn}.${ln}`.toLowerCase();
+    const probation = join > plus(-180) ? plus(13) : null;
+    const e = await createEmployee(fatima, {
+      branch_id: await br(b), first_name: fn, last_name: ln, nationality: nat, gender: ["priya", "sara", "maryam", "fatima.hr"].includes(u ?? "") ? "female" : "male",
+      department_id: await dep(dp), designation_id: await des(dg), joining_date: join, contract_type: "unlimited", probation_end: probation,
+      line_manager_id: lm ? empIds[lm] : "", mohre_person_code: String(10000000000000 + n * 7919), labour_card_no: `LC${100200 + n}`,
+      wps_agent_id: agent, pay_method: method, iban: method === "iban" ? `AE07033123456789012${String(n).padStart(4, "0")}` : "", wps_card_no: method === "wps_card" ? `4012000011${String(n).padStart(6, "0")}` : "",
+      shift_id: shift, weekly_off: "5", user_id: u ? await user(u) : "", mobile: `+97150${String(1000000 + n * 1371).slice(0, 7)}`,
+    });
+    empIds[key] = e.id;
+    await setOpeningSalary(fatima, e.id, { basic: String(pay[0]), housing: String(pay[1]), transport: pay[2] ? String(pay[2]) : "" }, join);
+  }
+  // Opening annual leave balances carried over from before go-live (otherwise long-serving staff would show years of untaken leave).
+  const opening: Record<string, number> = { yousef: 24, khalid: 18, priya: 21, ramesh: 30, anil: 12, "rashid.khan": 15, omar: 20, sara: 14, maryam: 22, "fatima.hr": 16 };
+  for (const [k, target] of Object.entries(opening)) {
+    const join = (await one("SELECT to_char(joining_date,'YYYY-MM-DD') j FROM employee WHERE id = $1", [empIds[k]])).j as string;
+    const adj = (target - Number(annualLeaveEarned(join, today))).toFixed(2);
+    if (Number(adj) !== 0) await adjustLeave(fatima, { employee_id: empIds[k], leave_type: "annual", days: adj, reason: "Opening balance at go-live (leave taken before, from the old records)", adj_date: `${today.slice(0, 4)}-01-01` });
+  }
+  // The checklist for the long-serving staff is done; Arjun's is still open (joined this year).
+  await q(adminUrl, "UPDATE employee_checklist SET done = true, done_at = now() WHERE employee_id <> $1", [empIds.arjun]);
+  // Documents, insurance and air tickets: Ramesh's passport expires in 25 days, Arjun's visa in 50 (alerts).
+  await saveRecord(fatima, empIds.ramesh, "document", { doc_type: "passport", number: "N4471223", issue_date: "2016-12-10", expiry_date: plus(25) });
+  await saveRecord(fatima, empIds.ramesh, "document", { doc_type: "visa", number: "201/2024/7712345", issue_date: "2024-01-05", expiry_date: "2027-01-04" });
+  await saveRecord(fatima, empIds.arjun, "document", { doc_type: "visa", number: "201/2026/5512091", issue_date: "2026-05-20", expiry_date: plus(50) });
+  await saveRecord(fatima, empIds.priya, "document", { doc_type: "passport", number: "Z5512876", issue_date: "2019-03-01", expiry_date: "2029-02-28" });
+  await saveRecord(fatima, empIds.ramesh, "insurance", { provider: "Daman", policy_no: "DM-77-1203", card_no: "784-1203-88", category: "basic", start_date: "2026-01-01", expiry_date: "2026-12-31", premium: "750" });
+  await saveRecord(fatima, empIds.khalid, "air_ticket", { cycle_years: "2", sector: "Abu Dhabi - Lahore", ticket_amount: "2400", last_used: "2025-07-15" });
+  await saveRecord(fatima, empIds.ramesh, "air_ticket", { cycle_years: "1", sector: "Abu Dhabi - Kochi", ticket_amount: "1500", last_used: "2025-12-20" });
+  await saveRecord(fatima, empIds.ramesh, "asset", { asset_name: "toolbox", serial: "TB-0145", issue_date: "2020-01-12", condition: "New" });
+  // Last month: Ramesh worked 10 hours of overtime (approved by Khalid), Priya took 3 days' annual leave.
+  const lastMonth = (() => { const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
+  await requestOvertime(fatima, { employee_id: empIds.ramesh, work_date: `${lastMonth}-14`, hours: "4", ot_type: "normal", reason: "Fleet backlog" });
+  await requestOvertime(fatima, { employee_id: empIds.ramesh, work_date: `${lastMonth}-21`, hours: "6", ot_type: "rest_day", reason: "Rest-day recovery job" });
+  await requestLeave(await ctxFor("priya", "YAS"), { leave_type: "annual", from_date: `${lastMonth}-06`, to_date: `${lastMonth}-08`, reason: "Family visit" });
+  for (const [u, b] of [["khalid", "YAS"], ["yousef", "YAS"], ["fatima.hr", "HQ"]] as const) {
+    const ctx = await ctxFor(u, b);
+    for (const t of await inbox(ctx)) if (["overtime_request", "leave_request"].includes(t.doc_type)) await act(ctx, t.task_id, "approved");
+  }
+  // This month: Ramesh asks for two days' sick leave next week (waiting for Khalid).
+  await requestLeave(await ctxFor("ramesh", "YAS"), { leave_type: "sick", from_date: plus(7), to_date: plus(8), reason: "Medical appointment" });
+}
+
+/**
+ * Reports demo (phase 6): service history imported from Tally for eight more vehicles, so the next-service
+ * report (TR-01) and the archive have data. These are closed job cards with old dates; they carry no
+ * invoices or journals, so no balance changes. Dates are relative to today so the demo stays current.
+ */
+async function seedServiceHistory(adminUrl: string) {
+  const c = new Client({ connectionString: adminUrl });
+  await c.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL session_replication_role = replica"); // imported history: skip the quote-first rule for these closed jobs
+    const H: [string, string, string, string, string, string, string, number, string, number, number][] = [
+      // branch, first, last, mobile, plate code, plate, make model, year, last service (SQL date), km at last service, km now
+      ["YAS", "Hamad", "Al Ketbi", "+971501112201", "7", "11021", "Nissan|Altima", 2019, "current_date - interval '20 months'", 70100, 84000],
+      ["YAS", "Mariam", "Al Suwaidi", "+971501112202", "12", "11022", "Toyota|Camry", 2020, "current_date - interval '17 months'", 52000, 61500],
+      ["YAS", "Rajesh", "Pillai", "+971501112203", "4", "11023", "Honda|Accord", 2018, "current_date - interval '14 months'", 98000, 109000],
+      ["YAS", "Ahmed", "Al Nuaimi", "+971501112204", "9", "11024", "Lexus|LX570", 2021, "(current_date - interval '6 months')::date + 8", 41000, 47500],
+      ["YAS", "Sophie", "Martin", "+971501112205", "3", "11025", "Mitsubishi|Pajero", 2017, "(current_date - interval '6 months')::date + 23", 120500, 126000],
+      ["YAS", "Omar", "Haddad", "+971501112206", "6", "11026", "Kia|Sorento", 2022, "current_date - interval '3 months'", 30000, 34000],
+      ["YAS", "Li", "Wei", "+971501112207", "15", "11027", "Hyundai|Tucson", 2021, "current_date - interval '4 months'", 45000, 56200],
+      ["QUS", "Khaled", "Mansour", "+971501112208", "A", "11028", "Ford|Explorer", 2020, "(current_date - interval '6 months')::date + 12", 66000, 72000],
+    ];
+    let n = 0;
+    for (const [br, first, last, mobile, pc, plate, mm, year, when, km, kmNow] of H) {
+      n++;
+      const [make, model] = mm.split("|");
+      const b = (await c.query("SELECT id FROM branch WHERE code = $1", [br])).rows[0].id;
+      const adv = (await c.query("SELECT id FROM app_user WHERE username = $1", [br === "YAS" ? "priya" : "sara"])).rows[0].id;
+      const cust = (await c.query("INSERT INTO customer (customer_no, customer_type, title, first_name, last_name, country_code, mobile, whatsapp, preferred_branch_id, created_by) VALUES ($1,'individual',$7,$2,$3,'AE',$4,true,$5,$6) RETURNING id",
+        [`H${1000 + n}`, first, last, mobile, b, adv, ['Mariam', 'Sophie'].includes(first) ? 'Ms' : 'Mr'])).rows[0].id;
+      const veh = (await c.query("INSERT INTO vehicle (registered_in, plate_code, plate_number, make, model, model_year, odometer, owner_customer_id, vin_missing_reason, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Imported from Tally without VIN',$9) RETURNING id",
+        [br === "YAS" ? "AUH" : "DXB", pc, plate, make, model, year, kmNow, cust, adv])).rows[0].id;
+      await c.query("INSERT INTO vehicle_customer (vehicle_id, customer_id, relation) VALUES ($1,$2,'owner')", [veh, cust]);
+      const jobs = n === 1 ? [`${when} - interval '6 months'`, when] : [when];
+      for (const [i, d] of jobs.entries()) {
+        await c.query(`INSERT INTO job_card (branch_id, doc_no, doc_date, job_type, customer_id, vehicle_id, odometer_in, complaints, advisor_id, promised_at, ready_at, delivered_at, status, created_at, created_by)
+          VALUES ($1, $2, (${d})::date, 'service', $3, $4, $5, 'Periodic service (history imported from Tally)', $6, (${d})::date + time '17:00', (${d})::date + time '15:30', (${d})::date + time '18:00', 'closed', (${d})::date + time '08:30', $6)`,
+          [b, `${br}-HIST-${String(n).padStart(2, "0")}${i ? "B" : ""}`, cust, veh, i === jobs.length - 1 ? km : km - 9000, adv]);
+      }
+    }
+    await c.query("COMMIT");
+  } catch (e) {
+    await c.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    await c.end();
+  }
 }
 
 async function q(adminUrl: string, sql: string, params: unknown[] = []) {
@@ -159,7 +289,7 @@ const ctxLines = async (u: string, qid: string) => q(u, "SELECT id, description 
 const partLines = async (u: string, jobId: string) => q(u, "SELECT id, qty FROM job_line WHERE job_card_id = $1 AND line_type = 'part' AND approval_status = 'approved'", [jobId]);
 
 if (require.main === module) {
-  seed(dbConfig().adminUrl)
+  seed(dbConfig().adminUrl, { demoJobs: true, history: true })
     .then(async () => { await closePool(); console.log(`seeded. Sign in as any demo user with password ${DEMO_PASSWORD}`); })
     .catch(async (e) => { await closePool(); console.error(e); process.exit(1); });
 }

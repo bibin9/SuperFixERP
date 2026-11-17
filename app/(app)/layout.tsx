@@ -2,6 +2,9 @@ import Link from "next/link";
 import { requireCtx } from "@/lib/session";
 import { canAnywhere, roleAt } from "@/lib/access";
 import { shellData } from "@/lib/services/home";
+import { seesPayroll } from "@/lib/services/payroll";
+import { visibleReports } from "@/lib/services/reports";
+import { menuReports, unreadInbox } from "@/lib/services/report-saved";
 import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
@@ -16,6 +19,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { branches, pending } = await shellData(ctx);
   const role = roleAt(ctx, ctx.currentBranchId);
   const can = (s: Parameters<typeof canAnywhere>[1], a: Parameters<typeof canAnywhere>[2] = "view") => canAnywhere(ctx, s, a);
+  const seesReports = visibleReports(ctx).length > 0;
+  const savedMenu = seesReports ? await menuReports(ctx) : [];
+  const unread = seesReports ? await unreadInbox(ctx) : 0;
   const menu: [string, [string, string, boolean, number?][]][] = [
     ["Front office", [
       ["/", "Home", true],
@@ -59,11 +65,34 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/accounts/vat", "VAT return", can("accounting")],
       ["/accounts/periods", "Month end", can("accounting")],
     ]],
+    ["HR", [
+      ["/me", "My HR", true],
+      ["/hr", "HR dashboard", can("hr")],
+      ["/hr/employees", "Employees", can("hr")],
+      ["/hr/attendance", "Attendance and roster", can("hr")],
+      ["/hr/leave", "Leave and overtime", can("hr")],
+      ["/hr/letters", "Letters", can("hr")],
+      ["/hr/recruitment", "Recruitment", can("hr")],
+    ]],
+    ["Payroll", [
+      ["/payroll", "Payroll runs", seesPayroll(ctx)],
+      ["/payroll/revisions", "Salary updates", seesPayroll(ctx)],
+      ["/payroll/loans", "Advances and loans", seesPayroll(ctx)],
+      ["/payroll/settlements", "Final settlements", seesPayroll(ctx)],
+    ]],
+    ["Reports", [
+      ["/reports", "Reports dashboard", seesReports],
+      ["/reports/all", "All reports", seesReports],
+      ...savedMenu.map((r): [string, string, boolean] => [`/reports/saved/${r.id}`, r.name, true]),
+      ["/reports/builder", "Report builder", seesReports],
+      ["/reports/inbox", "Report inbox", seesReports, unread],
+      ["/reports/archive", "Archive", seesReports],
+    ]],
     ["Administration", [
       ["/admin/branches", "Branches", can("admin")],
       ["/admin/users", "Users & access", can("admin")],
       ["/admin/roles", "Roles & permissions", can("admin")],
-      ["/admin/masters", "Master forms", can("settings")],
+      ["/admin/masters", "Master forms", can("settings") || can("hr")],
       ["/admin/workflows", "Approval workflows", can("settings")],
       ["/admin/numbering", "Document numbering", can("settings")],
       ["/admin/settings", "Settings", can("settings")],
@@ -82,7 +111,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" /><span>Super Fix Auto Centers</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
-          Local build · phase 4
+          Local build · phase 6
           <form action={logoutAction}><button type="submit">Sign out</button></form>
         </div>
       </aside>

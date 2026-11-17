@@ -25,12 +25,14 @@ const STATUS_COLOR: Record<string, string> = {
   open: "amber", converted: "green", lost: "red", pending: "amber", rejected: "red", sent_back: "amber",
   pending_approval: "amber", posted: "green", held: "amber", cleared: "green", bounced: "red", submitted: "amber", signed_off: "green",
   settled: "green", overdue: "red", scheduled: "", on_the_way: "violet", completed: "green", no_show: "red", checked_in: "green", issued: "amber", finished: "green", loaded: "amber", active: "green", disposed: "grey",
+  calculated: "amber", wps_created: "violet", paid: "green", left: "grey", present: "green", absent: "red", late: "amber", early_leave: "amber", missing_out: "amber",
+  leave: "violet", off: "grey", holiday: "grey", worked_off_day: "violet", worked_holiday: "violet", not_in_yet: "", interview: "amber", offer: "violet", hired: "green", applied: "",
 };
 
 const WORDS: Record<string, string> = {
   whatsapp: "WhatsApp", whatsapp_reply: "WhatsApp reply", whatsapp_link: "WhatsApp link", walk_in: "Walk-in", in_person: "In person",
   sms: "SMS", email: "Email", lpo: "LPO", vat: "VAT", trn: "TRN", job_no: "Job number", doc_no: "Document number", max_pct: "Maximum %",
-  sent_manually: "Sent manually", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
+  sent_manually: "Sent manually", wps_created: "WPS file created", missing_out: "No check-out", not_in_yet: "Not in yet", worked_off_day: "Worked on day off", worked_holiday: "Worked on holiday", early_leave: "Left early", rest_day: "Rest day", wps_card: "WPS card", iban: "IBAN", end_of_contract: "End of contract", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
   transfer: "Transfer order", stock_transfer: "Transfer order", voucher: "Voucher (before 17 Nov)", voucher_journal: "Journal voucher", voucher_payment: "Payment voucher",
   vehicle_run: "Vehicle run", no_show: "Did not come", drop_off: "Drop-off", rebook: "Booking moved", cancel_booking: "Booking cancelled",
   voucher_receipt: "Receipt voucher", voucher_contra: "Contra voucher", voucher_debit_note: "Debit note voucher", voucher_credit_note: "Credit note voucher",

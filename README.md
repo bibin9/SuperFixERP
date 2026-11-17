@@ -83,6 +83,28 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **Month end**: a checklist per month (cash sessions signed off, statements finished, stock counts closed, vouchers and bills posted, VAT tick); a month closes only in order and only when the checklist passes, and a closed month refuses postings. Only the owner reopens a month, with a reason that is logged. Year end moves the profit to retained earnings. Head-office costs are charged to branches by revenue or fixed shares. Fixed assets with straight-line depreciation and disposal. Budgets by branch and month against actual.
 - **Opening from Tally** (Month end, Opening): step 1 imports masters (ledgers, suppliers, stock items, customers) from CSV; step 2 checks the opening ledger balances and open bills and reports every problem without writing anything; step 3 loads them by branch and party; step 4 compares with the Tally trial balance and the accountant signs off.
 
+## Phase 5: HR and payroll
+
+- **Employee file** (HR, Employees): personal details, branch, department, line manager, contract, probation, bank IBAN or WPS card, custom fields added by the admin (Master forms, Employee custom fields), joining and leaving checklists. Tabs hold documents with expiry (passport, visa, Emirates ID, labour card and so on), insurance, air ticket entitlement, the visa and labour process, company assets issued, warnings, performance reviews and training.
+- **HR dashboard**: headcount by branch and nationality, joiners and leavers, overtime and leave waiting, and documents or contracts expiring.
+- **Attendance**: punches from devices (CSV import), mobile check-in by GPS within the branch radius or the branch QR code, and punches added by hand with a reason. Late minutes are counted against the shift. **Roster**: weekly plan per branch with days off and public holiday cover.
+- **Leave and overtime**: leave types and balances under UAE Labour Law; requests go to the line manager, then HR. Overtime is approved before payroll at the normal, night, rest day and holiday rates (Settings, Payroll).
+- **Letters**: salary certificate, salary transfer letter, experience certificate and employment letter from templates (add more under Master forms), each with a reference.
+- **Transfers** between branches with an effective date; the organisation chart follows them. **Recruitment**: openings, applicants, interviews, offer and hire into a new employee file.
+- **Self-service** (My HR): profile, attendance, leave balance and requests, payslips, letters and advances, on a phone.
+- **Payroll** (Payroll): HR calculates the month, the payroll check flags changes from last month, the owner approves (the month is locked), it posts the salary cost to each branch, the WPS salary file (SIF) is made per agent, and the run is marked paid. The owner can reopen an approved run with a reason. Salary updates, advances and loans go through approval; loan instalments are taken each month within the deduction cap. The branch register has one column per salary component with branch totals. Final settlement works out gratuity, unused leave and open loans. Each month the run accrues gratuity, leave salary and air tickets and posts them with the salary cost by branch; Payroll, Liabilities shows the gratuity owed and the loans to recover by branch.
+
+## Phase 6: reports, report builder and archive
+
+- **Reports dashboard**: today and the chosen period by branch (sales, cars in and out, cash) and the enquiry-to-invoice funnel. Each figure opens the list behind it.
+- **All reports**: 35 standard reports in nine areas (workshop, technicians, sales, customers, parts, purchasing, finance, HR and payroll, approvals), including TR-01 next service (with "Prepare WhatsApp" for you to send yourself), TR-02 sales, TR-03 purchases, TR-04 pending LPOs, TR-05 pending transfer notes and TR-06 the insurance register. Every report has branch, date and people filters, Excel and CSV export, and Print or PDF on the letterhead.
+- **Copy a report**: choose, rename and reorder its columns and keep its filters. The standard report stays as it is.
+- **Report builder**: pick a data source, columns with totals, counts and averages, filters (or questions asked when it runs), sort, subtotals, a pivot, calculated columns and a bar, line or pie chart. There is no free SQL.
+- **Sharing**: keep a report private or share it with roles or users, and add it to the menu. Pin any report to your reports dashboard as a table or chart.
+- **Schedules**: a report can be prepared daily, weekly or monthly as an Excel file in your Report inbox. Nothing is emailed; download it and send it yourself.
+- **Archive** (Reports, Archive): the owner runs it every 6 months (Settings). Closed, paid and posted records older than the live window (12 months) become archived and read only. Customers, vehicles, items, suppliers, staff and settings are never archived. Every report has a Data selector: Live, Archived, or one archive run. Each run is logged with its counts and a ledger check.
+- **Who sees what**: you see a report if you have Reports view and can view its module at the branch. Salary reports also need the salary field. Hidden fields (cost, margin, salary and so on) are removed from report columns, the builder, exports and shared reports.
+
 ## Added after Superfix's review on 17 November 2026
 
 - **Voucher numbering**: each voucher type has its own series per branch (YAS-JRN-, YAS-PMT-, YAS-RCV-, YAS-CON-, YAS-DBN-, YAS-CRN-), editable under Document numbering.
@@ -100,11 +122,13 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **YAS-ENQ-26-00002 / job YAS-1483**: approved in person (wiper declined), job card created from the approved quote, oil issued, at Ready. Use "Prepare invoice", take a payment, then deliver the car: the job closes.
 - **YAS-ENQ-26-00003 / job YAS-1484**: Noura's Prado (AC and battery), in progress. Ramesh and Arjun share the AC work and Arjun is clocked in on the battery. Sign in as **arjun** or **ramesh** on a phone and open My jobs; sign in as **khalid** (foreman) for the board and the quality check.
 - **QUS-ENQ-26-00001**: a fleet quotation saved but not sent, at another branch. Sign in as priya and you cannot open it; sign in as omar and you can.
+- **HR**: twelve employees across the branches with salaries, documents (Ramesh's passport expires within 30 days, his insurance within 60), shifts, holidays and a leave request. Sign in as **fatima.hr** for HR and payroll.
+- **Service history**: eight imported older customers and vehicles with closed job cards from 6 to 26 months ago, so the next service report and the archive have data. Four of them are old enough to archive.
 
 ## Tests
 
 ```bash
-npm test                    # 74 tests against a separate superfix_test database (wiped on each run)
+npm test                    # 94 tests against a separate superfix_test database (wiped on each run)
 npm run typecheck
 # Browser smoke test (needs the app running on :3000 and Playwright installed):
 node tests/e2e-smoke.mjs ./shots
@@ -116,15 +140,17 @@ node tests/uat/phase3-billing.mjs        # release gate, invoice, payments, invo
 node tests/uat/phase4-accounting.mjs     # vouchers, supplier payments and cheques, bank reconciliation, statements, month end, opening balances
 node tests/uat/review-fixes.mjs          # voucher series, audit log users and roles, e-invoicing fields, price level, transfer orders
 node tests/uat/bookings-runs.mjs         # booking load and overbooking, runs, vehicle page, errors under the field
+node tests/uat/phase5-hr-payroll.mjs     # 27 cases: employee file, attendance, leave, overtime, letters, transfers, recruitment, payroll run, WPS, loans, settlement
+node tests/uat/phase6-reports.mjs        # 29 cases: dashboard, standard reports, hidden fields and branch scope, export, print, copy, builder, sharing, schedules, archive
 ```
 
-The tests cover the quote-before-job rule (service and database), manual-only messaging, master forms and their audit, branch isolation at the service and database level, hidden prices for technicians, the discount approval workflow (including no self-approval), gap-free numbering under concurrency, the VAT worked example, stock commitments and back orders, the customer approval link, and the invoice and receipt flow including idempotency. Phase 3 adds split, fleet and warranty billing, deposits with VAT, cheques (post-dated and returned), credit notes with approval and restock, counter sales, the release gate, cash closing, the customer invoice link and the VAT return checked against the ledger. Phase 4 adds vouchers with approval, supplier payments and cheques, statements that agree with each other, bank reconciliation, period close and reopen, HO allocation, assets, budgets and the opening balances from Tally.
+The tests cover the quote-before-job rule (service and database), manual-only messaging, master forms and their audit, branch isolation at the service and database level, hidden prices for technicians, the discount approval workflow (including no self-approval), gap-free numbering under concurrency, the VAT worked example, stock commitments and back orders, the customer approval link, and the invoice and receipt flow including idempotency. Phase 3 adds split, fleet and warranty billing, deposits with VAT, cheques (post-dated and returned), credit notes with approval and restock, counter sales, the release gate, cash closing, the customer invoice link and the VAT return checked against the ledger. Phase 4 adds vouchers with approval, supplier payments and cheques, statements that agree with each other, bank reconciliation, period close and reopen, HO allocation, assets, budgets and the opening balances from Tally. Phase 5 adds gratuity, overtime, leave accrual, pro-rating, the deduction cap, the branch split, the WPS file and the payroll run. Phase 6 adds report branch scope, hidden columns by role, builder refusals, export permission, schedule periods and the archive (only closed records, balanced, read only).
 
 ## How it is put together
 
 - `db/migrations/` holds the schema. Branch isolation uses PostgreSQL row-level security. The app connects as `superfix_app`, which cannot bypass it. Ledgers (journals, stock moves, audit log, approval actions, consent log) are append-only at the grant level.
 - `lib/access.ts` loads the user's roles, the permission matrix and the field permissions. Hidden fields (cost, margin, selling price, discount, salary, bank balance) are removed on the server, not only in the page.
-- `lib/services/` holds the business logic: customers, enquiries, jobs, quotations, workflow, stock, billing, ledger, messaging and master forms (`master-forms.ts` is the one registry of master screens).
+- `lib/services/` holds the business logic: customers, enquiries, jobs, quotations, workflow, stock, billing, ledger, messaging, HR and payroll, reports and master forms (`master-forms.ts` is the one registry of master screens; `reports.ts` is the registry of standard reports; `report-builder.ts` holds the builder's fixed data sources).
 - `app/` holds the pages and server actions. `app/q/[token]` is the public customer approval page.
 - Settings that change behaviour live in Admin > Settings and Admin > Master forms, not in code.
 

@@ -135,9 +135,9 @@ test("an advisor cannot add lines to another branch's job, nor change the list p
 test("permission matrix changes are logged with old and new values (FP-06)", async () => {
   const admin = await ctxFor("admin", "HQ");
   const role = await id("role", "code = $1", ["foreman"]);
-  await saveRoleMatrix(admin, role, ["customers:view", "jobs:view", "jobs:edit", "workshop:view", "workshop:edit", "stock:view", "approvals:view", "reports:view"], { selling_price: "hidden" });
+  await saveRoleMatrix(admin, role, ["customers:view", "jobs:view", "jobs:edit", "workshop:view", "workshop:edit", "stock:view", "approvals:view", "approvals:approve", "reports:view", "reports:export"], { selling_price: "hidden" });
   const log = await adminQuery("SELECT changes FROM audit_log WHERE entity = 'role' AND entity_id = $1 ORDER BY id DESC LIMIT 1", [role]);
-  assert.deepEqual(log[0].changes.added, ["reports:view"]);
+  assert.deepEqual(log[0].changes.added, ["reports:export"]);
   assert.deepEqual(log[0].changes.fields.selling_price, { old: "view", new: "hidden" });
 });
 

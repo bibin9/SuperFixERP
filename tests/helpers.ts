@@ -5,12 +5,12 @@ import { dbConfig } from "../lib/env";
 import { migrate } from "../scripts/migrate";
 import { seed } from "../scripts/seed";
 
-export async function resetTestDb(demoJobs = true) {
+export async function resetTestDb(demoJobs = true, history = false) {
   const cfg = dbConfig();
   if (!cfg.dbName.endsWith("_test")) throw new Error("refusing to reset a non-test database");
   execSync("npx tsx scripts/db-setup.ts --reset", { env: { ...process.env, DB_NAME: cfg.dbName }, stdio: "pipe" });
   await migrate(cfg.adminUrl, () => {});
-  await seed(cfg.adminUrl, { demoJobs });
+  await seed(cfg.adminUrl, { demoJobs, history });
 }
 
 export async function adminQuery(sql: string, params: unknown[] = []) {

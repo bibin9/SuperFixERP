@@ -1,4 +1,4 @@
-import { Ctx, assertCan } from "../access";
+import { Ctx, Screen, assertCan, canAnywhere } from "../access";
 import { withTx } from "../db";
 import { AppError, invalid, notFound } from "../errors";
 import { audit, diff } from "./audit";
@@ -14,7 +14,7 @@ import { parseDec } from "../money";
 
 export type MField = {
   name: string; label: string;
-  type: "text" | "number" | "bool" | "textarea" | "select" | "list";
+  type: "text" | "number" | "bool" | "textarea" | "select" | "list" | "date" | "time";
   required?: boolean; pattern?: string; dp?: number; min?: number; max?: number; hint?: string;
   /** select options: from an admin list (lookup_value), from fixed system values, or from SQL returning (value, label). */
   lookup?: string; values?: [string, string][]; sql?: string;
@@ -22,6 +22,8 @@ export type MField = {
 export type MDef = {
   key: string; title: string; group: string; table: string; note: string;
   pk: string[]; autoId?: boolean; hasActive: boolean; noCreate?: boolean; order: string; fields: MField[];
+  /** Permission module that guards this master (default settings). HR masters are kept by HR. */
+  module?: string;
 };
 
 const TAX = "SELECT code, code || ' · ' || name FROM tax_code WHERE active ORDER BY code";
@@ -161,6 +163,91 @@ export const MASTERS: MDef[] = [
       { name: "account_id", label: "Account", type: "select", required: true, sql: "SELECT id::text, code || ' · ' || name FROM account WHERE active ORDER BY code" },
       { name: "description", label: "Description", type: "text" },
     ] },
+  // Phase 5: HR and payroll masters (FSD 4.10 to 4.14). Kept by HR (module hr), not only by the administrator.
+  { key: "departments", title: "Departments", group: "HR and payroll", module: "hr", table: "department", pk: ["id"], autoId: true, hasActive: true, order: "code",
+    note: "Departments for the employee file, the org chart and payroll reports.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[A-Z0-9-]{2,20}$", hint: "Capital letters, digits or -, 2 to 20" },
+      { name: "name_en", label: "Name", type: "text", required: true }, { name: "name_ar", label: "Name (Arabic)", type: "text" },
+      { name: "head_employee_id", label: "Head of department", type: "select", sql: "SELECT id::text, emp_no || ' · ' || first_name || ' ' || last_name FROM employee WHERE status = 'active' ORDER BY first_name" },
+    ] },
+  { key: "designations", title: "Designations", group: "HR and payroll", module: "hr", table: "designation", pk: ["id"], autoId: true, hasActive: true, order: "code",
+    note: "Job titles printed on letters and the WPS file.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[A-Z0-9-]{2,20}$", hint: "Capital letters, digits or -, 2 to 20" },
+      { name: "name_en", label: "Name", type: "text", required: true }, { name: "name_ar", label: "Name (Arabic)", type: "text" },
+    ] },
+  { key: "wps-agents", title: "WPS agents (banks and exchange houses)", group: "HR and payroll", module: "hr", table: "wps_agent", pk: ["id"], autoId: true, hasActive: true, order: "code",
+    note: "The bank or exchange house that pays each employee. One salary file (SIF) is made per agent.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[A-Z0-9-]{2,20}$", hint: "Capital letters, digits or -, 2 to 20" },
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "routing_code", label: "Routing code", type: "text", required: true, pattern: "^[0-9]{9}$", hint: "9 digits, from the bank" },
+    ] },
+  { key: "shifts", title: "Shifts", group: "HR and payroll", module: "hr", table: "shift", pk: ["id"], autoId: true, hasActive: true, order: "code",
+    note: "Working hours used by the roster and attendance (late and early marks after the grace minutes).",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[A-Z0-9-]{1,20}$", hint: "Capital letters, digits or -" },
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "start_time", label: "Starts", type: "time", required: true }, { name: "end_time", label: "Ends", type: "time", required: true },
+      { name: "break_minutes", label: "Break (minutes)", type: "number", required: true, dp: 0, min: 0, max: 240 },
+      { name: "grace_minutes", label: "Grace (minutes)", type: "number", required: true, dp: 0, min: 0, max: 120 },
+      { name: "night", label: "Night shift", type: "bool" },
+    ] },
+  { key: "public-holidays", title: "Public holidays", group: "HR and payroll", module: "hr", table: "public_holiday", pk: ["holiday_date"], hasActive: true, order: "holiday_date",
+    note: "Holidays are not counted as leave days, and work on them is holiday overtime.",
+    fields: [{ name: "holiday_date", label: "Date", type: "date", required: true }, { name: "name", label: "Holiday", type: "text", required: true }] },
+  { key: "leave-types", title: "Leave types", group: "HR and payroll", module: "hr", table: "leave_type", pk: ["code"], hasActive: true, order: "sort, name_en",
+    note: "Annual leave under the labour law accrues 2 days a month in the first year after 6 months, then 30 days a year. Other types give a yearly entitlement.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[a-z_]{2,30}$", hint: "Small letters and _" },
+      { name: "name_en", label: "Name", type: "text", required: true }, { name: "name_ar", label: "Name (Arabic)", type: "text" },
+      { name: "paid", label: "Paid", type: "bool" },
+      { name: "accrual", label: "Entitlement", type: "select", required: true, values: [["labour_law_annual", "Labour law annual leave"], ["yearly", "Fixed days a year"], ["none", "No entitlement (taken as needed)"]] },
+      { name: "entitlement_days", label: "Days a year", type: "number", required: true, dp: 2, min: 0, max: 365 },
+      { name: "allow_negative", label: "Can go below zero", type: "bool" },
+      { name: "sort", label: "Order", type: "number", dp: 0, min: 0, max: 999 },
+    ] },
+  { key: "salary-components", title: "Salary components", group: "HR and payroll", module: "hr", table: "salary_component", pk: ["code"], hasActive: true, order: "sort, name_en",
+    note: "Earnings and deductions on the salary structure, which ones count for gratuity, leave salary and overtime, the WPS column, and the ledger account they post to.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[a-z_]{2,30}$", hint: "Small letters and _" },
+      { name: "name_en", label: "Name", type: "text", required: true }, { name: "name_ar", label: "Name (Arabic)", type: "text" },
+      { name: "kind", label: "Kind", type: "select", required: true, values: [["earning", "Earning"], ["deduction", "Deduction"]] },
+      { name: "fixed", label: "Fixed every month", type: "bool" },
+      { name: "counts_gratuity", label: "Counts for gratuity", type: "bool" }, { name: "counts_leave_salary", label: "Counts for leave salary", type: "bool" },
+      { name: "counts_overtime", label: "Counts for overtime", type: "bool" },
+      { name: "wps_column", label: "WPS column", type: "select", required: true, values: [["fixed", "Fixed"], ["variable", "Variable"]] },
+      { name: "account_id", label: "Ledger account", type: "select", sql: "SELECT id::text, code || ' · ' || name FROM account WHERE active AND account_type IN ('expense','liability','asset') ORDER BY code", hint: "Blank posts to the salary expense rule" },
+      { name: "sort", label: "Order", type: "number", dp: 0, min: 0, max: 999 },
+    ] },
+  { key: "employee-fields", title: "Extra employee fields", group: "HR and payroll", module: "hr", table: "custom_field", pk: ["id"], autoId: true, hasActive: true, order: "tab, sort, label",
+    note: "Fields Superfix adds to the employee file without a code change. Hidden from the roles listed.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[a-z_]{2,30}$", hint: "Small letters and _" },
+      { name: "label", label: "Label", type: "text", required: true },
+      { name: "field_type", label: "Type", type: "select", required: true, values: [["text", "Text"], ["number", "Number"], ["date", "Date"], ["dropdown", "Dropdown"], ["yes_no", "Yes or no"], ["attachment", "Attachment"]] },
+      { name: "options", label: "Dropdown choices", type: "text", hint: "Comma separated, for a dropdown" },
+      { name: "required", label: "Required", type: "bool" },
+      { name: "tab", label: "Tab", type: "select", required: true, values: [["personal", "Personal"], ["job", "Job"], ["documents", "Documents"], ["other", "Other"]] },
+      { name: "hidden_roles", label: "Hidden from roles", type: "text", hint: "Role codes, comma separated, e.g. technician,advisor" },
+      { name: "sort", label: "Order", type: "number", dp: 0, min: 0, max: 999 },
+    ] },
+  { key: "letter-templates", title: "HR letter templates", group: "HR and payroll", module: "hr", table: "letter_template", pk: ["code"], hasActive: true, order: "code",
+    note: "Placeholders: {name} {name_ar} {emp_no} {designation} {branch} {nationality} {joining_date} {leaving_date} {passport_no} {basic} {salary_total} {bank} {iban} {addressed_to} {date}.",
+    fields: [
+      { name: "code", label: "Code", type: "text", required: true, pattern: "^[a-z_]{2,30}$", hint: "Small letters and _" },
+      { name: "name_en", label: "Name", type: "text", required: true },
+      { name: "shows_salary", label: "Shows salary (needs approval)", type: "bool" },
+      { name: "body_en", label: "Text (English)", type: "textarea", required: true }, { name: "body_ar", label: "Text (Arabic)", type: "textarea" },
+    ] },
+  { key: "hr-checklists", title: "Joining and leaving checklists", group: "HR and payroll", module: "hr", table: "checklist_template", pk: ["id"], autoId: true, hasActive: true, order: "kind, sort",
+    note: "Items copied to each new joiner or leaver.",
+    fields: [
+      { name: "kind", label: "Checklist", type: "select", required: true, values: [["joining", "Joining"], ["leaving", "Leaving"]] },
+      { name: "item", label: "Item", type: "text", required: true },
+      { name: "sort", label: "Order", type: "number", dp: 0, min: 0, max: 999 },
+    ] },
 ];
 
 export const masterDef = (key: string) => {
@@ -172,11 +259,14 @@ export const masterDef = (key: string) => {
 const q = (id: string) => `"${id.replace(/"/g, "")}"`;
 const cols = (d: MDef) => [...new Set([...d.pk, ...d.fields.map((f) => f.name), ...(d.hasActive ? ["active"] : [])])];
 
+export const masterModule = (d: MDef) => (d.module ?? "settings") as Screen;
+export const mastersFor = (ctx: Ctx) => MASTERS.filter((m) => canAnywhere(ctx, masterModule(m), "view"));
+
 export async function getMaster(ctx: Ctx, key: string) {
-  assertCan(ctx, "settings", "view");
   const d = masterDef(key);
+  assertCan(ctx, masterModule(d), "view");
   return withTx(ctx, async (c) => {
-    const rows = (await c.query(`SELECT ${cols(d).map((x) => `${q(x)}${["id", "branch_id", "account_id", "preferred_supplier_id"].includes(x) ? "::text" : ""} ${q(x)}`).join(", ")} FROM ${q(d.table)} ORDER BY ${d.order}`)).rows;
+    const rows = (await c.query(`SELECT ${cols(d).map((x) => `${q(x)}${x === "id" || x.endsWith("_id") ? "::text" : ""}${["holiday_date"].includes(x) ? "::text" : ""} ${q(x)}`).join(", ")} FROM ${q(d.table)} ORDER BY ${d.order}`)).rows;
     const options: Record<string, [string, string][]> = {};
     for (const f of d.fields) {
       if (f.values) options[f.name] = f.values;
@@ -189,25 +279,29 @@ export async function getMaster(ctx: Ctx, key: string) {
 
 function parse(_d: MDef, f: MField, raw: unknown) {
   const s = raw === undefined || raw === null ? "" : String(raw).trim();
+  const bad = (msg: string) => invalid(msg, { field: f.name });
   if (f.type === "bool") return s === "on" || s === "true";
   if (!s) {
-    if (f.required) throw invalid(`${f.label} is required.`);
+    if (f.required) throw bad(`${f.label} is required.`);
+    if (f.name === "hidden_roles") return "";
     return f.type === "number" ? (f.name === "sort" ? 0 : null) : null;
   }
   if (f.type === "number") {
     try { return parseDec(s, f.label, { min: f.min ?? undefined, max: f.max ?? undefined, dp: f.dp ?? 2 }).toString(); }
-    catch (e) { throw invalid(`${(e as Error).message}.`); }
+    catch (e) { throw bad(`${(e as Error).message}.`); }
   }
+  if (f.type === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(`${s}T00:00:00Z`)))) throw bad(`${f.label}: pick a date.`);
+  if (f.type === "time" && !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(s)) throw bad(`${f.label}: give a time like 08:00.`);
   if (f.type === "list") return s.split(",").map((x) => x.trim()).filter(Boolean);
-  if (f.pattern && !new RegExp(f.pattern).test(s)) throw invalid(`${f.label} is not in the right format.${f.hint ? ` ${f.hint}.` : ""}`);
-  if (f.name.endsWith("_regex")) { try { new RegExp(s); } catch { throw invalid(`${f.label} is not a valid pattern.`); } }
+  if (f.pattern && !new RegExp(f.pattern).test(s)) throw bad(`${f.label} is not in the right format.${f.hint ? ` ${f.hint}.` : ""}`);
+  if (f.name.endsWith("_regex")) { try { new RegExp(s); } catch { throw bad(`${f.label} is not a valid pattern.`); } }
   return s;
 }
 
 /** Adds or edits a master record. `key` is the JSON of the primary key when editing. */
 export async function saveMaster(ctx: Ctx, mkey: string, form: Record<string, unknown>, editKey?: string | null) {
   const d = masterDef(mkey);
-  assertCan(ctx, "settings", editKey ? "edit" : "create");
+  assertCan(ctx, masterModule(d), editKey ? "edit" : "create");
   if (!editKey && d.noCreate) throw invalid(`New ${d.title.toLowerCase()} are added by the system, not here.`);
   return withTx(ctx, async (c) => {
     const values: Record<string, unknown> = {};
@@ -215,8 +309,9 @@ export async function saveMaster(ctx: Ctx, mkey: string, form: Record<string, un
       if (editKey && d.pk.includes(f.name)) continue; // keys are fixed once created
       const v = parse(d, f, form[f.name]);
       const opts = f.values ?? null;
-      if (opts && v !== null && !opts.some(([o]) => o === v)) throw invalid(`Choose a valid ${f.label.toLowerCase()}.`);
-      if (f.lookup && v !== null && !(await c.query("SELECT 1 FROM lookup_value WHERE list = $1 AND code = $2 AND active", [f.lookup, v])).rowCount) throw invalid(`Choose a valid ${f.label.toLowerCase()}.`);
+      if (opts && v !== null && !opts.some(([o]) => o === v)) throw invalid(`Choose a valid ${f.label.toLowerCase()}.`, { field: f.name });
+      if (f.lookup && v !== null && !(await c.query("SELECT 1 FROM lookup_value WHERE list = $1 AND code = $2 AND active", [f.lookup, v])).rowCount) throw invalid(`Choose a valid ${f.label.toLowerCase()}.`, { field: f.name });
+      if (f.sql && v !== null && !(await c.query({ text: f.sql, rowMode: "array" })).rows.some((r) => String(r[0]) === v)) throw invalid(`Choose a valid ${f.label.toLowerCase()}.`, { field: f.name });
       values[f.name] = v;
     }
     try {
@@ -247,7 +342,7 @@ export async function saveMaster(ctx: Ctx, mkey: string, form: Record<string, un
 
 export async function setMasterActive(ctx: Ctx, mkey: string, editKey: string, active: boolean) {
   const d = masterDef(mkey);
-  assertCan(ctx, "settings", "edit");
+  assertCan(ctx, masterModule(d), "edit");
   if (!d.hasActive) throw invalid("These records cannot be deactivated.");
   return withTx(ctx, async (c) => {
     const keyVals: unknown[] = JSON.parse(editKey);

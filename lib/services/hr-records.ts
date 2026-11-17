@@ -58,7 +58,7 @@ export const RECORD_KINDS: RKind[] = [
       { name: "details", label: "Details", type: "textarea", required: true },
       { name: "deduction", label: "Deduction from salary (AED)", type: "number", role: "amount" },
       { name: "deduct_month", label: "Deduct in month", type: "month", role: "month" },
-    ], summary: (d) => `${d.warning_type_label ?? d.warning_type} on ${d.incident_date}` },
+    ], summary: (d) => `${d.warning_type_label ?? d.warning_type} on ${String(d.incident_date ?? "").split("-").reverse().join("/")}` },
   { kind: "review", title: "Performance reviews", requirement: "HR-19",
     fields: [
       { name: "period", label: "Period", type: "text", required: true },

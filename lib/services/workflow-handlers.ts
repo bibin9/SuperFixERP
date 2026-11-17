@@ -4,3 +4,6 @@ import "./stock-ops";
 import "./purchasing";
 import "./billing-more";
 import "./accounting";
+import "./hr";
+import "./hr-time";
+import "./payroll";

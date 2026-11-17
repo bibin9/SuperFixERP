@@ -1,5 +1,5 @@
 import { requireCtx } from "@/lib/session";
-import { getMaster } from "@/lib/services/master-forms";
+import { getMaster, masterModule } from "@/lib/services/master-forms";
 import { can } from "@/lib/access";
 import { saveMasterAction, masterActiveAction } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -15,8 +15,9 @@ export default async function MasterPage({ params, searchParams }: { params: Pro
   const { def, rows, options } = await getMaster(ctx, key);
   const keyOf = (r: any) => JSON.stringify(def.pk.map((k) => r[k]));
   const editing = sp.edit ? rows.find((r) => keyOf(r) === sp.edit) : null;
-  const canEdit = can(ctx, "settings", "edit");
-  const canCreate = can(ctx, "settings", "create") && !def.noCreate;
+  const mod = masterModule(def) as Parameters<typeof can>[1];
+  const canEdit = can(ctx, mod, "edit");
+  const canCreate = can(ctx, mod, "create") && !def.noCreate;
   const back = `/admin/masters/${key}`;
   const label = (f: (typeof def.fields)[number], v: any) => (options[f.name]?.find(([o]) => o === String(v))?.[1] ?? show(v));
   const form = (r: any | null) => (
@@ -34,6 +35,7 @@ export default async function MasterPage({ params, searchParams }: { params: Pro
                 : f.type === "bool" ? <input type="checkbox" name={f.name} defaultChecked={!!v} style={{ width: "auto", minHeight: 0 }} />
                 : f.type === "textarea" ? <textarea name={f.name} defaultValue={show(v)} required={f.required} />
                 : f.type === "select" ? <select name={f.name} defaultValue={v ?? ""} required={f.required}><option value="">—</option>{(options[f.name] ?? []).map(([o, l]) => <option key={o} value={o}>{l}</option>)}</select>
+                : f.type === "date" || f.type === "time" ? <input type={f.type} name={f.name} defaultValue={f.type === "time" ? show(v).slice(0, 5) : show(v)} required={f.required} />
                 : <input name={f.name} defaultValue={show(v)} required={f.required} inputMode={f.type === "number" ? "decimal" : undefined} title={f.hint} />}
             </div>
           );

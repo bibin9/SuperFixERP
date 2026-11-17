@@ -118,11 +118,14 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('payments.gateway','"manual"','Integrations','Payment link provider (manual only: staff record payments, no gateway is called)'),
  ('wps.agent_routing_code','""','Payroll','WPS agent routing code (Q4 open)'),
  ('wps.employer_mohre_id','""','Payroll','13-digit MOHRE establishment ID (Q4 open)'),
- ('payroll.daily_wage_divisor','30','Payroll','Daily wage = monthly / this (Q5 default)'),
- ('payroll.overtime_normal_multiplier','1.25','Payroll','Normal overtime multiplier'),
- ('payroll.overtime_night_multiplier','1.5','Payroll','Overtime 22:00-04:00 multiplier'),
- ('payroll.deduction_cap_pct','50','Payroll','Max total deductions as % of wage'),
- ('payroll.leave_salary_components','["basic","housing"]','Payroll','Components counted for leave salary (Q5 default)');
+ ('payroll.proration_basis','"30"','Payroll','Pro-rating of joiners, leavers and unpaid leave: "30" (monthly x days / 30) or "calendar" (days in the month) (Q5 default 30)'),
+ ('payroll.ot_normal','1.25','Payroll','Normal overtime multiplier'),
+ ('payroll.ot_night','1.5','Payroll','Overtime between 22:00 and 04:00 multiplier'),
+ ('payroll.ot_rest_day','1.5','Payroll','Overtime on the rest day without a substitute day off'),
+ ('payroll.ot_holiday','1.5','Payroll','Overtime on a public holiday without a substitute day off'),
+ ('payroll.ot_flag_hours','2','Payroll','Overtime above this many hours in a day is flagged on the payroll check'),
+ ('payroll.deduction_cap_pct','50','Payroll','Max total deductions in a month as % of the wage; extra loan instalments move to next month'),
+ ('payroll.gratuity_cap_months','24','Payroll','Gratuity cannot exceed this many months of basic wage');
 
 -- Countries (CV-02) and plate set-up (CV-11)
 INSERT INTO country (code, name, dial_code, mobile_regex, id_types) VALUES
@@ -403,3 +406,144 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('vehicle.service_interval_km','10000','Vehicles','Default service interval in km, when the vehicle has none of its own'),
  ('vehicle.service_interval_months','6','Vehicles','Default service interval in months, when the vehicle has none of its own')
 ON CONFLICT DO NOTHING;
+
+
+-- ---------- Phase 5: HR and payroll ----------
+INSERT INTO country (code, name, dial_code, mobile_regex, id_types) VALUES
+ ('IN','India','91','^[6-9][0-9]{9}$','{"Passport"}'),('PK','Pakistan','92','^3[0-9]{9}$','{"Passport"}'),
+ ('PH','Philippines','63','^9[0-9]{9}$','{"Passport"}'),('EG','Egypt','20','^1[0-9]{9}$','{"Passport"}'),
+ ('BD','Bangladesh','880','^1[0-9]{9}$','{"Passport"}'),('LK','Sri Lanka','94','^7[0-9]{8}$','{"Passport"}'),('JO','Jordan','962','^7[0-9]{8}$','{"Passport"}')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO account (code, name, account_group, account_type, sub_type) VALUES
+ ('1400','Staff advances and loans','Loans and advances (asset)','asset','normal'),
+ ('2400','Salaries payable','Current liabilities','liability','normal'),
+ ('2410','Provision for gratuity','Provisions','liability','normal'),
+ ('2420','Provision for leave salary','Provisions','liability','normal'),
+ ('2430','Provision for air tickets','Provisions','liability','normal'),
+ ('6100','Salaries and wages','Indirect expenses','expense','normal'),
+ ('6110','Overtime','Indirect expenses','expense','normal'),
+ ('6120','Gratuity expense','Indirect expenses','expense','normal'),
+ ('6130','Leave salary expense','Indirect expenses','expense','normal'),
+ ('6140','Air ticket expense','Indirect expenses','expense','normal')
+ON CONFLICT (code) DO NOTHING;
+INSERT INTO account_mapping (event_key, account_id, description)
+SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
+ ('staff_advances','1400','Salary advances and staff loans'),('salaries_payable','2400','Net salaries owed'),
+ ('gratuity_provision','2410','End-of-service gratuity provision'),('leave_salary_provision','2420','Leave salary provision'),('air_ticket_provision','2430','Air ticket provision'),
+ ('salary_expense','6100','Salary components without their own account'),('overtime_expense','6110','Overtime'),
+ ('gratuity_expense','6120','Gratuity accrual'),('leave_salary_expense','6130','Leave salary accrual'),('air_ticket_expense','6140','Air ticket accrual')
+) v(k, a, d) ON CONFLICT DO NOTHING;
+
+INSERT INTO department (code, name_en, name_ar) VALUES
+ ('WORKSHOP','Workshop','الورشة'),('FRONT','Front office','الاستقبال'),('PARTS','Parts and stores','قطع الغيار'),('FIN','Finance','المالية'),('HR','Human resources','الموارد البشرية'),('MGMT','Management','الإدارة');
+INSERT INTO designation (code, name_en, name_ar) VALUES
+ ('TECH','Technician','فني'),('SR-TECH','Senior technician','فني أول'),('FOREMAN','Foreman','رئيس عمال'),('ADVISOR','Service advisor','مستشار خدمة'),
+ ('STORE','Store keeper','أمين مخزن'),('BM','Branch manager','مدير فرع'),('ACCT','Accountant','محاسب'),('HR-OFF','HR officer','موظف موارد بشرية'),('DRIVER','Recovery driver','سائق');
+INSERT INTO wps_agent (code, name, routing_code) VALUES ('ENBD','Emirates NBD','302620122'),('ALANSARI','Al Ansari Exchange','740410101');
+INSERT INTO shift (code, name, start_time, end_time, break_minutes, grace_minutes, night) VALUES
+ ('DAY','Day shift','08:00','18:00',60,10,false),('EVE','Evening shift','12:00','22:00',60,10,false),('OFFICE','Office hours','09:00','18:00',60,15,false);
+INSERT INTO public_holiday (holiday_date, name) VALUES
+ ('2026-12-02','National Day'),('2026-12-03','National Day holiday'),('2027-01-01','New Year''s Day'),('2026-03-20','Eid Al Fitr'),('2026-05-27','Eid Al Adha')
+ON CONFLICT DO NOTHING;
+INSERT INTO leave_type (code, name_en, name_ar, paid, accrual, entitlement_days, allow_negative, sort) VALUES
+ ('annual','Annual leave','إجازة سنوية',true,'labour_law_annual',30,false,1),
+ ('sick','Sick leave (full pay)','إجازة مرضية',true,'yearly',15,false,2),
+ ('unpaid','Unpaid leave','إجازة بدون راتب',false,'none',0,true,3),
+ ('maternity','Maternity leave','إجازة أمومة',true,'yearly',60,false,4),
+ ('parental','Parental leave','إجازة والدية',true,'yearly',5,false,5),
+ ('bereavement','Bereavement leave','إجازة حداد',true,'yearly',5,false,6),
+ ('hajj','Hajj leave (unpaid, once)','إجازة حج',false,'yearly',30,false,7);
+INSERT INTO salary_component (code, name_en, name_ar, kind, fixed, counts_gratuity, counts_leave_salary, counts_overtime, wps_column, account_id, sort) VALUES
+ ('basic','Basic salary','الراتب الأساسي','earning',true,true,true,true,'fixed',NULL,1),
+ ('housing','Housing allowance','بدل السكن','earning',true,false,true,false,'fixed',NULL,2),
+ ('transport','Transport allowance','بدل المواصلات','earning',true,false,false,false,'fixed',NULL,3),
+ ('other_allowance','Other allowance','بدلات أخرى','earning',true,false,false,false,'fixed',NULL,4),
+ ('incentive','Technician incentive','حافز','earning',false,false,false,false,'variable',NULL,5),
+ ('accommodation_ded','Company accommodation','خصم السكن','deduction',true,false,false,false,'fixed',NULL,10);
+INSERT INTO custom_field (code, label, field_type, options, required, tab, hidden_roles, sort) VALUES
+ ('blood_group','Blood group','dropdown','A+,A-,B+,B-,AB+,AB-,O+,O-',false,'personal','',1),
+ ('uniform_size','Uniform size','dropdown','S,M,L,XL,XXL',false,'job','',2),
+ ('driving_licence','UAE driving licence','yes_no',NULL,false,'documents','',3),
+ ('previous_employer','Previous employer','text',NULL,false,'other','technician,advisor',4);
+INSERT INTO letter_template (code, name_en, body_en, body_ar, shows_salary) VALUES
+ ('salary_certificate','Salary certificate',
+  E'{date}\n\n{addressed_to}\n\nSALARY CERTIFICATE\n\nThis is to certify that {name}, holder of passport no. {passport_no}, a {nationality} national, has been working with Super Fix Auto Centers ({branch}) as {designation} since {joining_date}.\n\nThe total monthly salary is AED {salary_total}, of which basic salary is AED {basic}.\n\nThis certificate is issued at the employee''s request without any liability on the company.\n\nFor Super Fix Auto Centers\nHuman Resources',
+  E'{date}\n\n{addressed_to}\n\nشهادة راتب\n\nنشهد بأن {name_ar}، جواز سفر رقم {passport_no}، يعمل لدى سوبر فكس لمراكز السيارات ({branch}) بوظيفة {designation} منذ {joining_date}.\n\nإجمالي الراتب الشهري {salary_total} درهم، منها الراتب الأساسي {basic} درهم.\n\nصدرت هذه الشهادة بناءً على طلب الموظف دون أدنى مسؤولية على الشركة.\n\nالموارد البشرية',
+  true),
+ ('employment_certificate','Employment certificate (no salary)',
+  E'{date}\n\n{addressed_to}\n\nEMPLOYMENT CERTIFICATE\n\nThis is to certify that {name} ({emp_no}), a {nationality} national, is employed with Super Fix Auto Centers at {branch} as {designation} since {joining_date}.\n\nFor Super Fix Auto Centers\nHuman Resources', NULL, false),
+ ('salary_transfer','Salary transfer letter',
+  E'{date}\n\nThe Manager\n{bank}\n\nSALARY TRANSFER LETTER\n\nWe confirm that {name} ({emp_no}) is employed with us as {designation} since {joining_date} with a total monthly salary of AED {salary_total}. We undertake to transfer the salary to account {iban} until a clearance letter is issued by the bank.\n\nFor Super Fix Auto Centers\nHuman Resources', NULL, true),
+ ('experience_certificate','Experience certificate',
+  E'{date}\n\nTO WHOM IT MAY CONCERN\n\nThis is to certify that {name} worked with Super Fix Auto Centers as {designation} from {joining_date} to {leaving_date}. We wish them every success.\n\nFor Super Fix Auto Centers\nHuman Resources', NULL, false);
+INSERT INTO checklist_template (kind, item, sort) VALUES
+ ('joining','Offer letter signed',1),('joining','Passport and visa copies on file',2),('joining','MOHRE labour contract signed',3),('joining','Medical insurance card issued',4),
+ ('joining','Uniform and safety shoes issued',5),('joining','System user created',6),('joining','Safety induction in the workshop',7),
+ ('leaving','Resignation or termination letter on file',1),('leaving','Company assets returned',2),('leaving','Tools and uniform returned',3),('leaving','System user disabled',4),
+ ('leaving','Visa cancellation started',5),('leaving','Final settlement signed',6);
+INSERT INTO lookup_value (list, code, name_en, sort) VALUES
+ ('hr_document_type','passport','Passport',1),('hr_document_type','visa','Residence visa',2),('hr_document_type','emirates_id','Emirates ID',3),
+ ('hr_document_type','labour_card','Labour card',4),('hr_document_type','driving_licence','Driving licence',5),('hr_document_type','trade_certificate','Trade certificate',6),
+ ('insurance_category','basic','Basic (essential benefits plan)',1),('insurance_category','enhanced','Enhanced',2),('insurance_category','family','Family',3),
+ ('hr_asset_type','toolbox','Toolbox',1),('hr_asset_type','tablet','Bay tablet',2),('hr_asset_type','phone','Mobile phone',3),('hr_asset_type','uniform','Uniform set',4),('hr_asset_type','vehicle','Company vehicle',5)
+ON CONFLICT (list, code) DO NOTHING;
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('hr.gps_radius_m','150','HR','Mobile check-in is accepted within this many metres of the branch'),
+ ('hr.leave_excludes_holidays','true','HR','Public holidays inside a leave are not counted as leave days'),
+ ('hr.annual_needs_six_months','true','HR','Annual leave can be requested only after six months of service'),
+ ('hr.contract_alert_days','60','HR','Alert this many days before a contract or probation ends'),
+ ('payroll.approval_branch','"HQ"','Payroll','Branch whose approvers approve the monthly payroll and salary updates'),
+ ('payroll.mohre_establishment_id','"1000000123456"','Payroll','13-digit MOHRE establishment ID used in the WPS file name and control record (Q4: confirm with the bank)'),
+ ('payroll.employer_reference','"SUPERFIX"','Payroll','Employer reference in the WPS control record'),
+ ('payroll.loan_max_salary_months','3','Payroll','An advance or loan cannot exceed this many months of total salary'),
+ ('payroll.wps_pay_by_day','1','Payroll','Salaries are paid through WPS by this day of the following month')
+ON CONFLICT DO NOTHING;
+UPDATE branch SET latitude = 24.4877, longitude = 54.6036 WHERE code = 'YAS';
+UPDATE branch SET latitude = 25.2697, longitude = 55.3769 WHERE code = 'QUS';
+UPDATE branch SET latitude = 24.4539, longitude = 54.3773 WHERE code = 'HQ';
+
+INSERT INTO workflow (doc_type, name, enabled) VALUES
+ ('leave_request','Leave request', true),('overtime_request','Overtime request', true),('hr_letter','HR letter', true),
+ ('loan','Salary advance or loan', true),('salary_revision','Salary update', true),('payroll_run','Monthly payroll', true),('final_settlement','Final settlement', true);
+INSERT INTO workflow_step (workflow_id, seq, name, approver_role_id, cond_min_amount, cond_max_amount, approver_role_scope)
+SELECT w.id, s.seq, s.name, (SELECT id FROM role WHERE code = s.role), s.mn, s.mx, s.scope
+FROM (VALUES
+ ('leave_request',1,'Line manager','branch_manager',NULL::numeric,NULL::numeric,'line_manager'),
+ ('leave_request',2,'HR','hr_payroll',NULL,NULL,'any_branch'),
+ ('overtime_request',1,'Line manager','branch_manager',NULL,NULL,'line_manager'),
+ ('hr_letter',1,'HR','hr_payroll',NULL,NULL,'any_branch'),
+ ('loan',1,'Line manager','branch_manager',NULL,NULL,'line_manager'),
+ ('loan',2,'Owner','owner',NULL,NULL,'any_branch'),
+ ('salary_revision',1,'Owner','owner',NULL,NULL,'any_branch'),
+ ('payroll_run',1,'Owner','owner',NULL,NULL,'any_branch'),
+ ('final_settlement',1,'Owner','owner',NULL,NULL,'any_branch')
+) s(doc, seq, name, role, mn, mx, scope) JOIN workflow w ON w.doc_type = s.doc;
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
+CROSS JOIN (VALUES ('leave_request','-LV-'),('hr_letter','-HRL-'),('loan','-LN-'),('salary_revision','-SR-'),('final_settlement','-FS-')) t(doc_type, suffix)
+ON CONFLICT (branch_id, doc_type) DO NOTHING;
+-- Foremen approve their team's leave and overtime as line managers; branch managers and the owner see HR for their branches.
+INSERT INTO permission (role_id, screen, action)
+SELECT r.id, x.screen, x.action FROM role r JOIN (VALUES ('foreman','approvals','approve'),('branch_manager','hr','view'),('owner','hr','view'),('owner','hr','approve'),('owner','hr','export')) x(role, screen, action) ON x.role = r.code
+ON CONFLICT DO NOTHING;
+
+-- Phase 6 reports (FSD 4.16). Each report also needs the module's own view permission, so a role sees
+-- only the reports of the modules it works in.
+INSERT INTO permission (role_id, screen, action)
+SELECT r.id, x.screen, x.action FROM role r JOIN (VALUES
+ ('foreman','reports','view'),('stock_keeper','reports','view'),('stock_keeper','reports','export'),
+ ('purchasing','reports','view'),('purchasing','reports','export'),('hr_payroll','reports','view'),('hr_payroll','reports','export')
+) x(role, screen, action) ON x.role = r.code
+ON CONFLICT DO NOTHING;
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('archive.every_months','6','Archive','Run the archive every this many months (AR-01)'),
+ ('archive.keep_years','7','Archive','Archived records are kept for this many years'),
+ ('reports.next_service_window_days','30','Reports','Next service report: vehicles due within this many days are listed by default'),
+ ('reports.slow_stock_days','90','Reports','Stock with no movement for this many days is slow moving'),
+ ('reports.dead_stock_days','180','Reports','Stock with no movement for this many days is dead stock'),
+ ('reports.max_rows','5000','Reports','Most rows a report shows or exports at once')
+ON CONFLICT DO NOTHING;
+INSERT INTO message_template (event, language, body) VALUES
+ ('service_due','en','Dear {title} {name}, your {plate} is due for its next service around {due_date} (last service {last_date} at {last_km} km). Reply to book a time at Superfix {branch}.'),
+ ('service_due','ar','عزيزي {title} {name}، موعد الصيانة القادمة لسيارتك {plate} قريب ({due_date}). آخر صيانة {last_date} عند {last_km} كم. رد على هذه الرسالة لحجز موعد في سوبرفكس {branch}.');

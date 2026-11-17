@@ -24,7 +24,7 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 | Q1 | Stack | Next.js and PostgreSQL, run locally. |
 | Q2 | Payment gateway | Not used (manual only, per Superfix). Payments are recorded by staff. |
 | Q3 | Who assigns technicians | The service advisor (and foreman or manager). |
-| Q4, Q5 | Payroll and WPS | Placeholder settings only (`payroll.*`, `wps.*`). HR and payroll are not built yet. |
+| Q4, Q5 | Payroll and WPS | Built with settings to confirm with the bank: MOHRE establishment ID 1000000123456 and employer reference SUPERFIX (demo values), pro-rating on a 30-day month (`payroll.proration_basis`, or calendar days). |
 | Q6 | Quick invoice limit | 500 AED, stored as a setting. The quick invoice screen itself is not built yet. |
 | Q7 | On-time measure | A job is on time if it reaches Ready by its promised time. A late job needs a delay reason before it can move on or be invoiced. |
 | Q11 | Simplified tax invoices | Not used. Every invoice is a full tax invoice. |
@@ -90,6 +90,32 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Errors under the field.** The server names the field when it can; otherwise the message is matched to the field whose label it starts with. If no field matches, the message stays at the top of the page only. Typed values are kept for two minutes in the browser tab's session storage, never on the server; passwords and file fields are not kept.
 - **Left for after go-live** (Superfix's choice): the advisor leaderboard and the bay timeline.
 
-## Not built yet (later FSD phases)
+## Phase 5 decisions (HR and payroll)
 
-HR and payroll (phase 5); reports, statements and archive (phase 6); the Arabic interface.
+- **Overtime rate** per hour is basic x 12 / 365 / 8, times the multiplier: 1.25 normal, 1.5 at night (22:00 to 04:00), on the rest day or a public holiday without a substitute day off. Overtime counts for payroll only once approved. Days with more than 2 hours are flagged on the payroll check.
+- **Gratuity** is 21 days' basic a year for the first five years and 30 days after, nothing under one year, capped at 24 months' basic (settings). Unlimited contracts and resignation are treated the same under the current law.
+- **Annual leave**: none in the first six months, 2 days a month up to one year, then 30 days a year (2.5 a month). Public holidays inside a leave are not counted.
+- **Pro-rating** of joiners, leavers and unpaid leave uses monthly x days / 30.
+- **Deductions** in a month are capped at 50% of the wage. A loan instalment that does not fit moves to the next month. An advance or loan cannot exceed 3 months' salary.
+- **Branch split**: when an employee moves branch mid-month the cost is split by days in each branch; the last branch takes the rounding. The employee is paid once.
+- **Approvals**: HR calculates; the owner (an approver at HQ, setting `payroll.approval_branch`) approves payroll, salary updates and final settlements. An approved month is locked; the owner can reopen it with a reason.
+- **Period close**: once payroll has been run for any month, a month cannot be closed in accounts until its payroll is posted. Months before the first payroll run are not held back.
+- **WPS**: one SIF file per agent (bank or exchange house), an EDR line per employee and the SCR control line. The file is downloaded and uploaded to the bank by HR; nothing is sent.
+- **Technician incentives (PR-06)** are not built, as the BRD says "if Superfix uses them". Clock data is kept, so they can be added.
+- **Defect D-37** (found in QA): loan instalments were not deducted because the run did not read the loan's start month. Fixed and covered by a test.
+
+## Phase 6 decisions (reports and archive)
+
+- **Who sees a report**: Reports view at the branch and view of the report's module there (for example invoices for sales reports, HR for HR reports). Salary reports also need the salary field. The branch list offers only branches where both hold; asking for another branch in the address is refused. Export needs Reports export at every branch chosen.
+- **Hidden fields** remove the column, not just the values. A shared or pinned report runs with the permissions of the person opening it, so a report with cost shared with advisors opens without the cost column and says so.
+- **The builder** works on fixed data sources with named fields. There is no free SQL. Filters, calculated columns and pivots work only on those fields. A report returns at most 5,000 rows (setting `reports.max_rows`) and says when it stops.
+- **Scheduled reports** are prepared into the user's Report inbox when it is opened (and with Prepare now), because there is no email service and no background job. The file uses the filters saved with the schedule and the period: daily is yesterday, weekly the last 7 days, monthly last month.
+- **Service reminders (OT-01)**: the next service report prepares the WhatsApp text from the `service_due` template; staff send it themselves and mark it as sent.
+- **Customer feedback after delivery (OT-04)** is not built yet.
+- **Archive** is by marking records in the same database (an `archive_member` list), not by moving them to another schema. Archived documents cannot be changed (a database trigger refuses it). Ledgers, journals and stock moves are never moved, so financial statements and balances always read every journal and carry forward without a separate opening entry. The run checks that the archived journals balance before it saves. Records are kept 7 years (`archive.keep_years`); nothing is deleted.
+- **Imported service history** in the demo data stands in for history migrated from the old system, so that the next service report and the archive have something to show.
+- **Defects found in QA**: D-38 a copied report ignored a column moved to position 0; D-39 pivot headings showed internal codes (labour, part) instead of words. Both fixed.
+
+## Not built yet
+
+The Arabic interface, technician incentives (PR-06), customer feedback links (OT-04), the quick invoice screen, and PIN sign-in.
