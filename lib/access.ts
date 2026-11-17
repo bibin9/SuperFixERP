@@ -15,6 +15,7 @@ export const SCREENS = [
   ["hr", "HR, payroll"],
   ["settings", "Settings, master forms"],
   ["admin", "Users, roles, permissions"],
+  ["audit", "Audit log and sign-ins"],
   ["approvals", "Approvals inbox"],
   ["reports", "Reports, dashboards"],
 ] as const;

@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { requireCtx } from "@/lib/session";
 import { getVoucher, VOUCHER_TYPES } from "@/lib/services/accounting";
 import { Flash, Link, Money, PageHead, Status, d, dt } from "@/components/ui";
@@ -26,6 +28,7 @@ export default async function Voucher({ params, searchParams }: { params: Promis
         </table>
         {r.history?.length > 0 && <><h2 style={{ marginTop: 14 }}>Approval history</h2><ul className="small">{r.history.map((h: { id: string; action: string; full_name: string; at: string; comment?: string }) => <li key={h.id}>{h.action.replace(/_/g, " ")} by {h.full_name ?? "the system"} · {dt(h.at)}{h.comment ? ` · ${h.comment}` : ""}</li>)}</ul></>}
       </div>
+      <RecordHistory rows={await docHistory(ctx, "voucher", id)} />
     </>
   );
 }

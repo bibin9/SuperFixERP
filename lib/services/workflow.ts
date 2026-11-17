@@ -15,6 +15,8 @@ export type SubmitInput = {
   amount?: string | null;
   discountPct?: string | null;
   summary?: Record<string, unknown>;
+  /** The employee an HR request is about; line-manager steps go to that employee's manager (HR-14). */
+  subjectEmployeeId?: string | null;
 };
 
 export type Handler = {
@@ -50,6 +52,12 @@ async function matchingSteps(c: PoolClient, input: SubmitInput, afterSeq = -1): 
 async function createTask(c: PoolClient, reqId: string, input: SubmitInput, step: StepRow, requestedBy: string) {
   const approverBranch = step.approver_role_scope === "supplying_branch" ? input.approverBranchId ?? input.branchId : input.branchId;
   let userId = step.approver_user_id;
+  if (step.approver_role_scope === "line_manager") {
+    const lm = input.subjectEmployeeId
+      ? (await c.query("SELECT employee_line_manager_of($1) u", [input.subjectEmployeeId])).rows[0]?.u
+      : (await c.query("SELECT employee_line_manager_user($1) u", [requestedBy])).rows[0]?.u;
+    if (lm) userId = lm;
+  }
   // Rule 4: a user never approves their own document; if they are the only approver it goes to the backup.
   if (userId === requestedBy) userId = step.backup_user_id;
   if (!userId && step.approver_role_id) {
@@ -75,10 +83,10 @@ export async function submitForApproval(c: PoolClient, ctx: Ctx, input: SubmitIn
   const steps = await matchingSteps(c, input);
   const status = steps.length ? "pending" : "approved";
   const r = await c.query(
-    `INSERT INTO approval_request (branch_id, approver_branch_id, doc_type, doc_id, doc_ref, amount, discount_pct, summary, requested_by, status, current_seq, decided_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $10 = 'approved' THEN now() END) RETURNING id`,
+    `INSERT INTO approval_request (branch_id, approver_branch_id, doc_type, doc_id, doc_ref, amount, discount_pct, summary, requested_by, status, current_seq, decided_at, subject_employee_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $10 = 'approved' THEN now() END, $12) RETURNING id`,
     [input.branchId, input.approverBranchId ?? input.branchId, input.docType, input.docId, input.docRef, input.amount ?? null, input.discountPct ?? null,
-      JSON.stringify(input.summary ?? {}), ctx.userId, status, steps[0]?.seq ?? null],
+      JSON.stringify(input.summary ?? {}), ctx.userId, status, steps[0]?.seq ?? null, input.subjectEmployeeId ?? null],
   ).catch((e) => {
     if (e.code === "23505") throw conflict("This document is already waiting for approval.");
     throw e;
@@ -156,7 +164,7 @@ export async function act(ctx: Ctx, taskId: string, action: "approved" | "reject
       const next = await matchingSteps(c, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id, amount: req.amount, discountPct: req.discount_pct }, task.seq);
       if (next.length) {
         await c.query("UPDATE approval_request SET current_seq = $2, version = version + 1 WHERE id = $1", [req.id, next[0].seq]);
-        await createTask(c, req.id, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id }, next[0], req.requested_by);
+        await createTask(c, req.id, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id, subjectEmployeeId: req.subject_employee_id }, next[0], req.requested_by);
         return { status: "pending" as const };
       }
       await c.query("UPDATE approval_request SET status = 'approved', decided_at = now(), version = version + 1 WHERE id = $1", [req.id]);

@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import crypto from "node:crypto";
 import { headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
@@ -83,6 +85,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
           <p className="small muted" style={{ marginTop: 10 }}>Posted by {i.posted_by_name} · {dt(i.posted_at)}. A posted invoice is never edited or deleted; corrections are made with a credit note.</p>
         </div>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "sales_invoice", id)} />
     </>
   );
 }

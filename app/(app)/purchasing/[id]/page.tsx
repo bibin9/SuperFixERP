@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { requireCtx } from "@/lib/session";
 import { getPo } from "@/lib/services/purchasing";
 import { masters } from "@/lib/services/masters";
@@ -75,6 +77,7 @@ export default async function PoPage({ params, searchParams }: { params: Promise
           {!approvals.length && <p className="muted small">Not submitted yet.</p>}
         </div>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "purchase_order", id)} />
     </>
   );
 }

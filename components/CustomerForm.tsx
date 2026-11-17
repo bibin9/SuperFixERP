@@ -4,7 +4,9 @@ import { saveCustomerAction } from "@/app/actions";
 
 type Opt = { code: string; name: string; id_types?: string[] };
 
-export function CustomerForm({ back, countries, titles, c, dups }: { back: string; countries: Opt[]; titles: { code: string; name_en: string }[]; c?: Record<string, any>; dups?: { kind: string; id: string; label: string }[] }) {
+type Lk = { list: string; code: string; name_en: string };
+export function CustomerForm({ back, countries, titles, lookups = [], c, dups }: { back: string; countries: Opt[]; titles: { code: string; name_en: string }[]; lookups?: Lk[]; c?: Record<string, any>; dups?: { kind: string; id: string; label: string }[] }) {
+  const list = (l: string) => lookups.filter((x) => x.list === l);
   const v = (k: string) => (c?.[k] ?? "") as string;
   const [ctype, setCtype] = useState<string>(v("customer_type") || "individual");
   const [country, setCountry] = useState<string>(v("country_code") || "AE");
@@ -57,7 +59,30 @@ export function CustomerForm({ back, countries, titles, c, dups }: { back: strin
         <div className="field"><label>Credit limit (AED)</label><input name="credit_limit" defaultValue={v("credit_limit") || "0"} /></div>
         <div className="field"><label>Payment terms (days)</label><input name="payment_terms_days" defaultValue={v("payment_terms_days") || "0"} /></div>
         <div className="field"><label>Fleet discount %</label><input name="fleet_discount_pct" defaultValue={v("fleet_discount_pct") || "0"} /></div>
+        <div className="field"><label>Price level</label>
+          <select name="price_level" defaultValue={v("price_level") || "retail"}>{list("price_level").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
       </div>
+      {!isPerson && (
+        <fieldset className="einv">
+          <legend>E-invoicing details (needed for a full tax invoice to a VAT-registered business)</legend>
+          <div className="row">
+            <div className="field"><label>Peppol ID</label><input name="peppol_id" defaultValue={v("peppol_id")} placeholder="0235:100234567800003" /></div>
+            <div className="field"><label>Trade licence no.</label><input name="trade_licence_no" defaultValue={v("trade_licence_no")} /></div>
+            <div className="field"><label>Licence issued by</label>
+              <select name="licence_authority" defaultValue={v("licence_authority")}><option value="">—</option>{list("licence_authority").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
+          </div>
+          <div className="row">
+            <div className="field"><label>Building and street</label><input name="building_street" defaultValue={v("building_street")} /></div>
+            <div className="field"><label>City</label><input name="city" defaultValue={v("city")} /></div>
+            <div className="field"><label>Emirate</label>
+              <select name="emirate" defaultValue={v("emirate")}><option value="">—</option>{list("emirate").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
+            <div className="field"><label>P.O. box</label><input name="po_box" defaultValue={v("po_box")} /></div>
+          </div>
+          <div className="row">
+            <div className="field"><label>Contact person (accounts)</label><input name="contact_person" defaultValue={v("contact_person")} /></div>
+            <div className="field"><label>Contact phone</label><input name="contact_phone" defaultValue={v("contact_phone")} placeholder="+971 2 555 0100" /></div>
+          </div>
+        </fieldset>)}
       <div className="row" style={{ alignItems: "center" }}>
         <label className="shrink"><input type="checkbox" name="whatsapp" defaultChecked={c ? c.whatsapp === true || c.whatsapp === "on" : true} /> WhatsApp on this mobile</label>
         <label className="shrink"><input type="checkbox" name="marketing_consent" defaultChecked={!!c?.marketing_consent} /> Marketing consent (PDPL)</label>

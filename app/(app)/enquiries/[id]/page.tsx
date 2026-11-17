@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
 import { getEnquiry } from "@/lib/services/enquiries";
@@ -119,6 +121,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
           {!msgs.length && <p className="muted small">None yet. Messages are prepared here and sent by you; nothing is sent automatically.</p>}
         </div>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "enquiry", id)} />
     </>
   );
 }

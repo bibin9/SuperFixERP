@@ -11,7 +11,7 @@ import { registerHandler, submitForApproval } from "./workflow";
 import { stockIn, stockOut, today } from "./stock";
 import { D, Decimal, parseDec, r2 } from "../money";
 import { optStr, str } from "../validate";
-import { billToName, invoiceKindFor, maybeCloseJob, receiptTx, type PayIn } from "./billing";
+import { assertBuyerEinvoiceDetails, billToName, invoiceKindFor, maybeCloseJob, receiptTx, type PayIn } from "./billing";
 import { setStatus } from "./jobs";
 
 /** M11 credit notes and cash closing, M09 counter sales, and VAT reporting (FSD 4.9, 4.11, 5.1, 5.6). */
@@ -341,6 +341,7 @@ export async function postCounterSale(ctx: Ctx, f: { customer_id?: string | null
       ],
     });
     const kind = await invoiceKindFor(c, cust, total, b);
+    if (kind === "tax") await assertBuyerEinvoiceDetails(c, cust, b);
     const name = cust.is_walk_in ? (str(f.bill_to_name) || "Walk-in customer") : billToName(cust);
     const inv = (await c.query(
       `INSERT INTO sales_invoice (id, branch_id, doc_no, doc_date, customer_id, bill_to_name, customer_trn, taxable_total, vat_total, grand_total, due_date, idempotency_key, journal_id, posted_by, invoice_kind, source)
@@ -494,7 +495,9 @@ export async function einvoiceData(ctx: Ctx, invoiceId: string) {
   assertCan(ctx, "invoices", "export");
   return withTx(ctx, async (c) => {
     const i = (await c.query(
-      `SELECT i.*, b.name_en branch_name, b.address branch_address, b.emirate, co.legal_name_en, co.trn company_trn, cu.address cust_address, cu.country_code
+      `SELECT i.*, b.name_en branch_name, b.address branch_address, b.emirate, co.legal_name_en, co.trn company_trn, cu.address cust_address, cu.country_code,
+              cu.peppol_id, cu.trade_licence_no, cu.licence_authority, cu.building_street, cu.city, cu.po_box, cu.contact_person, cu.contact_phone, cu.email cust_email, cu.mobile cust_mobile,
+              (SELECT name_en FROM lookup_value WHERE list = 'emirate' AND code = cu.emirate) cust_emirate
          FROM sales_invoice i JOIN branch b ON b.id = i.branch_id CROSS JOIN LATERAL (SELECT * FROM company LIMIT 1) co JOIN customer cu ON cu.id = i.customer_id WHERE i.id = $1`, [invoiceId])).rows[0];
     if (!i) throw notFound("Invoice");
     const lines = (await c.query("SELECT * FROM sales_invoice_line WHERE invoice_id = $1 ORDER BY line_no", [invoiceId])).rows;
@@ -503,7 +506,13 @@ export async function einvoiceData(ctx: Ctx, invoiceId: string) {
       CustomizationID: "urn:peppol:pint:billing-1@ae-1", ProfileID: "urn:peppol:bis:billing",
       ID: i.doc_no, IssueDate: ymd(i.doc_date), InvoiceTypeCode: "380", DocumentCurrencyCode: "AED",
       AccountingSupplierParty: { RegistrationName: i.legal_name_en, CompanyID: i.company_trn, TaxScheme: "VAT", Address: { Line: i.branch_address, CountrySubentity: i.emirate, Country: "AE" } },
-      AccountingCustomerParty: { RegistrationName: i.bill_to_name, CompanyID: i.customer_trn ?? null, Address: { Line: i.bill_to_address ?? i.cust_address ?? null, Country: i.country_code } },
+      AccountingCustomerParty: {
+        EndpointID: i.peppol_id ? { schemeID: String(i.peppol_id).split(":")[0], value: String(i.peppol_id).split(":").slice(1).join(":") } : null,
+        RegistrationName: i.bill_to_name, CompanyID: i.customer_trn ?? null, TaxScheme: i.customer_trn ? "VAT" : null,
+        PartyLegalEntity: { RegistrationName: i.bill_to_name, CompanyID: i.trade_licence_no ?? null, CompanyLegalForm: i.licence_authority ?? null },
+        Address: { StreetName: i.building_street ?? i.bill_to_address ?? i.cust_address ?? null, CityName: i.city ?? null, PostalZone: i.po_box ?? null, CountrySubentity: i.cust_emirate ?? null, Country: i.country_code },
+        Contact: { Name: i.contact_person ?? null, Telephone: i.contact_phone ?? i.cust_mobile ?? null, ElectronicMail: i.cust_email ?? null },
+      },
       OrderReference: i.lpo_no ?? null,
       TaxTotal: { TaxAmount: i.vat_total, TaxSubtotal: Object.values(lines.reduce((m: Record<string, Row>, l) => {
         const k = l.vat_code; m[k] ??= { TaxCategory: cat(k), Percent: D(l.vat_rate).mul(100).toFixed(2), TaxableAmount: D(0), TaxAmount: D(0) };

@@ -104,7 +104,8 @@ async function postVoucher(c: PoolClient, ctx: Ctx, id: string) {
   const lines = (await c.query("SELECT * FROM voucher_line WHERE voucher_id = $1 ORDER BY line_no", [id])).rows;
   const date = ymd(v.voucher_date);
   await assertOpenPeriod(c, date);
-  const docNo = await nextDocNo(c, v.branch_id, "voucher");
+  // Each voucher type has its own series (Document numbering), as in Tally.
+  const docNo = await nextDocNo(c, v.branch_id, `voucher_${v.voucher_type}`);
   const jr = await postJournal(c, ctx, {
     branchId: v.branch_id, date, sourceType: "voucher", sourceId: id, narration: `${docNo}: ${v.narration}`,
     lines: lines.map((l) => ({ accountId: l.account_id, debit: l.debit, credit: l.credit, customerId: l.customer_id, supplierId: l.supplier_id, narration: l.narration })),

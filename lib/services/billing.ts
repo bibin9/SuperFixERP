@@ -24,6 +24,17 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 export const billToName = (cust: Row) =>
   cust.is_walk_in ? "Walk-in customer" : cust.customer_type === "individual" ? [cust.title, cust.first_name, cust.last_name].filter(Boolean).join(" ") : `M/s. ${cust.company_name}`;
 
+/** E-invoicing (PINT AE): a business buyer on a full tax invoice needs its Peppol ID, trade licence and address (setting). */
+export function missingBuyerDetails(cust: Row) {
+  if (cust.customer_type === "individual" || !cust.trn) return [];
+  return ([["peppol_id", "Peppol ID"], ["trade_licence_no", "trade licence number"], ["city", "city"], ["emirate", "emirate"]] as const).filter(([k]) => !cust[k]).map(([, l]) => l);
+}
+export async function assertBuyerEinvoiceDetails(c: PoolClient, cust: Row, branchId: string) {
+  if (!(await getSetting<boolean>(c, "einvoice.require_buyer_details", branchId, true))) return;
+  const miss = missingBuyerDetails(cust);
+  if (miss.length) throw invalid(`${cust.company_name ?? "This customer"} needs its e-invoicing details before a tax invoice: ${miss.join(", ")}. Add them on the customer record.`);
+}
+
 /** IV-03 / FSD 5.1: simplified tax invoice when the buyer has no TRN, or has one and the invoice is within the limit. */
 export async function invoiceKindFor(c: PoolClient, cust: Row, total: Decimal, branchId: string): Promise<"tax" | "simplified"> {
   const on = await getSetting<unknown>(c, "billing.simplified_invoice", branchId, true);
@@ -139,6 +150,7 @@ export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: strin
     const date = today();
     const due = addDaysLocal(Number(cust.payment_terms_days));
     const kind = await invoiceKindFor(c, cust, b.total, job.branch_id);
+    if (kind === "tax") await assertBuyerEinvoiceDetails(c, cust, job.branch_id);
     const labour = b.lines.filter((l) => l.line_type === "labour" || l.line_type === "outside").reduce((s, l) => s.plus(l.taxable_amount), D(0));
     const other = b.taxable.minus(labour);
     const costs = await issuedCostByLine(c, b.lines.map((l) => l.job_line_id));

@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/stock", "Stock on hand", can("stock")],
       ["/stock/planning", "Planning and back orders", can("stock")],
       ["/stock/queue", "Store queue", can("stock")],
-      ["/stock/transfers", "Transfers", can("stock")],
+      ["/stock/transfers", "Transfer orders", can("stock")],
       ["/stock/adjustments", "Adjustments and counts", can("stock")],
     ]],
     ["Purchasing", [
@@ -63,7 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/admin/workflows", "Approval workflows", can("settings")],
       ["/admin/numbering", "Document numbering", can("settings")],
       ["/admin/settings", "Settings", can("settings")],
-      ["/admin/audit", "Audit log", can("admin")],
+      ["/admin/audit", "Audit log", can("audit")],
     ]],
   ];
   const groups: NavGroup[] = menu

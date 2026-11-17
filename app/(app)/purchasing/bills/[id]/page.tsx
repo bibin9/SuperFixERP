@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { requireCtx } from "@/lib/session";
 import { getBill } from "@/lib/services/purchasing";
 import { Flash, Money, PageHead, Status, d, label } from "@/components/ui";
@@ -29,6 +31,7 @@ export default async function BillPage({ params, searchParams }: { params: Promi
           {cost && <tfoot><tr><td colSpan={3}>Total</td><td className="num"><Money v={bill.net_total} /></td><td></td><td className="num"><Money v={bill.vat_total} /></td><td className="num"><Money v={bill.grand_total} /></td></tr></tfoot>}
         </table>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "supplier_bill", id)} />
     </>
   );
 }

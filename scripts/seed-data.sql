@@ -218,7 +218,7 @@ INSERT INTO message_template (event, language, body) VALUES
 INSERT INTO workflow (doc_type, name, enabled) VALUES
  ('discount','Discount and below-margin price', true),
  ('purchase_order','Purchase order', true),
- ('stock_transfer','Stock transfer', true),
+ ('stock_transfer','Transfer order between branches', true),
  ('stock_adjustment','Stock adjustment', true),
  ('credit_note','Credit note', true);
 INSERT INTO workflow_step (workflow_id, seq, name, approver_role_id, cond_min_amount, cond_max_amount, approver_role_scope)
@@ -376,3 +376,14 @@ INSERT INTO setting (key, value, grp, description) VALUES
  ('accounting.ho_fixed_pct','{}','Accounting','Fixed percentage per branch code for head-office cost sharing, for example {"YAS": 12, "QUS": 10}'),
  ('accounting.bank_match_days','3','Accounting','Days either side of the statement date when matching bank lines to the books'),
  ('accounting.payment_alert_days','7','Accounting','Show cheques and supplier bills due within this many days');
+
+-- ---------- Review fixes, 17 Nov 2026 ----------
+-- A series per voucher type (Document numbering), and the audit log as its own permission.
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
+CROSS JOIN (VALUES ('voucher_journal','-JRN-'),('voucher_payment','-PMT-'),('voucher_receipt','-RCV-'),('voucher_contra','-CON-'),
+                   ('voucher_debit_note','-DBN-'),('voucher_credit_note','-CRN-')) t(doc_type, suffix)
+ON CONFLICT (branch_id, doc_type) DO NOTHING;
+INSERT INTO permission (role_id, screen, action)
+SELECT r.id, x.screen, x.action FROM role r JOIN (VALUES ('owner','audit','view'),('owner','audit','export'),('accountant','audit','view')) x(role, screen, action) ON x.role = r.code
+ON CONFLICT DO NOTHING;

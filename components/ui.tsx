@@ -31,6 +31,8 @@ const WORDS: Record<string, string> = {
   whatsapp: "WhatsApp", whatsapp_reply: "WhatsApp reply", whatsapp_link: "WhatsApp link", walk_in: "Walk-in", in_person: "In person",
   sms: "SMS", email: "Email", lpo: "LPO", vat: "VAT", trn: "TRN", job_no: "Job number", doc_no: "Document number", max_pct: "Maximum %",
   sent_manually: "Sent manually", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
+  transfer: "Transfer order", stock_transfer: "Transfer order", voucher: "Voucher (before 17 Nov)", voucher_journal: "Journal voucher", voucher_payment: "Payment voucher",
+  voucher_receipt: "Receipt voucher", voucher_contra: "Contra voucher", voucher_debit_note: "Debit note voucher", voucher_credit_note: "Credit note voucher",
 };
 /** Plain words for stored codes such as walk_in or whatsapp_reply. Free text is returned unchanged. */
 export const label = (v: string | null | undefined) => {

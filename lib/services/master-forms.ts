@@ -49,6 +49,16 @@ export const MASTERS: MDef[] = [
       { name: "item_type", label: "Item type", type: "select", required: true, values: [["stock", "Stock item"], ["consumable", "Consumable"], ["non_stock", "Non-stock"], ["service", "Service item"]] },
       { name: "preferred_supplier_id", label: "Preferred supplier", type: "select", sql: "SELECT id::text, code || ' · ' || name_en FROM supplier WHERE active ORDER BY code", hint: "Used when a back order raises a purchase order" },
     ] },
+  { key: "price-lists", title: "Price lists by price level", group: "Stock", table: "price_list_line", pk: ["id"], autoId: true, hasActive: true, order: "price_level, item_id",
+    note: "Selling price of an item for a price level (retail, trade, fleet and any level added under Pick lists). Without a line here the item's list price is used.",
+    fields: [
+      { name: "price_level", label: "Price level", type: "select", lookup: "price_level", required: true },
+      { name: "item_id", label: "Item", type: "select", required: true, sql: "SELECT id::text, part_no || ' · ' || description FROM item WHERE active ORDER BY part_no" },
+      { name: "price", label: "Price (AED, before VAT)", type: "number", dp: 2, min: 0, required: true },
+      { name: "min_price", label: "Minimum price (AED)", type: "number", dp: 2, min: 0 },
+      { name: "valid_from", label: "Valid from (YYYY-MM-DD)", type: "text", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      { name: "valid_to", label: "Valid to (YYYY-MM-DD)", type: "text", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    ] },
   { key: "suppliers", title: "Suppliers", group: "Stock", table: "supplier", pk: ["id"], autoId: true, hasActive: true, order: "code",
     note: "Suppliers for purchase orders and bills. A supplier with a TRN can be charged VAT; a supplier without one cannot.",
     fields: [

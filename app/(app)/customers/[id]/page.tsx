@@ -56,7 +56,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
           </form>
         )}
       </div>
-      {can(ctx, "customers", "edit") && <div className="card"><h2>Details</h2><CustomerForm back={back} countries={m.countries} titles={m.titles} c={c} dups={sp.dups ? JSON.parse(sp.dups) : undefined} /></div>}
+      {can(ctx, "customers", "edit") && <div className="card"><h2>Details</h2><CustomerForm back={back} countries={m.countries} titles={m.titles} lookups={m.lookups} c={c} dups={sp.dups ? JSON.parse(sp.dups) : undefined} /></div>}
       <div className="card"><h2>Consent history (PDPL)</h2>
         <table><tbody>{consents.map((x) => <tr key={x.id}><td>{x.consent ? "Opted in" : "Not opted in"}</td><td>{label(x.channel)}</td><td className="muted">{dt(x.at)}</td></tr>)}</tbody></table>
       </div>

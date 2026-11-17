@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { requireCtx } from "@/lib/session";
 import { getCreditNote, amountInWords } from "@/lib/services/billing-more";
 import { Flash, Link, Money, Status, d, label } from "@/components/ui";
@@ -40,6 +42,7 @@ export default async function CreditNotePage({ params, searchParams }: { params:
         <p className="small"><b>Amount in words:</b> {amountInWords(cn.grand_total)}</p>
         <p className="small muted">Made by {cn.created_by_name}.</p>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "credit_note", id)} />
     </>
   );
 }

@@ -39,12 +39,18 @@ export async function saveBranch(ctx: Ctx, f: Record<string, unknown>) {
       [row.code, row.name_en, row.name_ar, row.branch_type, row.emirate, row.address, row.phone, row.whatsapp_number, row.whatsapp_mode, row.opening_hours, row.cost_centre, ctx.userId],
     ).catch((e) => { if (e.code === "23505") throw invalid("That branch code is already used."); throw e; });
     const id = r.rows[0].id;
-    // Default document series for the new branch (FSD 3.4).
+    // Document series for the new branch (FSD 3.4): every document type another branch numbers, with
+    // the new branch code in the prefix (so modules added later work at new branches too).
     const series: [string, string, number, boolean][] = [
       ["job_card", `${row.code}-`, 4, false], ["enquiry", `${row.code}-ENQ-`, 5, true], ["invoice", `${row.code}-INV-`, 6, true],
       ["receipt", `${row.code}-RC-`, 6, true], ["credit_note", `${row.code}-CN-`, 6, true], ["journal", `${row.code}-JV-`, 6, true],
     ];
     for (const [t, p, pad, y] of series) await c.query("INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part) VALUES ($1,$2,$3,1,$4,$5)", [id, t, p, pad, y]);
+    await c.query(
+      `INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+       SELECT DISTINCT ON (s.doc_type) $1::uuid, s.doc_type, $2 || substr(s.prefix, length(b.code) + 1), 1, s.padding, s.year_part
+         FROM doc_series s JOIN branch b ON b.id = s.branch_id WHERE s.prefix LIKE b.code || '%' ORDER BY s.doc_type, b.code
+       ON CONFLICT (branch_id, doc_type) DO NOTHING`, [id, row.code]);
     await audit(c, ctx, "branch", id, "create", row);
     return { id };
   });
@@ -216,17 +222,44 @@ export async function updateSetting(ctx: Ctx, id: string, raw: string) {
   });
 }
 
-export async function auditLog(ctx: Ctx, f: { entity?: string; user?: string; action?: string }) {
-  assertCan(ctx, "admin", "view");
+export type AuditFilter = { entity?: string; user?: string; action?: string; record?: string; from?: string; to?: string };
+/**
+ * Audit log (FSD 3.6, 3.12): search by user, record, date and action. Its own permission (Audit log)
+ * in the role matrix; users who do not have all branches see their branches' entries only.
+ */
+export async function auditLog(ctx: Ctx, f: AuditFilter, limit = 300) {
+  assertCan(ctx, "audit", "view");
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(str(f.from)) ? str(f.from) : "", to = /^\d{4}-\d{2}-\d{2}$/.test(str(f.to)) ? str(f.to) : "";
   return withTx(ctx, async (c) => (await c.query(
-    `SELECT a.*, u.full_name, b.code branch_code FROM audit_log a LEFT JOIN app_user u ON u.id = a.user_id LEFT JOIN branch b ON b.id = a.branch_id
-      WHERE ($1 = '' OR a.entity = $1) AND ($2 = '' OR u.username = $2) AND ($3 = '' OR a.action = $3) ORDER BY a.id DESC LIMIT 300`,
-    [str(f.entity), str(f.user), str(f.action)])).rows);
+    `SELECT a.*, u.full_name, u.username, b.code branch_code,
+            coalesce(a.role_name, (SELECT r.name FROM user_branch_role ubr JOIN role r ON r.id = ubr.role_id WHERE ubr.user_id = a.user_id AND (ubr.branch_id = a.branch_id OR ubr.branch_id IS NULL) ORDER BY ubr.branch_id NULLS LAST LIMIT 1)) role
+       FROM audit_log a LEFT JOIN app_user u ON u.id = a.user_id LEFT JOIN branch b ON b.id = a.branch_id
+      WHERE ($1 = '' OR a.entity ILIKE '%' || $1 || '%') AND ($2 = '' OR u.username = $2) AND ($3 = '' OR a.action ILIKE '%' || $3 || '%')
+        AND ($4 = '' OR a.entity_id::text = $4 OR a.changes::text ILIKE '%' || $4 || '%')
+        AND ($5 = '' OR (a.at AT TIME ZONE 'Asia/Dubai')::date >= $5::date) AND ($6 = '' OR (a.at AT TIME ZONE 'Asia/Dubai')::date <= $6::date)
+        AND ($7 OR a.branch_id IS NULL OR a.branch_id = ANY($8::uuid[]))
+      ORDER BY a.id DESC LIMIT ${Math.min(limit, 50000)}`,
+    [str(f.entity), str(f.user), str(f.action), str(f.record), from, to, ctx.allBranches, ctx.branchIds])).rows);
+}
+
+/** Audit log as CSV for the owner (export permission); the export itself is audited. */
+export async function auditCsv(ctx: Ctx, f: AuditFilter) {
+  assertCan(ctx, "audit", "export");
+  const rows = await auditLog(ctx, f, 50000);
+  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = ["When,User,Name,Role,Branch,Record,Record id,Action,Changes", ...rows.map((r) => [new Date(r.at).toISOString(), r.username ?? "system", r.full_name ?? "", r.role ?? "", r.branch_code ?? "", r.entity, r.entity_id ?? "", r.action, JSON.stringify(r.changes ?? {})].map(q).join(","))];
+  await withTx(ctx, (c) => audit(c, ctx, "audit_log", null, "export", { rows: rows.length, filter: f }));
+  return lines.join("\r\n") + "\r\n";
+}
+
+export async function auditUsers(ctx: Ctx) {
+  assertCan(ctx, "audit", "view");
+  return withTx(ctx, async (c) => (await c.query("SELECT username, full_name FROM app_user ORDER BY full_name")).rows);
 }
 
 export async function loginEvents(ctx: Ctx) {
-  assertCan(ctx, "admin", "view");
-  return withTx(ctx, async (c) => (await c.query("SELECT e.*, b.code branch_code FROM login_event e LEFT JOIN branch b ON b.id = e.branch_id ORDER BY e.id DESC LIMIT 200")).rows);
+  assertCan(ctx, "audit", "view");
+  return withTx(ctx, async (c) => (await c.query("SELECT e.*, b.code branch_code FROM login_event e LEFT JOIN branch b ON b.id = e.branch_id WHERE $1 OR e.branch_id IS NULL OR e.branch_id = ANY($2::uuid[]) ORDER BY e.id DESC LIMIT 200", [ctx.allBranches, ctx.branchIds])).rows);
 }
 
 export async function listWorkflows(ctx: Ctx) {

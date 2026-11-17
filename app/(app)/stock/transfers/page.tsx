@@ -18,7 +18,7 @@ export default async function Transfers({ searchParams }: { searchParams: Promis
   const here = ctx.currentBranchId;
   return (
     <>
-      <PageHead title="Transfers between branches" sub="Requested, approved by the supplying branch manager, dispatched into transit, received. No sale and no VAT." />
+      <PageHead title="Transfer orders between branches" sub="A transfer order moves stock from one Superfix branch to another; it is not a purchase order (no supplier, no sale, no VAT). Requested, approved by the supplying branch manager, dispatched into transit, received. No sale and no VAT." />
       <StockTabs at="/stock/transfers" />
       <Flash sp={sp} />
       {here && can(ctx, "stock", "create", here) && (

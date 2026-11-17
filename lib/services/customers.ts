@@ -82,6 +82,16 @@ async function buildCustomer(c: PoolClient, f: CustomerInput) {
     trn: normaliseTrn(f.trn),
     address: optStr(f.address),
     price_level: str(f.price_level) || "retail",
+    // E-invoicing details of a business buyer (PINT AE): Peppol ID, trade licence, structured address, contact.
+    peppol_id: type === "individual" ? null : optStr(String(f.peppol_id ?? "").replace(/\s/g, "")),
+    trade_licence_no: type === "individual" ? null : optStr(f.trade_licence_no),
+    licence_authority: type === "individual" ? null : optStr(f.licence_authority),
+    building_street: optStr(f.building_street),
+    city: optStr(f.city),
+    emirate: optStr(f.emirate),
+    po_box: optStr(f.po_box),
+    contact_person: type === "individual" ? null : optStr(f.contact_person),
+    contact_phone: type === "individual" ? null : optStr(String(f.contact_phone ?? "").replace(/[\s\-()]/g, "")),
     preferred_channel: str(f.preferred_channel) || "whatsapp",
     marketing_consent: f.marketing_consent === "on" || f.marketing_consent === true || f.marketing_consent === "true",
     credit_limit: str(f.credit_limit) || "0",
@@ -90,6 +100,12 @@ async function buildCustomer(c: PoolClient, f: CustomerInput) {
     lpo_required: f.lpo_required === "on" || f.lpo_required === true,
     consolidated_invoice: f.consolidated_invoice === "on" || f.consolidated_invoice === true,
   };
+  const level = (await c.query("SELECT 1 FROM lookup_value WHERE list = 'price_level' AND code = $1 AND active", [row.price_level])).rowCount;
+  if (!level) throw invalid("Choose a price level from the list (Master forms, Pick lists, price level).");
+  if (row.peppol_id && !/^[0-9]{4}:[A-Za-z0-9.\-]{1,50}$/.test(String(row.peppol_id))) throw invalid("Peppol ID is the scheme and the ID, for example 0235:100234567800003.");
+  if (row.contact_phone && !/^\+?[0-9]{7,15}$/.test(String(row.contact_phone))) throw invalid("Contact phone is not a valid number.");
+  for (const [k, list, lab] of [["licence_authority", "licence_authority", "Licence authority"], ["emirate", "emirate", "Emirate"]] as const)
+    if (row[k] && !(await c.query("SELECT 1 FROM lookup_value WHERE list = $1 AND code = $2", [list, row[k]])).rowCount) throw invalid(`${lab}: choose from the list.`);
   if (row.id_type && !ctry.id_types.includes(row.id_type)) throw invalid(`ID type ${row.id_type} is not used for ${ctry.name}.`);
   if (row.id_type === "Emirates ID" && row.id_number) row.id_number = normaliseEmiratesId(row.id_number);
   if (!/^\d+(\.\d{1,2})?$/.test(String(row.credit_limit))) throw invalid("Credit limit must be an amount.");

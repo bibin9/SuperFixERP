@@ -127,8 +127,8 @@ await step("TC-AC03-03", "voucher waits for the owner, gets its number only when
   await fillVoucher(maryam, "payment", "Workshop rent for the month", [{ acc: "5900 ·", dr: "1000" }, { acc: "1120 ·", cr: "1000" }]);
   voucherUrl = maryam.url(); let t = await body(maryam); must(/Waiting for approval/.test(t) && /Not numbered|voucher\s*$/m.test(t) || /Waiting for approval/.test(t), "not pending");
   await approve(saeed, "Workshop rent for the month");
-  await goto(maryam, voucherUrl.replace(B, "")); t = await body(maryam); must(/YAS-VCH-/.test(t) && /Posted/.test(t), "not posted");
-  await shot(maryam, "p4-voucher-posted"); return t.match(/YAS-VCH-\S+/)[0];
+  await goto(maryam, voucherUrl.replace(B, "")); t = await body(maryam); must(/YAS-PMT-/.test(t) && /Posted/.test(t), "not posted");
+  await shot(maryam, "p4-voucher-posted"); return t.match(/YAS-PMT-\S+/)[0];
 });
 await step("TC-AC03-04", "a branch manager cannot enter vouchers", async () => {
   await goto(yousef, "/accounts/vouchers"); must(!(await yousef.locator("a:has-text('New voucher')").count()), "button shown");
@@ -249,7 +249,7 @@ await step("TC-AC08-02", "day book and ledger drill down to the journal and the 
   await goto(maryam, "/accounts/day-book"); must(await maryam.locator("a[href^='/accounts/journal/']").count(), "no journals");
   await goto(maryam, `/accounts/ledger?account=5900&from=${today.slice(0, 8)}01&to=${today}`);
   await maryam.locator("a[href^='/accounts/journal/']").first().click(); await settle(maryam);
-  await maryam.click("a:has-text('Open the document')"); await settle(maryam); must(/voucher/i.test(await body(maryam)) && /YAS-VCH-/.test(await body(maryam)), "did not reach the voucher"); return "ledger → journal → voucher";
+  await maryam.click("a:has-text('Open the document')"); await settle(maryam); must(/voucher/i.test(await body(maryam)) && /YAS-(PMT|JRN|RCV|CON|DBN|CRN)-/.test(await body(maryam)), "did not reach the voucher"); return "ledger → journal → voucher";
 });
 await step("TC-AC15-01", "ledger balances on any date: the trial balance on the cut-over day shows only the opening figures", async () => {
   await goto(maryam, `/accounts?asof=${CUTOVER}`); const t = await body(maryam);

@@ -11,7 +11,7 @@ export default async function NewCustomer({ searchParams }: { searchParams: Prom
     <>
       <PageHead title="New customer" sub="Mobile, VIN and plate are checked against every branch before saving." />
       <Flash sp={sp} />
-      <div className="card"><CustomerForm back="/customers/new" countries={m.countries} titles={m.titles} dups={sp.dups ? JSON.parse(sp.dups) : undefined} c={sp.form ? JSON.parse(sp.form) : undefined} /></div>
+      <div className="card"><CustomerForm back="/customers/new" countries={m.countries} titles={m.titles} lookups={m.lookups} dups={sp.dups ? JSON.parse(sp.dups) : undefined} c={sp.form ? JSON.parse(sp.form) : undefined} /></div>
     </>
   );
 }

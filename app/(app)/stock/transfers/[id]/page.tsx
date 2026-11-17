@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { requireCtx } from "@/lib/session";
 import { getTransfer } from "@/lib/services/stock-ops";
 import { can } from "@/lib/access";
@@ -17,7 +19,7 @@ export default async function TransferPage({ params, searchParams }: { params: P
   const canCancel = (t.status === "requested" && side.requester) || (t.status === "approved" && side.supplier);
   return (
     <>
-      <PageHead title={`Transfer ${t.doc_no}`} sub={`From ${t.from_code} · ${t.from_name} to ${t.to_code} · ${t.to_name}${t.note ? ` · ${t.note}` : ""}`}><Status s={t.status} /></PageHead>
+      <PageHead title={`Transfer order ${t.doc_no}`} sub={`From ${t.from_code} · ${t.from_name} to ${t.to_code} · ${t.to_name}${t.note ? ` · ${t.note}` : ""}`}><Status s={t.status} /></PageHead>
       <Flash sp={sp} />
       {t.status === "requested" && <div className="flash warn">Waiting for the {t.from_code} branch manager to approve. Nothing has moved yet.</div>}
       {t.reason && <div className="flash warn">{label(t.status)}: {t.reason}</div>}
@@ -45,6 +47,7 @@ export default async function TransferPage({ params, searchParams }: { params: P
       <div className="card"><h2>History</h2>
         <table><tbody>{events.map((e) => <tr key={e.id}><td><Status s={e.status} /></td><td>{e.full_name}</td><td className="small">{e.note}</td><td className="small muted">{dt(e.at)}</td></tr>)}</tbody></table>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "transfer", id)} />
     </>
   );
 }

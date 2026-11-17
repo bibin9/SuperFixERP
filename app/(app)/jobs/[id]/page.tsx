@@ -1,3 +1,5 @@
+import { RecordHistory } from "@/components/RecordHistory";
+import { docHistory } from "@/lib/services/history";
 import { headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
 import { getJob, nextStatuses, STATUS_LABEL } from "@/lib/services/jobs";
@@ -89,6 +91,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           <table><tbody>{statusHistory.map((s) => <tr key={s.id}><td><Status s={s.to_status} /></td><td className="small">{s.reason}</td><td className="small">{s.full_name ?? "system / customer"}</td><td className="small muted">{dt(s.at)}</td></tr>)}</tbody></table>
         </div>
       </div>
+      <RecordHistory rows={await docHistory(ctx, "job_card", id)} />
     </>
   );
 }

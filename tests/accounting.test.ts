@@ -101,7 +101,7 @@ test("manual vouchers: balanced, party required on party ledgers, approved by th
   const task = (await inbox(saeed)).find((t) => t.doc_id === v.id)!;
   await act(saeed, task.task_id, "approved");
   const row = await one("SELECT status, doc_no, journal_id FROM voucher WHERE id = $1", [v.id]);
-  assert.equal(row.status, "posted"); assert.match(row.doc_no, /^YAS-VCH-/); assert.ok(row.journal_id);
+  assert.equal(row.status, "posted"); assert.match(row.doc_no, /^YAS-PMT-/); assert.ok(row.journal_id);
   // revenue at two branches for the allocation test below
   for (const [b, amt] of [["YAS", "6000"], ["QUS", "2000"]] as const) {
     await voucherPosted(await ctxFor("maryam", b), { voucher_type: "receipt", voucher_date: T, narration: "Cash sales brought in", lines: [{ account_id: acc["1100"], debit: amt }, { account_id: acc["4100"], credit: amt }] });
