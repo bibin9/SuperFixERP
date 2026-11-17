@@ -36,8 +36,9 @@ export function SideNav({ groups }: { groups: NavGroup[] }) {
         return (
           <div key={g.key} className={`navgrp${open ? " open" : ""}`}>
             <button type="button" className="grp" aria-expanded={open} aria-controls={id} onClick={() => toggle(g.key, open)} disabled={hasActive} title={hasActive ? "Contains the page you are on" : open ? "Collapse" : "Expand"}>
-              <span className="chev" aria-hidden>▸</span>{g.label}
+              {g.label}
               {!open && badge > 0 && <span className="badge">{badge}</span>}
+              <span className="chev" aria-hidden>›</span>
             </button>
             {open && (
               <div id={id}>

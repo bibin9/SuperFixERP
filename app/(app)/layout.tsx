@@ -5,6 +5,7 @@ import { shellData } from "@/lib/services/home";
 import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
+import { PhoneTables } from "@/components/PhoneTables";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
           <div className="who"><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</div>
         </header>
-        <main className="main">{children}</main>
+        <main className="main">{children}</main><PhoneTables />
       </div>
     </div>
   );

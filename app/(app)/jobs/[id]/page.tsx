@@ -49,7 +49,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {canEdit && manual.length > 0 ? (
             <form action={statusAction}>
               <input type="hidden" name="job_id" value={id} /><input type="hidden" name="version" value={job.version} />
-              {late && <div className="field"><label>Delay reason (required, DL-02)</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select><input name="delay_note" placeholder="Note" style={{ marginTop: 6 }} /></div>}
+              {late && <div className="field"><label>Delay reason (required)</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select><input name="delay_note" placeholder="Note" style={{ marginTop: 6 }} /></div>}
               <div className="row">{manual.map((s) => <button key={s} name="to" value={s} className="btn sm shrink">{STATUS_LABEL[s]}</button>)}</div>
             </form>
           ) : <p className="muted small">Status moves automatically from here (quotation answer, invoice, payment).</p>}

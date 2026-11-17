@@ -14,7 +14,7 @@ export default async function InvoiceDraft({ params, searchParams }: { params: P
   const ready = d.checks.every((c) => c.ok);
   return (
     <>
-      <PageHead title={`Tax invoice draft · ${d.job.doc_no}`} sub="Lines come only from approved job lines, at the approved quotation price (IV-01, QT-07)."><Link className="btn ghost" href={`/jobs/${id}`}>Back to job</Link></PageHead>
+      <PageHead title={`Tax invoice draft · ${d.job.doc_no}`} sub="Lines come only from approved job lines, at the approved quotation price."><Link className="btn ghost" href={`/jobs/${id}`}>Back to job</Link></PageHead>
       <Flash sp={sp} />
       <div className="card"><h2>Checks</h2>
         <ul className="checks">{d.checks.map((c) => <li key={c.text} className={c.ok ? "ok" : "no"}>{c.text}</li>)}</ul>

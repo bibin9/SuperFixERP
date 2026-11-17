@@ -22,7 +22,9 @@ a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
 .nav .grp:hover:not(:disabled){background:var(--navy2);color:#fff}
 .nav .grp:disabled{cursor:default}
 .nav .grp:focus-visible,.nav a:focus-visible{outline:2px solid #6aa5ff;outline-offset:1px}
-.nav .chev{display:inline-block;font-size:10px;transition:transform .15s}
+.nav .chev{display:inline-grid;place-items:center;width:22px;height:22px;margin-left:auto;border-radius:6px;font-size:18px;line-height:1;color:#a9bad2;transition:transform .15s}
+.nav .grp .badge+.chev{margin-left:6px}
+.nav .grp:hover .chev{color:#fff}
 .nav .navgrp.open .chev{transform:rotate(90deg)}
 .nav a.active{background:#1f3a63;color:#fff;box-shadow:inset 3px 0 0 #4f8ff7}
 .nav a{display:flex;align-items:center;gap:8px;padding:8px 12px;color:#c6d2e3;border-radius:9px;font-weight:500}
@@ -51,6 +53,8 @@ h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}h3{font-size:
   .menubtn{display:inline-flex;margin-left:auto;align-items:center;gap:6px;border:1px solid #2b4366;color:#fff;border-radius:9px;padding:8px 12px;font-weight:600;cursor:pointer;font-size:14px}
   .side .client,.side .nav,.side .side-foot{display:none}
   .navtoggle:checked~.client,.navtoggle:checked~.nav,.navtoggle:checked~.side-foot{display:flex}
+  .navtoggle:checked~.side-foot{align-items:center;justify-content:space-between;gap:10px}
+  .navtoggle:checked~.side-foot button{margin-top:0}
   .navtoggle:checked~.nav{display:block;overflow:auto;max-height:calc(100vh - 170px)}
   .nav a,.nav .grp{padding:11px 12px}
   .top{position:static;flex-wrap:wrap;padding:10px 14px;gap:8px}
@@ -59,7 +63,16 @@ h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}h3{font-size:
   .grid2,.grid3{grid-template-columns:1fr}.grid4{grid-template-columns:1fr 1fr;gap:10px}
   .app .card{overflow-x:auto}
   .app>div,.main,.grid2>*,.grid3>*,.grid4>*{min-width:0}
-  .app .card table:has(thead th:nth-child(5)){min-width:620px}
+  .app .card table:has(thead th:nth-child(5)):not(.stack){min-width:620px}
+  /* Lists on phones: one card per row, each value with its column name */
+  table.stack thead{display:none}
+  table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
+  table.stack tr{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:#fff}
+  table.stack td{border:0;padding:3px 0;display:flex;gap:10px;justify-content:space-between;text-align:right}
+  table.stack td::before{content:attr(data-label);color:var(--muted);font-size:12px;text-align:left;flex:none}
+  table.stack td:first-child{font-weight:600;font-size:15px;text-align:left}
+  table.stack td:first-child::before{content:none}
+  table.stack td:empty{display:none}
 }
 .kpi{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px}
 .kpi .v{font-size:26px;font-weight:700}.kpi .l{color:var(--muted);font-size:12.5px}
