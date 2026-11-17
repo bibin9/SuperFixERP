@@ -1,4 +1,6 @@
 import { RecordHistory } from "@/components/RecordHistory";
+import { RunForm, RunsTable } from "@/components/RunsPanel";
+import { runOptions, runsFor, canEditRuns } from "@/lib/services/runs";
 import { docHistory } from "@/lib/services/history";
 import { headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
@@ -37,6 +39,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     <>
       <PageHead title={`Job card ${job.doc_no}`} sub={`${plate(job)} · ${job.make} ${job.model} ${job.model_year ?? ""} · ${custName(job)} · ${job.mobile} · ${job.branch_name}`}>
         <Status s={job.status} />{late && <span className="pill red">Late</span>}
+        <Link className="btn ghost sm" href={`/vehicles/${job.vehicle_id}`}>Vehicle page</Link>
       </PageHead>
       <Flash sp={sp} />
       <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />
@@ -91,6 +94,24 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           <table><tbody>{statusHistory.map((s) => <tr key={s.id}><td><Status s={s.to_status} /></td><td className="small">{s.reason}</td><td className="small">{s.full_name ?? "system / customer"}</td><td className="small muted">{dt(s.at)}</td></tr>)}</tbody></table>
         </div>
       </div>
+      {await (async () => {
+        const runs = await runsFor(ctx, { jobId: id, enquiryOfJob: job.enquiry_id });
+        const runEdit = canEditRuns(ctx, job.branch_id);
+        const closed = ["invoiced", "closed", "cancelled"].includes(job.status);
+        if (!runs.length && (!runEdit || closed)) return null;
+        const drivers = runEdit ? (await runOptions(ctx, job.branch_id)).drivers : [];
+        const jb = `/jobs/${id}#runs`;
+        return (
+          <div className="card" id="runs"><h2>Pickup, drop-off and recovery</h2>
+            <RunsTable rows={runs} back={jb} canEdit={runEdit} prices={canSeePrices} showRef={false} />
+            {runEdit && !closed && (
+              <details style={{ marginTop: 10 }}><summary className="btn sm ghost">Schedule a run</summary>
+                <RunForm back={jb} drivers={drivers} jobId={id} canCharge={canSeePrices} defaults={{ type: "drop_off", from: job.branch_name ?? "" }}
+                  chargeTarget={["approved", "awaiting_parts", "in_progress", "quality_check"].includes(job.status) ? "job" : null} /></details>
+            )}
+          </div>
+        );
+      })()}
       <RecordHistory rows={await docHistory(ctx, "job_card", id)} />
     </>
   );

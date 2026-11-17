@@ -6,6 +6,8 @@ import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
+import { FormErrors } from "@/components/FormErrors";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ["Front office", [
       ["/", "Home", true],
       ["/enquiries", "Enquiries", can("customers")],
+      ["/bookings", "Booking calendar", can("customers")],
       ["/customers", "Customers & vehicles", can("customers")],
       ["/jobs", "Job cards", can("jobs") || can("workshop")],
       ["/approvals", "Approvals", can("approvals"), pending],
@@ -25,6 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ["Workshop", [
       ["/workshop", "Workshop board", can("workshop")],
       ["/my-jobs", "My jobs", role?.roleCode === "technician"],
+      ["/workshop/runs", "Pickup, drop-off and recovery", can("jobs") || can("customers") || can("workshop")],
     ]],
     ["Parts", [
       ["/stock", "Stock on hand", can("stock")],
@@ -99,7 +103,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
           <div className="who"><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</div>
         </header>
-        <main className="main">{children}</main><PhoneTables />
+        <main className="main">{children}</main><PhoneTables /><Suspense fallback={null}><FormErrors /></Suspense>
       </div>
     </div>
   );

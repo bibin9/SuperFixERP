@@ -24,7 +24,7 @@ const STATUS_COLOR: Record<string, string> = {
   sent: "amber", ready_to_send: "", draft: "grey", pending_internal_approval: "amber", partly_approved: "green", declined: "red", expired: "grey", superseded: "grey",
   open: "amber", converted: "green", lost: "red", pending: "amber", rejected: "red", sent_back: "amber",
   pending_approval: "amber", posted: "green", held: "amber", cleared: "green", bounced: "red", submitted: "amber", signed_off: "green",
-  settled: "green", overdue: "red", issued: "amber", finished: "green", loaded: "amber", active: "green", disposed: "grey",
+  settled: "green", overdue: "red", scheduled: "", on_the_way: "violet", completed: "green", no_show: "red", checked_in: "green", issued: "amber", finished: "green", loaded: "amber", active: "green", disposed: "grey",
 };
 
 const WORDS: Record<string, string> = {
@@ -32,6 +32,7 @@ const WORDS: Record<string, string> = {
   sms: "SMS", email: "Email", lpo: "LPO", vat: "VAT", trn: "TRN", job_no: "Job number", doc_no: "Document number", max_pct: "Maximum %",
   sent_manually: "Sent manually", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
   transfer: "Transfer order", stock_transfer: "Transfer order", voucher: "Voucher (before 17 Nov)", voucher_journal: "Journal voucher", voucher_payment: "Payment voucher",
+  vehicle_run: "Vehicle run", no_show: "Did not come", drop_off: "Drop-off", rebook: "Booking moved", cancel_booking: "Booking cancelled",
   voucher_receipt: "Receipt voucher", voucher_contra: "Contra voucher", voucher_debit_note: "Debit note voucher", voucher_credit_note: "Credit note voucher",
 };
 /** Plain words for stored codes such as walk_in or whatsapp_reply. Free text is returned unchanged. */
@@ -44,7 +45,7 @@ export const label = (v: string | null | undefined) => {
 };
 
 export function Status({ s }: { s: string }) {
-  const label = STATUS_LABEL[s] ?? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const label = STATUS_LABEL[s] ?? WORDS[s] ?? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
   return <span className={`pill ${STATUS_COLOR[s] ?? ""}`}>{label}</span>;
 }
 

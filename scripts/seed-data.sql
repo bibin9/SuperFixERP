@@ -387,3 +387,19 @@ ON CONFLICT (branch_id, doc_type) DO NOTHING;
 INSERT INTO permission (role_id, screen, action)
 SELECT r.id, x.screen, x.action FROM role r JOIN (VALUES ('owner','audit','view'),('owner','audit','export'),('accountant','audit','view')) x(role, screen, action) ON x.role = r.code
 ON CONFLICT DO NOTHING;
+
+-- ---------- Bookings and vehicle runs ----------
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, 'vehicle_run', b.code || '-RUN-', 1, 5, true FROM branch b
+ON CONFLICT (branch_id, doc_type) DO NOTHING;
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('workshop.technician_day_hours','8','Bookings','Hours a technician can be booked for in a day, when the Technician capacity master has no row for them'),
+ ('workshop.overbook_policy','"warn"','Bookings','When a booking goes over a bay''s or technician''s hours: warn (allowed with a reason) or block'),
+ ('workshop.default_booking_hours','2','Bookings','Hours a booking takes when the enquiry has no labour lines yet'),
+ ('workshop.booking_days_ahead','60','Bookings','How far ahead a booking can be made, in days')
+ON CONFLICT DO NOTHING;
+INSERT INTO lookup_value (list, code, name_en, sort) VALUES ('enquiry_source','recovery','Breakdown / recovery call',6) ON CONFLICT (list, code) DO NOTHING;
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('vehicle.service_interval_km','10000','Vehicles','Default service interval in km, when the vehicle has none of its own'),
+ ('vehicle.service_interval_months','6','Vehicles','Default service interval in months, when the vehicle has none of its own')
+ON CONFLICT DO NOTHING;

@@ -131,3 +131,21 @@ table.fin td.ind{padding-left:22px}table.fin tr.tot td{font-weight:700;border-to
 .check li{margin:6px 0}.check .ok::before{content:"✓ ";color:var(--green);font-weight:700}.check .no::before{content:"✗ ";color:var(--late);font-weight:700}
 fieldset.einv { border: 1px solid var(--line, #d0d7e2); border-radius: 8px; padding: 8px 12px 4px; margin: 8px 0; }
 fieldset.einv legend { font-size: 12px; color: var(--muted, #5b6b80); padding: 0 6px; }
+/* Booking load bars */
+.loadbars h3{font-size:13px;margin:6px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.loadrow{display:grid;grid-template-columns:minmax(90px,150px) 1fr auto;gap:10px;align-items:center;padding:4px 6px;border-radius:8px;font-size:13.5px}
+.loadrow.sel{background:var(--blue-soft)}
+.loadrow .lbar{display:flex;height:12px;background:#eef2f7;border-radius:6px;overflow:hidden}
+.loadrow .lbar i{display:block;height:100%}.loadrow .lbar i.b{background:var(--blue)}.loadrow .lbar i.p{background:var(--violet)}.loadrow .lbar i.n{background:repeating-linear-gradient(45deg,var(--amber),var(--amber) 4px,#f7c46c 4px,#f7c46c 8px)}
+.loadrow.near .lnum{color:var(--amber);font-weight:600}.loadrow.over .lnum{color:var(--late);font-weight:600}.loadrow.over .lbar{outline:2px solid var(--late)}
+.loadrow .lnum{white-space:nowrap;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:4px 0 8px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.weekstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.weekstrip a{display:block;padding:8px;border-radius:10px;background:#fff;border:1px solid var(--line);text-decoration:none;color:inherit;font-size:13px}
+.weekstrip a.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft)}.weekstrip a b{display:block;font-size:15px}
+.weekstrip a.busy{background:var(--amber-soft)}.weekstrip a.full{background:var(--late-soft)}
+.overwarn{border:1px solid var(--late);background:var(--late-soft);color:#9b1c13;padding:10px 12px;border-radius:10px;margin:8px 0}
+/* Inline field errors */
+.field-err{color:var(--late);font-size:12.5px;font-weight:600;margin-top:4px}
+[aria-invalid="true"]{border-color:var(--late)!important;box-shadow:0 0 0 2px var(--late-soft)!important}
+.custhead .kv{display:flex;gap:18px;flex-wrap:wrap;color:var(--ink2)}.late{color:var(--late)}.amberText{color:var(--amber)}

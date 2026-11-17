@@ -78,6 +78,18 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Opening from Tally.** One opening batch only. Opening stock goes in through Stock opening receipts, so leave account 1300 out of the ledger CSV. The masters import needs the admin's settings permission. The one-month parallel run (TM-04) is a process step for Superfix at go-live, supported by the Tally comparison and ledger balances on any date.
 - **Bank statement import** reads CSV (date, description, reference, amount or debit and credit). Lines already imported are skipped.
 
+## Decisions from the 17 November 2026 review
+
+- **Voucher series.** Vouchers posted before the change keep their VCH numbers. New ones use the series of their type.
+- **Audit roles.** The role stored is the user's role at the entry's branch when they acted. Older entries show the user's current role.
+- **Buyer e-invoicing details** are checked when a tax invoice is posted to a VAT-registered company or government customer (Peppol ID, trade licence, city, emirate). Individuals are not asked for them. The setting turns the check off.
+- **Booking load.** A day's load of a bay or technician is the hours of its open bookings plus the labour hours of assigned job lines that are not finished, counted on their planned start day, or today when no start is planned. A booking that is checked in (its job card exists) stops counting as a booking; its lines count once assigned. Booking hours default to the enquiry's labour hours, else the setting workshop.default_booking_hours. Technicians without a Technician capacity row use workshop.technician_day_hours. Bookings are allowed up to workshop.booking_days_ahead days ahead and not in the past.
+- **Overbooking** is allowed with a reason by default (warn). Set workshop.overbook_policy to block to refuse it. The reason is kept on the enquiry and in its history, and the calendar flags it.
+- **Runs.** A driver is a user of the branch or an outside driver typed by name. A run's charge goes through the normal work lines (an outside line), so the customer approves it with the quotation, or as extra work on the job card. Runs not linked to an enquiry or job carry no charge.
+- **Next service due** counts from the last finished service job (date and odometer at check-in), every N km or M months, whichever comes first. The interval is per vehicle, else the Settings defaults (10,000 km, 6 months). "Due soon" is within 30 days or 1,000 km.
+- **Errors under the field.** The server names the field when it can; otherwise the message is matched to the field whose label it starts with. If no field matches, the message stays at the top of the page only. Typed values are kept for two minutes in the browser tab's session storage, never on the server; passwords and file fields are not kept.
+- **Left for after go-live** (Superfix's choice): the advisor leaderboard and the bay timeline.
+
 ## Not built yet (later FSD phases)
 
 HR and payroll (phase 5); reports, statements and archive (phase 6); the Arabic interface.

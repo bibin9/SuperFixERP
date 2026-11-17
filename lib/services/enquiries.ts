@@ -115,9 +115,11 @@ export async function getEnquiry(ctx: Ctx, id: string) {
   return withTx(ctx, async (c) => {
     const e = await c.query(
       `SELECT e.*, b.code branch_code, b.name_en branch_name, v.make, v.model, v.model_year, v.registered_in, v.plate_code, v.plate_number, v.vin, v.odometer last_odometer,
-              c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, c.whatsapp, u.full_name assigned_name, j.doc_no job_no
+              c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, c.whatsapp, u.full_name assigned_name, j.doc_no job_no,
+              bb.code booking_bay_code, bt.full_name booking_technician_name, to_char(e.booked_for, 'YYYY-MM-DD"T"HH24:MI') booked_for_local
          FROM enquiry e JOIN branch b ON b.id = e.branch_id LEFT JOIN vehicle v ON v.id = e.vehicle_id LEFT JOIN customer c ON c.id = e.customer_id
-         LEFT JOIN app_user u ON u.id = e.assigned_to LEFT JOIN job_card j ON j.id = e.converted_job_id WHERE e.id = $1`, [id]);
+         LEFT JOIN app_user u ON u.id = e.assigned_to LEFT JOIN job_card j ON j.id = e.converted_job_id
+         LEFT JOIN bay bb ON bb.id = e.booking_bay_id LEFT JOIN app_user bt ON bt.id = e.booking_technician_id WHERE e.id = $1`, [id]);
     if (!e.rowCount) throw notFound("Enquiry");
     const enq = e.rows[0];
     if (!can(ctx, "customers", "view", enq.branch_id)) throw forbidden();
@@ -191,8 +193,11 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
     await c.query("UPDATE quotation SET job_card_id = $2 WHERE enquiry_id = $1", [enquiryId, job.id]);
     await c.query("UPDATE deferred_work SET job_card_id = $2 WHERE enquiry_id = $1", [enquiryId, job.id]);
     await c.query("UPDATE vehicle SET odometer = $2 WHERE id = $1", [enq.vehicle_id, odo]);
-    await c.query("UPDATE enquiry SET status = 'converted', converted_job_id = $2, odometer_in = $3, updated_at = now(), updated_by = $4, version = version + 1 WHERE id = $1",
+    await c.query(`UPDATE enquiry SET status = 'converted', converted_job_id = $2, odometer_in = $3, updated_at = now(), updated_by = $4, version = version + 1,
+                          booking_status = CASE WHEN booking_status = 'booked' THEN 'checked_in' ELSE booking_status END WHERE id = $1`,
       [enquiryId, job.id, odo, ctx.userId]);
+    // The booked bay becomes the job's bay, so the workshop board and the calendar agree.
+    if (enq.booking_status === "booked" && enq.booking_bay_id) await c.query("UPDATE job_card SET bay_id = $2 WHERE id = $1 AND bay_id IS NULL", [job.id, enq.booking_bay_id]);
 
     let backOrdered = false;
     const approved = (await c.query("SELECT * FROM job_line WHERE job_card_id = $1 AND approval_status = 'approved' AND NOT removed ORDER BY line_no", [job.id])).rows;

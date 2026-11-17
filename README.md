@@ -83,6 +83,17 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **Month end**: a checklist per month (cash sessions signed off, statements finished, stock counts closed, vouchers and bills posted, VAT tick); a month closes only in order and only when the checklist passes, and a closed month refuses postings. Only the owner reopens a month, with a reason that is logged. Year end moves the profit to retained earnings. Head-office costs are charged to branches by revenue or fixed shares. Fixed assets with straight-line depreciation and disposal. Budgets by branch and month against actual.
 - **Opening from Tally** (Month end, Opening): step 1 imports masters (ledgers, suppliers, stock items, customers) from CSV; step 2 checks the opening ledger balances and open bills and reports every problem without writing anything; step 3 loads them by branch and party; step 4 compares with the Tally trial balance and the accountant signs off.
 
+## Added after Superfix's review on 17 November 2026
+
+- **Voucher numbering**: each voucher type has its own series per branch (YAS-JRN-, YAS-PMT-, YAS-RCV-, YAS-CON-, YAS-DBN-, YAS-CRN-), editable under Document numbering.
+- **Audit log** is its own permission (view, export). Every entry keeps the user and the role they acted in; documents have a "History: who did what" panel; the log filters by user and exports to CSV.
+- **Customers**: price level is a pick list (Retail, Trade, Fleet; add more under Master forms). Companies have e-invoicing details: Peppol ID, trade licence, structured address and contact phone. A tax invoice to a VAT-registered company needs them (setting einvoice.require_buyer_details).
+- **Transfer orders**: a stock transfer between branches is called a transfer order, not a purchase order.
+- **Booking calendar** (Front office): book the visit on the enquiry (day and time, bay, technician, hours). As you pick the day, each bay's and technician's hours for that day are shown, with this booking added, and you are warned before going over. Over capacity needs a reason (or is refused, setting workshop.overbook_policy). The calendar shows the day's load, the bookings, a seven-day strip and the day's runs. Capacity: Bays master (hours a day) and Technician capacity master.
+- **Pickup, drop-off, recovery and towing runs** (Workshop): each run has a driver (staff or an outside driver), from, to, when, the truck, distance and status. Schedule it from the enquiry or the job card; its charge can go on the quotation or the job card as extra work, for the customer to approve. The runs page filters by driver, type, status and dates.
+- **Vehicle page**: one page with the owner and quick actions (call, WhatsApp chat, book a visit, customer file, unpaid invoices), the open job lines with technician, estimated hours and status, the next service due (by date or km, interval per vehicle or from Settings), runs and past services from every branch.
+- **Errors under the field**: when the server refuses a form, the message is shown in red under the field it is about, the field is outlined and focused, and what you typed is put back.
+
 ## Demo data you will see
 
 - **YAS-ENQ-26-00001**: Faisal's 60K service, 103.50 discount, quotation YAS-Q-26-00001-1 sent. The total is 978.08, which matches the FSD 5.1 worked example. Open the customer link to approve, then create the job card.
@@ -93,7 +104,7 @@ Extra work found later is added on the job card and goes to the customer as a re
 ## Tests
 
 ```bash
-npm test                    # 67 tests against a separate superfix_test database (wiped on each run)
+npm test                    # 74 tests against a separate superfix_test database (wiped on each run)
 npm run typecheck
 # Browser smoke test (needs the app running on :3000 and Playwright installed):
 node tests/e2e-smoke.mjs ./shots
@@ -103,6 +114,8 @@ node tests/uat/phase2-workshop.mjs       # clocking, quality check, delivery wit
 node tests/uat/phase2-purchasing.mjs     # PO approval, goods received, matched bill, duplicate refused
 node tests/uat/phase3-billing.mjs        # release gate, invoice, payments, invoice link, credit note, counter sale, deposit, cash closing, VAT return
 node tests/uat/phase4-accounting.mjs     # vouchers, supplier payments and cheques, bank reconciliation, statements, month end, opening balances
+node tests/uat/review-fixes.mjs          # voucher series, audit log users and roles, e-invoicing fields, price level, transfer orders
+node tests/uat/bookings-runs.mjs         # booking load and overbooking, runs, vehicle page, errors under the field
 ```
 
 The tests cover the quote-before-job rule (service and database), manual-only messaging, master forms and their audit, branch isolation at the service and database level, hidden prices for technicians, the discount approval workflow (including no self-approval), gap-free numbering under concurrency, the VAT worked example, stock commitments and back orders, the customer approval link, and the invoice and receipt flow including idempotency. Phase 3 adds split, fleet and warranty billing, deposits with VAT, cheques (post-dated and returned), credit notes with approval and restock, counter sales, the release gate, cash closing, the customer invoice link and the VAT return checked against the ledger. Phase 4 adds vouchers with approval, supplier payments and cheques, statements that agree with each other, bank reconciliation, period close and reopen, HO allocation, assets, budgets and the opening balances from Tally.

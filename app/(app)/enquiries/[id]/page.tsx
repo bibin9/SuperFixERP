@@ -6,12 +6,17 @@ import { getEnquiry } from "@/lib/services/enquiries";
 import { listCustomers } from "@/lib/services/customers";
 import { masters } from "@/lib/services/masters";
 import { messagesFor } from "@/lib/services/messaging";
-import { can, fieldLevel } from "@/lib/access";
+import { can, canSee, fieldLevel } from "@/lib/access";
 import { updateEnquiryAction, lostEnquiryAction, createJobAction, whatsappAction } from "@/app/actions";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt, label } from "@/components/ui";
 import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ManualMessage } from "@/components/ManualMessage";
+import { BookingCard } from "@/components/BookingCard";
+import { RunForm, RunsTable } from "@/components/RunsPanel";
+import { bookAction, closeBookingAction } from "@/app/actions-front";
+import { bookingOptions } from "@/lib/services/bookings";
+import { runOptions, runsFor, canEditRuns } from "@/lib/services/runs";
 
 const STEPS: [string, string[]][] = [
   ["Enquiry", ["open", "booked"]], ["Quotation sent", ["quoted"]], ["Customer approved", ["approved"]], ["Job card", ["converted"]],
@@ -35,10 +40,17 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
   const stepAt = STEPS.findIndex(([, s]) => s.includes(e.status));
   const q = quotations[0];
   const msgs = e.customer_id && e.vehicle_id ? await messagesFor(ctx, { enquiryId: id }) : [];
+  const bk = await bookingOptions(ctx, b);
+  const labourHours = lines.filter((l) => l.line_type === "labour" && l.approval_status !== "declined").reduce((a, l) => a + Number(l.qty), 0);
+  const runs = await runsFor(ctx, { enquiryId: id });
+  const runEdit = canEditRuns(ctx, b);
+  const drivers = runEdit ? (await runOptions(ctx, b)).drivers : [];
+  const showBooking = open || e.booking_status;
   return (
     <>
       <PageHead title={`Enquiry ${e.doc_no}`} sub={`${e.customer_id ? custName(e) : `${e.contact_name ?? ""} ${e.contact_mobile ?? ""}`}${e.vehicle_id ? ` · ${plate(e)} · ${e.make} ${e.model}` : ""} · ${e.branch_name}`}>
         <Status s={e.status} />
+        {e.vehicle_id && <Link className="btn ghost sm" href={`/vehicles/${e.vehicle_id}`}>Vehicle page</Link>}
         {e.converted_job_id && <Link className="btn" href={`/jobs/${e.converted_job_id}`}>Open job card {e.job_no}</Link>}
       </PageHead>
       <div className="steps">{STEPS.map(([label], i) => <span key={label} className={e.status === "lost" ? "" : i < stepAt ? "done" : i === stepAt ? "on" : ""}>{i + 1}. {label}</span>)}{e.status === "lost" && <span className="on">Lost: {e.lost_reason}</span>}</div>
@@ -94,6 +106,21 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
           {open && canEditEnq && (
             <form action={lostEnquiryAction} style={{ marginTop: 14 }}><input type="hidden" name="id" value={id} /><input type="hidden" name="$back" value={back} />
               <div className="row"><select name="reason">{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form>
+          )}
+        </div>
+      </div>
+
+      <div className="grid2">
+        {showBooking && <BookingCard enquiryId={id} branchId={b} back={back} bays={bk.bays} techs={bk.techs} policy={bk.policy} canEdit={canEditEnq}
+          action={bookAction} closeAction={closeBookingAction} defaultHours={String(labourHours || "")}
+          booking={{ status: e.booking_status, when: e.booked_for_local, bayId: e.booking_bay_id, techId: e.booking_technician_id, hours: e.booking_hours,
+            bayCode: e.booking_bay_code, techName: e.booking_technician_name, reason: e.booking_override_reason }} />}
+        <div className="card" id="runs"><h2>Pickup, drop-off and recovery</h2>
+          <RunsTable rows={runs} back={`${back}#runs`} canEdit={runEdit} prices={canSeePrices} showRef={false} />
+          {runEdit && open && (
+            <details style={{ marginTop: 10 }} open={!runs.length && e.source === "recovery"}><summary className="btn sm ghost">Schedule a run</summary>
+              <RunForm back={`${back}#runs`} drivers={drivers} enquiryId={id} canCharge={canSee(ctx, "selling_price", b)}
+                chargeTarget={e.customer_id && e.vehicle_id ? "quotation" : null} defaults={{ to: e.branch_name }} /></details>
           )}
         </div>
       </div>
