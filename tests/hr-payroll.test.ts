@@ -76,6 +76,10 @@ test("permissions: technician and branch manager cannot see payroll; HR can; the
   await rejects(pay.calculateRun(await ctxFor("saeed", "YAS"), LAST), "forbidden");
   assert.ok(Array.isArray(await pay.listRuns(await ctxFor("saeed", "YAS"))));
   await rejects(hr.listEmployees(await ctxFor("ramesh", "YAS")), "forbidden");
+  // The accountant sees payroll only as postings in the accounts (FSD 8.1), not the HR screens or the runs.
+  await rejects(hr.listEmployees(await ctxFor("maryam", "YAS")), "forbidden");
+  await rejects(hr.hrDashboard(await ctxFor("maryam", "YAS")), "forbidden");
+  await rejects(pay.listRuns(await ctxFor("maryam", "YAS")), "forbidden");
   await rejects(saveMaster(await ctxFor("ramesh", "YAS"), "departments", { code: "X1", name_en: "X" }), "forbidden");
   await saveMaster(await ctxFor("fatima.hr", "HQ"), "departments", { code: "BODY", name_en: "Body shop" });
 });

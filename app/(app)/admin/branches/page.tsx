@@ -2,7 +2,7 @@ import { requireCtx } from "@/lib/session";
 import { listBranches } from "@/lib/services/admin";
 import { saveBranchAction, branchActiveAction } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { Flash, PageHead } from "@/components/ui";
+import { Flash, PageHead, label } from "@/components/ui";
 
 const EMIRATES = ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
 
@@ -29,7 +29,7 @@ export default async function Branches({ searchParams }: { searchParams: Promise
         <table>
           <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Emirate</th><th>WhatsApp</th><th>Mode</th><th>Active</th><th></th></tr></thead>
           <tbody>{rows.map((b) => (
-            <tr key={b.id}><td><b>{b.code}</b></td><td>{b.name_en}</td><td>{b.branch_type}</td><td>{b.emirate}</td><td>{b.whatsapp_number}</td><td>{b.whatsapp_mode}</td><td>{b.active ? "Yes" : "No"}</td>
+            <tr key={b.id}><td><b>{b.code}</b></td><td>{b.name_en}</td><td>{label(b.branch_type)}</td><td>{b.emirate}</td><td>{b.whatsapp_number}</td><td>{label(b.whatsapp_mode)}</td><td>{b.active ? "Yes" : "No"}</td>
               <td><form action={branchActiveAction}><input type="hidden" name="id" value={b.id} /><input type="hidden" name="active" value={String(!b.active)} /><ConfirmButton className="btn ghost sm" message={b.active ? `Deactivate branch ${b.code}?` : `Activate branch ${b.code}?`}>{b.active ? "Deactivate" : "Activate"}</ConfirmButton></form></td></tr>
           ))}</tbody>
         </table>

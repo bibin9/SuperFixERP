@@ -101,6 +101,7 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Approvals**: HR calculates; the owner (an approver at HQ, setting `payroll.approval_branch`) approves payroll, salary updates and final settlements. An approved month is locked; the owner can reopen it with a reason.
 - **Period close**: once payroll has been run for any month, a month cannot be closed in accounts until its payroll is posted. Months before the first payroll run are not held back.
 - **WPS**: one SIF file per agent (bank or exchange house), an EDR line per employee and the SCR control line. The file is downloaded and uploaded to the bank by HR; nothing is sent.
+- **Accountant and HR** (Superfix's choice, 17 Nov): the accountant sees payroll only as postings in the accounts (journals, ledgers, the day book). HR screens and payroll runs are for HR, the owner and line managers.
 - **Technician incentives (PR-06)** are not built, as the BRD says "if Superfix uses them". Clock data is kept, so they can be added.
 - **Defect D-37** (found in QA): loan instalments were not deducted because the run did not read the loan's start month. Fixed and covered by a test.
 

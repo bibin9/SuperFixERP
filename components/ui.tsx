@@ -64,7 +64,7 @@ export function PageHead({ title, sub, children }: { title: string; sub?: string
         <h1>{title}</h1>
         {sub && <p className="sub">{sub}</p>}
       </div>
-      <div className="shrink" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{children}</div>
+      <div className="shrink ph-actions" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{children}</div>
     </div>
   );
 }

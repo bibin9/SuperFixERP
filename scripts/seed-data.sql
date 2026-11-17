@@ -66,7 +66,7 @@ WITH m(role, screen, actions) AS (VALUES
  ('purchasing','jobs','view'), ('purchasing','stock','view'), ('purchasing','purchasing','view,create,edit,cancel,export'), ('purchasing','approvals','view'),
  ('accountant','customers','view'), ('accountant','jobs','view'), ('accountant','stock','view'), ('accountant','purchasing','view,edit'),
  ('accountant','invoices','view,create,edit,approve,cancel,export'), ('accountant','accounting','view,create,edit,approve,cancel,export'),
- ('accountant','hr','view'), ('accountant','settings','view,edit'), ('accountant','approvals','view,approve'), ('accountant','reports','view,export'),
+ ('accountant','settings','view,edit'), ('accountant','approvals','view,approve'), ('accountant','reports','view,export'),
  ('hr_payroll','hr','view,create,edit,approve,cancel,export'), ('hr_payroll','settings','view'), ('hr_payroll','approvals','view,approve')
 )
 INSERT INTO permission (role_id, screen, action)

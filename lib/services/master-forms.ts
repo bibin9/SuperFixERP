@@ -130,7 +130,7 @@ export const MASTERS: MDef[] = [
       { name: "capacity_hours", label: "Hours a day", type: "number", required: true, dp: 2, min: 0.5, max: 24, hint: "Booking calendar warns when bookings and planned work go over this" },
     ] },
   { key: "technician-capacity", title: "Technician capacity", group: "Workshop", table: "technician_capacity", pk: ["id"], autoId: true, hasActive: true, order: "user_id",
-    note: "Hours each technician can be booked for in a day. Technicians without a row use the setting workshop.technician_day_hours.",
+    note: "Hours each technician can be booked for in a day. Technicians without a row use the default in Admin, Settings (hours a technician can be booked for in a day).",
     fields: [
       { name: "user_id", label: "Technician", type: "select", required: true,
         sql: "SELECT DISTINCT u.id::text, u.full_name FROM app_user u JOIN user_branch_role ubr ON ubr.user_id = u.id JOIN role r ON r.id = ubr.role_id WHERE r.code IN ('technician','foreman') AND u.status = 'active' ORDER BY 2" },

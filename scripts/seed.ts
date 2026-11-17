@@ -17,6 +17,7 @@ import { requestOvertime, requestLeave, adjustLeave } from "../lib/services/hr-t
 import { annualLeaveEarned } from "../lib/services/payroll-calc";
 import { setOpeningSalary } from "../lib/services/payroll";
 import { inbox, act } from "../lib/services/workflow";
+import { createBill } from "../lib/services/purchasing";
 
 export const DEMO_PASSWORD = "Superfix@2026";
 
@@ -152,7 +153,16 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
   await addEnquiryLine(sara, e3.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
   await saveQuotation(sara, e3.id, {});
   await seedHr(adminUrl);
-  if (opts.history) await seedServiceHistory(adminUrl);
+  if (opts.history) { await seedServiceHistory(adminUrl); await seedDemoBill(adminUrl); }
+}
+
+/** One posted supplier bill (workshop cleaning supplies, no stock) so the purchase report has data in the demo. */
+async function seedDemoBill(adminUrl: string) {
+  const sup = (await q(adminUrl, "SELECT id FROM supplier WHERE code = 'AFLUB'"))[0];
+  if (!sup) return;
+  const day = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
+  await createBill(await ctxFor("maryam", "YAS"), { supplier_id: sup.id, supplier_invoice_no: "AFL-DEMO-0001", invoice_date: day,
+    lines: [{ description: "Workshop degreaser and shop towels", expense_type: "cleaning", qty: "1", unit_price: "420" }] });
 }
 
 /** Phase 5 demo staff: employee files linked to the demo users, salaries, documents near expiry, overtime and leave. */

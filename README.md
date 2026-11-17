@@ -124,6 +124,7 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **QUS-ENQ-26-00001**: a fleet quotation saved but not sent, at another branch. Sign in as priya and you cannot open it; sign in as omar and you can.
 - **HR**: twelve employees across the branches with salaries, documents (Ramesh's passport expires within 30 days, his insurance within 60), shifts, holidays and a leave request. Sign in as **fatima.hr** for HR and payroll.
 - **Service history**: eight imported older customers and vehicles with closed job cards from 6 to 26 months ago, so the next service report and the archive have data. Four of them are old enough to archive.
+- **Purchases**: one posted supplier bill (Al Futtaim Lubricants, workshop cleaning supplies) so the purchase report has a row.
 
 ## Tests
 

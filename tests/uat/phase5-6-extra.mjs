@@ -1,7 +1,7 @@
 // Remaining HR and report requirements in the browser: employee records (air ticket, visa process, assets,
 // warnings, reviews, training), QR check-in, and the purchase report. Needs the app on :3000 and a fresh demo database
-// with tests/uat/phase2-purchasing.mjs run first (it posts the supplier bill the purchase report lists).
-// Run: npm run db:reset; node tests/uat/phase2-purchasing.mjs; node tests/uat/phase5-6-extra.mjs
+// (npm run db:reset; the demo data includes one posted supplier bill for the purchase report).
+// Run: node tests/uat/phase5-6-extra.mjs
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
 import fs from "node:fs";
 const { chromium } = require("playwright");
@@ -91,7 +91,7 @@ await step("TC-TR03-01", "TR-03 purchase report: supplier bills with net, VAT an
   must(rows.length >= 1, "no rows");
   await go(saeed, "/reports/run/purchase_register?from=2020-01-01&to=2030-12-31&by=supplier"); const rs = await saeed.locator("[data-testid=report-table] tbody tr").allInnerTexts();
   await saeed.screenshot({ path: `${EV}/p6-purchases.png`, fullPage: true });
-  must(!/Nothing/.test(rows[0]), "no supplier bills: run phase2-purchasing first"); return `${rows.length} bill(s); by supplier: ` + rs.map((r) => r.replace(/\s+/g, " ").slice(0, 60)).join(" / ");
+  must(!/Nothing/.test(rows[0]), "no supplier bills"); return `${rows.length} bill(s); by supplier: ` + rs.map((r) => r.replace(/\s+/g, " ").slice(0, 60)).join(" / ");
 }, "p6-purchases.png");
 
 fs.writeFileSync(`${EV}/phase5x-results.json`, JSON.stringify(results, null, 1));
