@@ -14,7 +14,7 @@ export default async function WallBoard({ params }: { params: Promise<{ token: s
     <div className="wall">
       <AutoRefresh seconds={w.refresh} />
       <h1>{w.branch.code} · {w.branch.name_en} · workshop</h1>
-      <BoardTiles jobs={w.jobs} />
+      <BoardTiles jobs={w.jobs} columns />
     </div>
   );
 }

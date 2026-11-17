@@ -61,6 +61,10 @@ await step("clock correction", async () => {
   await khalid.goto(jobUrl); await khalid.locator("summary:has-text('Clock events')").click();
   const f = khalid.locator("form:has(button:has-text('Correct'))").first(); await f.locator("input[name=reason]").fill("Forgot to clock out"); await f.locator("button").click(); await settle(khalid); return await flash(khalid);
 });
+await step("unpaid car: manager releases it on credit (phase 3 release gate)", async () => {
+  const yousef = await as("yousef"); await yousef.goto(jobUrl);
+  await yousef.fill("form:has(button:has-text('Release on credit')) input[name=reason]", "Fleet-style regular customer, pays on Thursday"); await yousef.click("button:has-text('Release on credit')"); await settle(yousef); return await flash(yousef);
+});
 await step("deliver with signature", async () => {
   await priya.goto(jobUrl);
   for (const c of await priya.locator("form input[name^='chk_']").all()) await c.check();

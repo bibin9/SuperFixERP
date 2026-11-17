@@ -26,7 +26,7 @@ const TRANSITIONS: Record<string, string[]> = {
   awaiting_parts: ["in_progress", "cancelled"],
   in_progress: ["quality_check"],
   quality_check: ["ready", "in_progress"],
-  ready: ["delivered"],
+  ready: ["delivered", "invoiced"],
   delivered: ["invoiced"],
   invoiced: ["closed"],
   closed: [],
@@ -93,7 +93,9 @@ export async function getJob(ctx: Ctx, id: string) {
     const latest = quotations[0];
     const qlines = latest ? (await c.query("SELECT * FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [latest.id])).rows : [];
     const statusHistory = (await c.query("SELECT h.*, u.full_name FROM job_status_history h LEFT JOIN app_user u ON u.id = h.user_id WHERE job_card_id = $1 ORDER BY at", [id])).rows;
-    const invoices = (await c.query("SELECT id, doc_no, doc_date, grand_total, paid_amount FROM sales_invoice WHERE job_card_id = $1", [id])).rows;
+    const invoices = (await c.query("SELECT id, doc_no, doc_date, grand_total, paid_amount, credited_amount, invoice_kind, bill_to_name FROM sales_invoice WHERE job_card_id = $1 ORDER BY doc_no", [id])).rows;
+    const invoicedLineIds = (await c.query("SELECT sil.job_line_id FROM sales_invoice_line sil JOIN sales_invoice i ON i.id = sil.invoice_id WHERE i.job_card_id = $1 AND sil.job_line_id IS NOT NULL", [id])).rows.map((r) => r.job_line_id as string);
+    const warranty = (await c.query("SELECT id, doc_no, claim_ref FROM warranty_claim WHERE job_card_id = $1 ORDER BY doc_no", [id])).rows;
     const approvals = latest ? await approvalHistory(c, "discount", latest.id) : [];
     const b = job.branch_id;
     return {
@@ -103,6 +105,7 @@ export async function getJob(ctx: Ctx, id: string) {
       quotationLines: redact(ctx, qlines, QLINE_FIELDS, () => b),
       statusHistory,
       invoices: canSee(ctx, "selling_price", b) ? invoices : [],
+      invoicedLineIds, warranty,
       approvals,
       canSeePrices: canSee(ctx, "selling_price", b),
       ownJobsOnly: ownOnly,

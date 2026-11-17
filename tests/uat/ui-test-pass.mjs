@@ -192,11 +192,11 @@ await tc("TC-FP02-02", async (sp) => { sp(priya); await priya.goto(B + "/stock")
 await tc("TC-OT12-01", async (sp) => { sp(ramesh); await ramesh.goto(B + "/"); const nav = await ramesh.locator("nav").innerText().catch(() => text(ramesh)); must(!/Accounts|Admin|Invoices/.test(nav), "technician menu: " + nav); return "Technician menu: " + nav.replace(/\s+/g, " ").slice(0, 120); });
 
 // ---------- Invoice / payment ----------
-await tc("TC-IV01-01", async (sp) => { sp(priya); await priya.goto(jobUrl + "/invoice"); const t = await text(priya); const btn = priya.locator("button:has-text('Post tax invoice')");
+await tc("TC-IV01-01", async (sp) => { sp(priya); await priya.goto(jobUrl + "/invoice"); const t = await text(priya); const btn = priya.locator("button:has-text('Post invoice')");
   const disabled = !(await btn.count()) || await btn.isDisabled(); if (!disabled) { await btn.click(); await priya.waitForLoadState("networkidle"); must(/not ready|ready|issued|cannot/i.test(await flash(priya)), "posted an invoice for a job not ready"); }
   return "Invoice refused for a job not at Ready"; });
 let invUrl;
-await tc("TC-IV01-02", async (sp) => { sp(priya); await priya.goto(B + "/jobs?status=ready"); await priya.click("text=YAS-1483"); await priya.click("text=Prepare tax invoice"); const before = dialogs.length; await Promise.all([priya.waitForURL(/\/invoices\/[0-9a-f-]{36}/), priya.click("button:has-text('Post tax invoice')")]); invUrl = priya.url().split("?")[0];
+await tc("TC-IV01-02", async (sp) => { sp(priya); await priya.goto(B + "/jobs?status=ready"); await priya.click("text=YAS-1483"); await priya.click("text=Prepare invoice"); const before = dialogs.length; await Promise.all([priya.waitForURL(/\/invoices\/[0-9a-f-]{36}/), priya.click("button:has-text('Post invoice')")]); invUrl = priya.url().split("?")[0];
   must(dialogs.length > before, "no confirmation before posting"); return "Asked to confirm, then posted " + (await text(priya)).match(/YAS-INV-[\d-]+/)?.[0]; });
 await tc("TC-IV02-01", async (sp) => { sp(priya); await priya.goto(invUrl); const t = await text(priya); const miss = ["Tax Invoice", "TRN", "VAT", "AED"].filter((k) => !t.includes(k)); must(!miss.length, "missing " + miss); return "Shows Tax Invoice, Superfix TRN, VAT per line, AED totals"; });
 await tc("TC-PY01-02", async (sp) => { sp(priya); await priya.goto(invUrl); await priya.selectOption("select[name=method]", "card"); await priya.fill("input[name=amount]", "10.00"); await priya.fill("input[name=reference]", "");

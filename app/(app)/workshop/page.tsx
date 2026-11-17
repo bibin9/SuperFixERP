@@ -23,7 +23,7 @@ export default async function WorkshopPage({ searchParams }: { searchParams: Pro
       <BoardTiles jobs={w.jobs} link />
       {w.showToken && <div className="card no-print"><h2>Wall screen</h2>
         <p className="small muted">Open this link on the workshop TV. It shows this board without signing in and has no prices or customer names. Make a new link if the old one was shared by mistake.</p>
-        <div className="row"><input readOnly value={url} aria-label="Wall-screen link" /><CopyButton text={url} /></div>
+        <div className="row" style={{ alignItems: "center" }}><input readOnly value={url} aria-label="Wall-screen link" /><span className="shrink"><CopyButton text={url} label="Copy" /></span></div>
         <form action={newBoardLinkAction} style={{ marginTop: 8 }}><ConfirmButton className="btn ghost sm" message="Make a new link? The TV using the old link stops working.">Make a new link</ConfirmButton></form>
       </div>}
     </>

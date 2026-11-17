@@ -1,6 +1,8 @@
 import type { Ctx } from "@/lib/access";
 import { can } from "@/lib/access";
 import { jobWorkshop, minutesText, lineColour } from "@/lib/services/workshop";
+import { jobRelease } from "@/lib/services/billing";
+import { creditReleaseAction } from "@/app/actions-billing";
 import { assignAction, correctClockAction, partRequestAction, qcAction, deliverAction } from "@/app/actions-ops";
 import { SignaturePad } from "@/components/SignaturePad";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -14,6 +16,7 @@ const local = (v: string | Date) => new Date(new Date(v).getTime() + 4 * 3600_00
 /** Workshop floor on the job card: who works on what, clocked time, part requests, quality check and delivery. */
 export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; job: Row; lines: Row[]; m: { technicians: Row[]; bays: Row[]; items: Row[] }; back: string }) {
   const w = await jobWorkshop(ctx, job.id);
+  const rel = !w.delivery && can(ctx, "jobs", "view", job.branch_id) && (job.status === "ready" || (job.status === "invoiced" && !job.delivered_at)) ? await jobRelease(ctx, job.id) : null;
   const b = job.branch_id;
   const active = ACTIVE.includes(job.status);
   const canAssign = active && (w.canSupervise || can(ctx, "jobs", "edit", b));
@@ -85,12 +88,28 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
         </div>
       </div>
 
-      {(job.status === "ready" || w.delivery) && <div className="card"><h2>Delivery</h2>
+      {(job.status === "ready" || (job.status === "invoiced" && !job.delivered_at) || w.delivery) && <div className="card"><h2>Delivery</h2>
+        {!w.delivery && rel && (
+          <div className={`flash ${rel.basis ? "ok" : "warn"}`} style={{ marginBottom: 10 }}>
+            {rel.basis === "paid" && "Nothing is owed. The car can be handed over."}
+            {rel.basis === "credit_terms" && <>The customer is on credit terms within the limit{rel.canSeePrices && <> (AED {rel.balance} to be invoiced or open)</>}. The car can be handed over.</>}
+            {rel.basis === "credit_release" && <>Released on credit by {rel.release?.full_name}: {rel.release?.reason}.</>}
+            {!rel.basis && <>
+              <b>{rel.canSeePrices ? `AED ${rel.balance} is still owed.` : "Money is still owed on this job."}</b> Invoice the job and take payment{rel.creditTerms ? " (the customer's credit limit is used up)" : ""}, or a manager can release the car on credit.
+              {rel.canRelease && (
+                <form action={creditReleaseAction} className="row" style={{ marginTop: 8 }}>
+                  <input type="hidden" name="job_id" value={job.id} />
+                  <input name="reason" placeholder="Why the car may leave unpaid" required aria-label="Release reason" />
+                  <ConfirmButton className="btn amber sm shrink" message="Release this car with money owing? This is recorded under your name.">Release on credit</ConfirmButton>
+                </form>)}
+            </>}
+          </div>)}
         {w.delivery ? <div className="small">
           Delivered {dt(w.delivery.delivered_at)} by {w.delivery.full_name} to <b>{w.delivery.received_by_name}</b> · odometer out {Number(w.delivery.odometer_out).toLocaleString()} km · old parts {w.delivery.old_parts}
+          {w.delivery.release_basis && <div>Released because: {w.delivery.release_basis === "paid" ? "paid in full" : w.delivery.release_basis === "credit_terms" ? "customer on credit terms" : "released on credit by a manager"}{Number(w.delivery.balance_at_release) > 0 && can(ctx, "invoices", "view", b) && <> · AED {Number(w.delivery.balance_at_release).toFixed(2)} owed at hand-over</>}</div>}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {w.delivery.signature && <div><img src={w.delivery.signature} alt="Customer signature" style={{ maxWidth: 240, border: "1px solid #ddd", marginTop: 6 }} /></div>}
-        </div> : can(ctx, "jobs", "edit", b) ? (
+        </div> : can(ctx, "jobs", "edit", b) && rel?.basis ? (
           <form action={deliverAction}>
             <input type="hidden" name="job_id" value={job.id} />
             <div className="grid2">
@@ -102,7 +121,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
             </div>
             <ConfirmButton className="btn green" message="Hand the car over to the customer now?">Deliver the car</ConfirmButton>
           </form>
-        ) : <p className="small muted">Ready for delivery.</p>}
+        ) : <p className="small muted">{rel?.basis ? "Ready for delivery." : "Delivery opens once the job is paid or released."}</p>}
       </div>}
     </>
   );

@@ -117,3 +117,6 @@ canvas.sigpad{width:100%;max-width:480px;height:140px;border:1px dashed var(--li
 .techjob{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
 .techjob .big{display:block;width:100%;min-height:54px;font-size:18px;margin-top:8px}
 .btn.amber{background:var(--amber)}
+.public.wide{max-width:960px}.invoice-doc table td,.invoice-doc table th{font-size:13px}
+.wallcols{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}.wallcols h2{color:#fff}.colstack{display:flex;flex-direction:column;gap:10px}.wall .tile b{font-size:20px}tr.sel td{background:#eef4ff}
+.denoms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.denoms .field{margin:0}.denoms label{font-weight:600}

@@ -11,7 +11,6 @@ import { createEnquiry, updateEnquiry, markEnquiryLost, createJobCard } from "@/
 import { saveQuotation, sendQuotation, recordDecisionsByStaff, submitPublicDecisions, type StaffChannel } from "@/lib/services/quotations";
 import { act } from "@/lib/services/workflow";
 import { receiveStock, issueToJobLine } from "@/lib/services/stock";
-import { postInvoice, recordReceipt } from "@/lib/services/billing";
 import { prepareMessage, confirmMessageSent } from "@/lib/services/messaging";
 import * as admin from "@/lib/services/admin";
 import { saveMaster, setMasterActive } from "@/lib/services/master-forms";
@@ -214,25 +213,6 @@ export async function receiveStockAction(fd: FormData) {
 export async function issueAction(fd: FormData) {
   const ctx = await requireCtx();
   await run(String(fd.get("$back") || `/jobs/${fd.get("job_id")}`), () => issueToJobLine(ctx, String(fd.get("line_id")), String(fd.get("qty"))), "Parts issued to the job");
-}
-
-// ---------- billing ----------
-export async function postInvoiceAction(fd: FormData) {
-  const ctx = await requireCtx();
-  const jobId = String(fd.get("job_id"));
-  await run(`/jobs/${jobId}/invoice`, async () => {
-    const r = await postInvoice(ctx, jobId, String(fd.get("idempotency_key")));
-    return `/invoices/${r.id}?ok=${encodeURIComponent(`Tax invoice ${r.docNo} posted`)}`;
-  });
-}
-
-export async function receiptAction(fd: FormData) {
-  const ctx = await requireCtx();
-  const f = obj(fd);
-  await run(`/invoices/${f.invoice_id}`, async () => {
-    const r = await recordReceipt(ctx, { invoice_id: f.invoice_id, method: f.method, amount: f.amount, reference: f.reference, idempotency_key: f.idempotency_key });
-    return `/invoices/${f.invoice_id}?ok=${encodeURIComponent(`Receipt ${r.docNo} posted${Number(r.onAccount) > 0 ? `; AED ${r.onAccount} kept on account` : ""}`)}`;
-  });
 }
 
 // ---------- admin ----------

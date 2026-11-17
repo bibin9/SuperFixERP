@@ -3,6 +3,10 @@ import { inbox, sentByMe } from "@/lib/services/workflow";
 import { approvalAction } from "@/app/actions";
 import { Flash, Link, Money, PageHead, Status, dt } from "@/components/ui";
 
+const DOC_LINK: Record<string, (id: string) => string> = {
+  credit_note: (id) => `/billing/credit-notes/${id}`, purchase_order: (id) => `/purchasing/${id}`, stock_transfer: (id) => `/stock/transfers/${id}`,
+};
+
 export default async function Approvals({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
@@ -17,7 +21,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
         {items.map((i) => (
           <div key={i.task_id} style={{ borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
             <div className="row" style={{ alignItems: "center" }}>
-              <div><b>{i.doc_type.replace("_", " ")}</b> · {i.doc_ref} · {i.branch_code} · from {i.requested_by_name} <span className="muted small">{dt(i.created_at)}</span>
+              <div><b>{i.doc_type.replace("_", " ")}</b> · {DOC_LINK[i.doc_type] ? <Link href={DOC_LINK[i.doc_type](i.doc_id)}>{i.doc_ref}</Link> : i.doc_ref} · {i.branch_code} · from {i.requested_by_name} <span className="muted small">{dt(i.created_at)}</span>
                 <div className="small">{i.summary?.reason}{i.amount !== null && <> · total AED <Money v={i.amount} /></>}{i.discount_pct && <> · discount {Number(i.discount_pct).toFixed(2)}%</>} · step: {i.step_name}</div>
                 {i.summary?.job && <div className="small">Job {i.summary.job}</div>}</div>
             </div>

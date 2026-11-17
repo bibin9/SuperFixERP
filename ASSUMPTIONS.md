@@ -53,6 +53,20 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Delivery.** All walkthrough items must be ticked; odometer out cannot be lower than check-in. The signature is optional so a car can be released to someone who cannot sign, but "Received by" is required.
 - **Wall screen.** The board link is a random code per branch, shows plates, make, model, bay and technicians only, and can be replaced at any time.
 
+## Phase 3 decisions (billing)
+
+- **Order of events.** Posting an invoice moves the job to Invoiced; it no longer marks the car as delivered. Delivery is a separate step on the job card, and the job closes when it is invoiced, handed over and fully paid.
+- **Release gate.** "Owed" is approved work not yet invoiced plus open invoices on the job, less deposits held on it. Credit terms count only when the customer has payment terms and the new amount stays within the credit limit. A manager's release is recorded with the amount and reason and printed on the delivery record.
+- **Simplified invoices** follow FSD 5.1: no TRN, or a registered buyer at AED 10,000 or less. Both the switch and the limit are settings. Superfix's open question Q11 ("full tax invoices only") can be answered by turning the setting off.
+- **QR code.** The UAE does not prescribe a QR format, so the code holds the seller, TRN, invoice number, date, total, VAT and the invoice link.
+- **PDF.** Invoices and credit notes are printed or saved as PDF through the browser's print dialog; no PDF library or service is used.
+- **Arabic.** The invoice and credit note titles and the company name are bilingual; a fully Arabic layout is left for the print-template work in phase 6.
+- **VAT on deposits** follows the FTA rule that VAT is due on a payment received before the supply (setting, default on). A returned deposit cheque reverses that VAT in the ledger; the VAT return lists the deposit and its reversal on application only.
+- **Credit notes** use the original invoice line's VAT rate, take the remainder on the last credit so no fils are stranded, and are numbered only when posted. Restocked parts come back at the cost they were sold at.
+- **Counter sales.** A sale with a discount above the advisor's limit, or a price below the minimum or below cost, has to be made by the branch manager (there is no separate approval queue for counter sales). Trade and fleet price levels are 90% and 93% of list in the demo data; the monthly fleet statement (OT-06) and trade account flows (SL-02) are left for the reports phase.
+- **Cash closing** is one count per cashier per day; after closing, that cashier cannot take more cash that day.
+- **E-invoicing.** The JSON follows the PINT AE field names so an accredited service provider can map it later; nothing is sent anywhere.
+
 ## Not built yet (later FSD phases)
 
-Credit notes, deposits and cash closing (phase 3); journals, bank, VAT 201 and period close (phase 4); HR and payroll (phase 5); reports and archive (phase 6); the Arabic interface and the QR code on invoices.
+Journals, bank reconciliation and period close (phase 4); HR and payroll (phase 5); reports, statements and archive (phase 6); the Arabic interface.

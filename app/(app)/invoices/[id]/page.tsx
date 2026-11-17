@@ -1,64 +1,87 @@
 import crypto from "node:crypto";
+import { headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
 import { getInvoice } from "@/lib/services/billing";
 import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
-import { receiptAction } from "@/app/actions";
-import { Flash, Link, Money, d, label } from "@/components/ui";
+import { receiptAction, applyAdvanceAction, invoiceWhatsappAction } from "@/app/actions-billing";
+import { Flash, Link, Money, Status, d, dt } from "@/components/ui";
+import { InvoiceDoc } from "@/components/InvoiceDoc";
+import { ManualMessage } from "@/components/ManualMessage";
+import { PrintButton } from "@/components/PrintButton";
 import { D } from "@/lib/money";
+
+const ymd = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? ""));
 
 export default async function InvoicePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const { id } = await params;
   const sp = await searchParams;
-  const { invoice: i, lines, receipts } = await getInvoice(ctx, id);
-  const open = D(i.grand_total).minus(i.paid_amount);
+  const { invoice: i, lines, receipts, applied, credits, advances } = await getInvoice(ctx, id);
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") === "https" ? "https" : "http"}://${h.get("host") ?? "localhost:3000"}`;
+  const open = D(i.open_amount);
   const m = await masters(ctx);
+  const canTake = can(ctx, "invoices", "create", i.branch_id);
+  const back = `/invoices/${id}`;
   return (
     <>
       <Flash sp={sp} />
-      <div className="card">
-        <div className="row" style={{ alignItems: "flex-start" }}>
-          <div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/sflogo.png" alt="Superfix" style={{ height: 46 }} />
-            <div><b>{i.legal_name_en}</b> · <span dir="rtl">{i.legal_name_ar}</span></div>
-            <div className="small">{i.branch_name} branch, {i.emirate} · TRN {i.company_trn}</div>
-          </div>
-          <div className="right">
-            <h1>Tax Invoice</h1><div className="small">فاتورة ضريبية</div>
-            <div><b>{i.doc_no}</b></div><div className="small">Date {d(i.doc_date)} · due {d(i.due_date)}</div>
-          </div>
-        </div>
-        <div className="row" style={{ marginTop: 12 }}>
-          <div><b>Bill to:</b> {i.bill_to_name}{i.customer_trn && <> · TRN {i.customer_trn}</>}<div className="small">{i.mobile}</div></div>
-          <div className="right small">Job {i.job_no} · {i.registered_in} {i.plate_code} {i.plate_number} · {i.make} {i.model}{i.lpo_no && <> · LPO {i.lpo_no}</>}</div>
-        </div>
-        <table style={{ marginTop: 12 }}>
-          <thead><tr><th>#</th><th>Description</th><th className="num">Qty</th><th className="num">Unit price</th><th className="num">Discount</th><th className="num">Taxable</th><th className="num">VAT %</th><th className="num">VAT</th><th className="num">Total AED</th></tr></thead>
-          <tbody>{lines.map((l) => (
-            <tr key={l.id}><td>{l.line_no}</td><td>{l.description}</td><td className="num">{D(l.qty).toString()}</td><td className="num"><Money v={l.unit_price} /></td><td className="num"><Money v={l.discount_amount} /></td>
-              <td className="num"><Money v={l.taxable_amount} /></td><td className="num">{D(l.vat_rate).mul(100).toFixed(0)}%</td><td className="num"><Money v={l.vat_amount} /></td><td className="num"><Money v={l.line_total} /></td></tr>
-          ))}</tbody>
-          <tfoot>
-            <tr><td colSpan={5}>Totals (AED)</td><td className="num"><Money v={i.taxable_total} /></td><td></td><td className="num"><Money v={i.vat_total} /></td><td className="num"><Money v={i.grand_total} /></td></tr>
-          </tfoot>
-        </table>
-        <p className="small muted">Paid <Money v={i.paid_amount} /> · open <Money v={open.toFixed(2)} />. QR code and Arabic layout are on the list for the print templates.</p>
+      <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />
+      <div className="row no-print" style={{ marginBottom: 10 }}>
+        <PrintButton label="Print or save as PDF" />
+        {i.job_card_id && can(ctx, "jobs", "edit", i.branch_id) && (
+          <form action={invoiceWhatsappAction} className="shrink"><input type="hidden" name="invoice_id" value={id} /><button className="btn wa">Prepare WhatsApp</button></form>)}
+        {canTake && D(i.grand_total).gt(i.credited_amount) && <Link className="btn ghost shrink" href={`/invoices/${id}/credit-note`}>Credit note</Link>}
+        {can(ctx, "invoices", "export", i.branch_id) && <a className="btn ghost shrink" href={`/api/einvoice/${id}`}>E-invoice data (JSON)</a>}
+        {i.job_card_id && <Link className="btn ghost shrink" href={`/jobs/${i.job_card_id}`}>Back to job</Link>}
       </div>
-      <div className="card no-print">
-        <h2>Payments</h2>
-        <table><tbody>{receipts.map((r) => <tr key={r.doc_no}><td>{r.doc_no}</td><td>{label(r.method)}</td><td>{d(r.doc_date)}</td><td className="num"><Money v={r.amount} /></td></tr>)}</tbody></table>
-        {can(ctx, "invoices", "create", i.branch_id) && open.gt(0) && (
-          <form action={receiptAction} className="row" style={{ marginTop: 10 }}>
-            <input type="hidden" name="invoice_id" value={id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
-            <div className="field"><label>Method</label><select name="method">{m.paymentMethods.map((pm) => <option key={pm.code} value={pm.code}>{pm.name}{pm.needs_reference ? " (reference needed)" : ""}</option>)}</select></div>
-            <div className="field"><label>Amount (AED)</label><input name="amount" defaultValue={open.toFixed(2)} /></div>
-            <div className="field"><label>Reference</label><input name="reference" placeholder="Card slip, transfer ref, cheque no." /></div>
-            <div className="shrink"><button className="btn green">Record payment</button></div>
-          </form>
-        )}
-        <p><Link href={`/jobs/${i.job_card_id}`}>Back to job</Link></p>
+      <InvoiceDoc i={i} lines={lines} link={`${origin}/i/${i.share_token}`} />
+
+      <div className="grid2 no-print">
+        <div className="card">
+          <h2>Payments</h2>
+          {!receipts.length && !applied.length && <p className="small muted">No payments yet.</p>}
+          <table><tbody>
+            {receipts.map((r) => (
+              <tr key={r.doc_no + r.reversed}><td>{r.doc_no}</td><td>{r.method_name ?? r.method}{r.cheque_no && <> · cheque {r.cheque_no} <Status s={r.cheque_status} /></>}</td><td>{d(ymd(r.doc_date))}</td>
+                <td className="num">{r.reversed ? <s><Money v={r.amount} /></s> : <Money v={r.amount} />}</td></tr>))}
+            {applied.map((a, k) => <tr key={`ap${k}`}><td>{a.source_no}</td><td>{a.source === "credit_note" ? "Credit held for the customer" : "Advance applied"}</td><td>{dt(a.applied_at)}</td><td className="num"><Money v={a.amount} /></td></tr>)}
+          </tbody></table>
+          {canTake && open.gt(0) && (
+            <form action={receiptAction} style={{ marginTop: 10 }}>
+              <input type="hidden" name="invoice_id" value={id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
+              <div className="row">
+                <div className="field"><label>Method</label><select name="method">{m.paymentMethods.map((pm) => <option key={pm.code} value={pm.code}>{pm.name}{pm.needs_reference ? " (reference needed)" : ""}</option>)}</select></div>
+                <div className="field"><label>Amount (AED)</label><input name="amount" defaultValue={open.toFixed(2)} inputMode="decimal" /></div>
+                <div className="field"><label>Reference</label><input name="reference" placeholder="Card slip or transfer reference" /></div>
+              </div>
+              <details><summary className="small">Cheque details (needed for a cheque)</summary>
+                <div className="row">
+                  <div className="field"><label>Cheque number</label><input name="cheque_no" /></div>
+                  <div className="field"><label>Bank</label><input name="cheque_bank" /></div>
+                  <div className="field"><label>Cheque date</label><input name="cheque_date" type="date" /></div>
+                </div>
+              </details>
+              <button className="btn green" style={{ marginTop: 8 }}>Record payment</button>
+              <span className="small muted"> Paying more than is open keeps the rest on the customer&apos;s account.</span>
+            </form>
+          )}
+          {canTake && open.gt(0) && advances.length > 0 && (
+            <form action={applyAdvanceAction} className="row" style={{ marginTop: 12 }}>
+              <input type="hidden" name="invoice_id" value={id} />
+              <div className="field"><label>Use money held for the customer</label><select name="advance_id">{advances.map((a) => <option key={a.id} value={a.id}>{a.source_no} · AED {D(a.open).toFixed(2)} left</option>)}</select></div>
+              <div className="field"><label>Amount (blank = as much as possible)</label><input name="amount" inputMode="decimal" /></div>
+              <div className="shrink"><button className="btn">Apply</button></div>
+            </form>
+          )}
+        </div>
+        <div className="card">
+          <h2>Credit notes</h2>
+          {!credits.length && <p className="small muted">None.</p>}
+          {credits.map((c) => <div key={c.id} className="small"><Link href={`/billing/credit-notes/${c.id}`}>{c.doc_no ?? "Waiting for approval"}</Link> · <Money v={c.grand_total} /> <Status s={c.status} /></div>)}
+          <p className="small muted" style={{ marginTop: 10 }}>Posted by {i.posted_by_name} · {dt(i.posted_at)}. A posted invoice is never edited or deleted; corrections are made with a credit note.</p>
+        </div>
       </div>
     </>
   );

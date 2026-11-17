@@ -1,4 +1,5 @@
 import "./env";
+import { recordCreditRelease } from "../lib/services/billing";
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { resetTestDb, adminQuery, id, branchId } from "./helpers";
@@ -289,8 +290,16 @@ test("quality check: a failure sends the job back with the failed items; a pass 
   const chk = Object.fromEntries((await adminQuery("SELECT code FROM lookup_value WHERE list = 'delivery_checklist'")).map((r) => [`chk_${r.code}`, "on"]));
   await rejects(ws.deliver(priya, j.jobId, { old_parts: "returned", received_by_name: "Fatima", odometer_out: String(job.odometer_in + 2) }), "validation");
   await rejects(ws.deliver(priya, j.jobId, { ...chk, old_parts: "returned", received_by_name: "Fatima", odometer_out: String(job.odometer_in - 1) }), "validation");
-  await ws.deliver(priya, j.jobId, { ...chk, old_parts: "returned", received_by_name: "Fatima", odometer_out: String(job.odometer_in + 2) });
+  const okDelivery = { ...chk, old_parts: "returned", received_by_name: "Fatima", odometer_out: String(job.odometer_in + 2) };
+  // IV-08: nothing paid and no credit terms, so the car cannot leave until a manager releases it
+  await rejects(ws.deliver(priya, j.jobId, okDelivery), "validation");
+  await rejects(recordCreditRelease(priya, j.jobId, "Regular customer"), "forbidden");
+  await recordCreditRelease(await ctxFor("yousef", "YAS"), j.jobId, "Regular customer, pays Thursday");
+  await ws.deliver(priya, j.jobId, okDelivery);
   assert.equal((await adminQuery("SELECT status FROM job_card WHERE id = $1", [j.jobId]))[0].status, "delivered");
+  const d = (await adminQuery("SELECT release_basis, balance_at_release FROM delivery WHERE job_card_id = $1", [j.jobId]))[0];
+  assert.equal(d.release_basis, "credit_release");
+  assert.ok(Number(d.balance_at_release) > 0);
 });
 
 test("store queue: a technician's request for a part already approved on the job goes to the store; a new part needs a quote first (WS-08)", async () => {

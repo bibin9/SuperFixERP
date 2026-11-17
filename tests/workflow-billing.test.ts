@@ -12,6 +12,7 @@ import { inbox, act } from "../lib/services/workflow";
 import { receiveStock, issueToJobLine } from "../lib/services/stock";
 import { postInvoice, recordReceipt, invoiceDraft } from "../lib/services/billing";
 import { trialBalance } from "../lib/services/ledger";
+import { deliver } from "../lib/services/workshop";
 import { AppError } from "../lib/errors";
 
 const rejects = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => e instanceof AppError && e.code === code);
@@ -201,7 +202,12 @@ test("full job to invoice to payment: VAT, ceiling, balanced books, idempotency 
   const r2 = await recordReceipt(priya, { invoice_id: inv, method: "cash", amount: "300.00", idempotency_key: key() });
   assert.equal(r2.onAccount, "67.40"); // overpayment kept on account, not clamped away
   assert.equal((await adminQuery("SELECT paid_amount FROM sales_invoice WHERE id = $1", [inv]))[0].paid_amount, "432.60");
+  // paid but still in the workshop: the job stays Invoiced until the car is handed over, then it closes
+  assert.equal((await adminQuery("SELECT status FROM job_card WHERE id = $1", [job]))[0].status, "invoiced");
+  const chk = Object.fromEntries((await adminQuery("SELECT code FROM lookup_value WHERE list = 'delivery_checklist'")).map((r) => [`chk_${r.code}`, "on"]));
+  await deliver(priya, job, { ...chk, old_parts: "none", received_by_name: "Owner", odometer_out: String((await adminQuery("SELECT odometer_in FROM job_card WHERE id = $1", [job]))[0].odometer_in ?? 0) });
   assert.equal((await adminQuery("SELECT status FROM job_card WHERE id = $1", [job]))[0].status, "closed");
+  assert.equal((await adminQuery("SELECT release_basis FROM delivery WHERE job_card_id = $1", [job]))[0].release_basis, "paid");
 
   // trial balance: debits equal credits; bank/cash lines hidden for a branch manager
   const owner = await ctxFor("saeed", "HQ");

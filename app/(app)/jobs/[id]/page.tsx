@@ -15,7 +15,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const ctx = await requireCtx();
   const { id } = await params;
   const sp = await searchParams;
-  const { job, lines, quotations, quotationLines, statusHistory, invoices, approvals, canSeePrices } = await getJob(ctx, id);
+  const { job, lines, quotations, quotationLines, statusHistory, invoices, invoicedLineIds, warranty, approvals, canSeePrices } = await getJob(ctx, id);
+  const invoicedLines = new Set(invoicedLineIds);
   const m = await masters(ctx);
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
@@ -24,6 +25,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const canIssue = can(ctx, "stock", "edit", b);
   const discountEdit = fieldLevel(ctx, "discount", b) === "edit";
   const back = `/jobs/${id}`;
+  const unbilled = lines.filter((l) => !l.removed && l.approval_status === "approved" && !l.warranty_claim_id && !invoicedLines.has(l.id)).length;
   const open = !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
   const msgs = canEdit ? await messagesFor(ctx, { jobId: id }) : [];
   const late = job.promised_at && new Date(job.promised_at) < new Date() && !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
@@ -65,8 +67,10 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {canEdit && <form action={whatsappAction}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
             <div className="row"><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>}
           {msgs.slice(0, 4).map((x) => <div key={x.id} className="small">{x.event.replace(/_/g, " ")} <Status s={x.status} /> <span className="muted">{dt(x.at)}</span></div>)}
-          {canSeePrices && ["ready", "delivered"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn green" href={`/jobs/${id}/invoice`}>Prepare tax invoice</Link></p>}
-          {invoices.map((i) => <div key={i.id} className="small">Invoice <Link href={`/invoices/${i.id}`}>{i.doc_no}</Link> · <Money v={i.grand_total} /> · paid <Money v={i.paid_amount} /></div>)}
+          {canSeePrices && ["ready", "delivered", "invoiced"].includes(job.status) && can(ctx, "invoices", "create", b) && unbilled > 0 && <p><Link className="btn green" href={`/jobs/${id}/invoice`}>{job.status === "invoiced" ? "Invoice the rest" : "Prepare invoice"}</Link></p>}
+          {!["closed", "cancelled"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn ghost sm" href={`/billing/advances?job=${id}`}>Take deposit</Link></p>}
+          {invoices.map((i) => <div key={i.id} className="small">Invoice <Link href={`/invoices/${i.id}`}>{i.doc_no}</Link> · {i.bill_to_name} · <Money v={i.grand_total} /> · paid <Money v={i.paid_amount} />{Number(i.credited_amount) > 0 && <> · credited <Money v={i.credited_amount} /></>}</div>)}
+          {warranty.map((w) => <div key={w.id} className="small">Warranty claim {w.doc_no}{w.claim_ref ? ` · ${w.claim_ref}` : ""}</div>)}
         </div>
       </div>
 

@@ -18,10 +18,10 @@ async function country(c: PoolClient, code: string) {
 export async function listCustomers(ctx: Ctx, q = "") {
   assertCan(ctx, "customers", "view");
   return withTx(ctx, async (c) => (await c.query(
-    `SELECT id, customer_no, customer_type, title, first_name, last_name, company_name, mobile, email,
+    `SELECT id, customer_no, customer_type, is_walk_in, title, first_name, last_name, company_name, mobile, email,
             (SELECT count(*) FROM vehicle v WHERE v.owner_customer_id = customer.id) vehicles
        FROM customer WHERE active AND ($1 = '' OR customer_no ILIKE '%'||$1||'%' OR first_name ILIKE '%'||$1||'%' OR last_name ILIKE '%'||$1||'%'
-             OR company_name ILIKE '%'||$1||'%' OR mobile LIKE '%'||regexp_replace($1,'\\D','','g')||'%')
+             OR company_name ILIKE '%'||$1||'%' OR (regexp_replace($1,'\\D','','g') <> '' AND mobile LIKE '%'||regexp_replace($1,'\\D','','g')||'%'))
       ORDER BY created_at DESC LIMIT 100`, [q.trim()],
   )).rows);
 }

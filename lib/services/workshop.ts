@@ -7,6 +7,7 @@ import { getSetting } from "./settings";
 import { D, parseDec } from "../money";
 import { optStr, required, str, int } from "../validate";
 import { setStatus, STATUS_LABEL } from "./jobs";
+import { releaseStatus, maybeCloseJob } from "./billing";
 
 /** M05 workshop floor: assignment, clocking, part requests, quality check, delivery and the board. */
 
@@ -267,7 +268,10 @@ export async function deliver(ctx: Ctx, jobId: string, f: Record<string, unknown
     const j = (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [jobId])).rows[0];
     if (!j) throw notFound("Job card");
     assertCan(ctx, "jobs", "edit", j.branch_id);
-    if (j.status !== "ready") throw invalid("Only a job at Ready can be delivered.");
+    if (!(j.status === "ready" || (j.status === "invoiced" && !j.delivered_at))) throw invalid("Only a job at Ready (or invoiced and not yet handed over) can be delivered.");
+    // IV-08 / PY-05: the car leaves only when paid, on credit terms within the limit, or released by a manager.
+    const rel = await releaseStatus(c, jobId);
+    if (!rel.basis) throw invalid(`AED ${rel.balance.toFixed(2)} is still owed on this job. Take payment first, or ask a manager to release the car on credit.`);
     const list = (await c.query("SELECT code, name_en FROM lookup_value WHERE list = 'delivery_checklist' AND active ORDER BY sort")).rows;
     const checklist = list.map((i) => ({ code: i.code, label: i.name_en, done: f[`chk_${i.code}`] === "on" }));
     const missing = checklist.filter((x) => !x.done);
@@ -278,12 +282,17 @@ export async function deliver(ctx: Ctx, jobId: string, f: Record<string, unknown
     if (j.odometer_in !== null && odo < j.odometer_in) throw invalid("Odometer out is lower than the reading at check-in.");
     const sig = optStr(f.signature);
     if (sig && (!sig.startsWith("data:image/png;base64,") || sig.length > 400_000)) throw invalid("The signature could not be read. Sign again.");
-    await c.query("INSERT INTO delivery (branch_id, job_card_id, checklist, old_parts, received_by_name, signature, odometer_out, delivered_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-      [j.branch_id, jobId, JSON.stringify(checklist), oldParts, required(f.received_by_name, "Received by"), sig, odo, ctx.userId]);
+    await c.query("INSERT INTO delivery (branch_id, job_card_id, checklist, old_parts, received_by_name, signature, odometer_out, delivered_by, balance_at_release, release_basis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      [j.branch_id, jobId, JSON.stringify(checklist), oldParts, required(f.received_by_name, "Received by"), sig, odo, ctx.userId, rel.balance.toFixed(2), rel.basis]);
     await c.query("UPDATE job_card SET delivered_at = now() WHERE id = $1", [jobId]);
     await c.query("UPDATE vehicle SET odometer = GREATEST(coalesce(odometer,0), $2) WHERE id = $1", [j.vehicle_id, odo]);
-    await setStatus(c, ctx, j, "delivered", "Delivered to the customer");
-    await audit(c, ctx, "job_card", jobId, "delivered", { odometer_out: odo, old_parts: oldParts }, j.branch_id);
+    if (j.status === "ready") await setStatus(c, ctx, j, "delivered", "Delivered to the customer");
+    else {
+      await c.query("INSERT INTO job_status_history (job_card_id, branch_id, from_status, to_status, reason, user_id) VALUES ($1,$2,$3,$3,$4,$5)",
+        [jobId, j.branch_id, j.status, "Delivered to the customer", ctx.userId]);
+      await maybeCloseJob(c, ctx, jobId);
+    }
+    await audit(c, ctx, "job_card", jobId, "delivered", { odometer_out: odo, old_parts: oldParts, release_basis: rel.basis, balance: rel.balance.toFixed(2) }, j.branch_id);
   });
 }
 

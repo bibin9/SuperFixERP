@@ -212,7 +212,7 @@ INSERT INTO message_template (event, language, body) VALUES
  ('quotation_for_approval','ar','عزيزي {title} {name}، عرض السعر {doc_no} لسيارتك {plate} جاهز. الإجمالي {amount} درهم شامل الضريبة. اضغط على الرابط لمراجعة كل بند والموافقة عليه أو رفضه: {link} أو أرسل نعم للموافقة على الكل. نبدأ العمل فقط بعد موافقتك.'),
  ('approved','en','Dear {title} {name}, thank you. Work on {plate} (job {job_no}) is approved and has started at Superfix {branch}.'),
  ('car_ready','en','Dear {title} {name}, your vehicle {plate} (job {job_no}) is ready for collection at Superfix {branch}.'),
- ('invoice','en','Dear {title} {name}, invoice {doc_no} for job {job_no}: AED {amount} incl. VAT. Thank you for choosing Superfix {branch}.');
+ ('invoice','en','Dear {title} {name}, your invoice {doc_no} for {plate} (job {job_no}) is AED {amount} incl. VAT; AED {open} is open. See and download it here: {link} Thank you for choosing Superfix {branch}.');
 
 -- Approval workflows (M10). Values from BRD 7.10 examples; all editable as settings.
 INSERT INTO workflow (doc_type, name, enabled) VALUES
@@ -288,3 +288,41 @@ INSERT INTO supplier (code, name_en, trn, payment_terms_days, credit_limit, phon
  ('BOSCH','Bosch','100123456700045',30,20000,'+97142222005','Bosch'),
  ('PREST','Prestone','100123456700052',30,10000,'+97142222006','Prestone');
 UPDATE item i SET preferred_supplier_id = s.id FROM supplier s WHERE s.name_en = i.preferred_supplier;
+
+-- =====================================================================================
+-- Phase 3 billing (FSD 4.9, 4.11, 5.1, 5.6)
+-- =====================================================================================
+INSERT INTO account (code, name, account_group, account_type, sub_type) VALUES
+ ('5500','Warranty cost','Direct expenses','expense','normal'),
+ ('5600','Cash over and short','Indirect expenses','expense','normal');
+INSERT INTO account_mapping (event_key, account_id, description)
+SELECT k, (SELECT id FROM account WHERE code = a), d FROM (VALUES
+ ('warranty_expense','5500','Cost of parts and work on warranty claims'),
+ ('cash_over_short','5600','Cash closing differences')
+) v(k, a, d);
+
+INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
+SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
+CROSS JOIN (VALUES ('warranty_claim','-WC-')) t(doc_type, suffix);
+
+INSERT INTO lookup_value (list, code, name_en, sort) VALUES
+ ('credit_note_reason','price_correction','Price correction',1),('credit_note_reason','goods_returned','Goods returned',2),
+ ('credit_note_reason','service_complaint','Service complaint (goodwill)',3),('credit_note_reason','billing_error','Billing error',4),
+ ('credit_note_reason','wrong_part','Wrong part supplied',5),('credit_note_reason','other','Other',6);
+
+INSERT INTO setting (key, value, grp, description) VALUES
+ ('billing.simplified_invoice','true','Billing','Use a simplified tax invoice for customers without a TRN, or with a TRN and an invoice up to the limit below'),
+ ('billing.simplified_limit','10000','Billing','Largest invoice (AED incl. VAT) that may be simplified for a VAT-registered customer'),
+ ('billing.vat_on_advances','true','Billing','Charge VAT on an advance received before the work is done (tax invoice for the advance)'),
+ ('cash.denominations','[1000,500,200,100,50,20,10,5,1,0.5,0.25]','Billing','Notes and coins counted at cash closing'),
+ ('sales.prices_include_vat','true','Billing','Counter sale prices are entered and shown including VAT'),
+ ('sales.walk_in_name','"Walk-in customer"','Billing','Name used on counter sales without a customer account');
+
+INSERT INTO customer (customer_type, title, first_name, country_code, mobile, whatsapp, is_walk_in)
+VALUES ('individual','Mr','Walk-in customer','AE','+971000000000', false, true);
+
+-- Trade and fleet price levels (SL-03): 10% and 7% off list for the demo items.
+INSERT INTO price_list_line (price_level, item_id, price, min_price)
+SELECT 'trade', id, round(list_price * 0.90, 2), round(list_price * 0.80, 2) FROM item WHERE list_price > 0;
+INSERT INTO price_list_line (price_level, item_id, price, min_price)
+SELECT 'fleet', id, round(list_price * 0.93, 2), round(list_price * 0.85, 2) FROM item WHERE list_price > 0;
