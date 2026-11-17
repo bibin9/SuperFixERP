@@ -1,5 +1,5 @@
 "use server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { AppError } from "@/lib/errors";
@@ -39,7 +39,7 @@ export async function loginAction(fd: FormData) {
   let msg = "";
   try {
     const { token } = await login(String(fd.get("username")), String(fd.get("password")), await requestMeta());
-    (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.COOKIE_SECURE === "true" });
+    (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.COOKIE_SECURE === "true" || (await headers()).get("x-forwarded-proto") === "https" });
     ok = true;
   } catch (e) {
     if (e instanceof AppError) msg = e.message; else throw e;
