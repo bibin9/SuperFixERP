@@ -15,6 +15,8 @@ Everything runs against a local PostgreSQL. `npm run db:reset` creates two local
 
 ```bash
 cp .env.example .env        # edit PG_ADMIN_URL if your postgres password differs
+# The sign-in cookie is not marked secure, so it works on http://localhost in every browser, Safari included.
+# Set COOKIE_SECURE=true in .env only when the app is served over https.
 npm install
 npm run db:reset            # creates the database, the app role, the tables and the demo data
 npm run dev                 # or: npm run build && npm start

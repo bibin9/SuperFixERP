@@ -39,7 +39,7 @@ export async function loginAction(fd: FormData) {
   let msg = "";
   try {
     const { token } = await login(String(fd.get("username")), String(fd.get("password")), await requestMeta());
-    (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
+    (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.COOKIE_SECURE === "true" });
     ok = true;
   } catch (e) {
     if (e instanceof AppError) msg = e.message; else throw e;
