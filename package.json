@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p ${PORT:-3000}",
     "db:setup": "tsx scripts/db-setup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "tsx scripts/db-setup.ts --reset && tsx scripts/migrate.ts && tsx scripts/seed.ts",
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:deploy": "tsx scripts/db-setup.ts && tsx scripts/migrate.ts && tsx scripts/seed.ts --if-empty"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
@@ -22,14 +23,14 @@
     "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }

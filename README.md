@@ -168,3 +168,12 @@ The tests cover the quote-before-job rule (service and database), manual-only me
 - Settings that change behaviour live in Admin > Settings and Admin > Master forms, not in code.
 
 See `ASSUMPTIONS.md` for the decisions made where the FSD's open questions are still unanswered.
+
+## Hosting on Railway (UAT)
+
+The `uat` branch deploys to Railway with `railway.json`:
+
+- Add a PostgreSQL service, then an app service from this repository on the `uat` branch.
+- App variables: `PG_ADMIN_URL=${{Postgres.DATABASE_URL}}`, `DB_NAME=superfix`, `APP_DB_PASSWORD=<a long random password>`. The cookie is marked secure automatically, because Railway reports https.
+- Each deploy runs `npm run db:deploy` first: it creates the `superfix_app` role and the database if missing, applies new migrations and loads the demo data only into an empty database. Existing data is never reset.
+- Demo users share the password `Superfix@2026`; change them (Admin > Users) before anyone outside the team gets the link.

@@ -298,8 +298,18 @@ const serviceIds = async (u: string) => Object.fromEntries((await q(u, "SELECT c
 const ctxLines = async (u: string, qid: string) => q(u, "SELECT id, description FROM quotation_line WHERE quotation_id = $1", [qid]);
 const partLines = async (u: string, jobId: string) => q(u, "SELECT id, qty FROM job_line WHERE job_card_id = $1 AND line_type = 'part' AND approval_status = 'approved'", [jobId]);
 
+/** --if-empty: used on hosted deploys; seeds only a brand-new database and leaves existing data alone. */
+async function hasData(adminUrl: string) {
+  const c = new Client({ connectionString: adminUrl });
+  await c.connect();
+  try { return (await c.query("SELECT count(*) n FROM branch")).rows[0].n !== "0"; } finally { await c.end(); }
+}
+
 if (require.main === module) {
-  seed(dbConfig().adminUrl, { demoJobs: true, history: true })
-    .then(async () => { await closePool(); console.log(`seeded. Sign in as any demo user with password ${DEMO_PASSWORD}`); })
+  (async () => {
+    if (process.argv.includes("--if-empty") && await hasData(dbConfig().adminUrl)) { console.log("database already has data; demo seed skipped"); return "skip"; }
+    return seed(dbConfig().adminUrl, { demoJobs: true, history: true });
+  })()
+    .then(async (r) => { await closePool(); if (r !== "skip") console.log(`seeded. Sign in as any demo user with password ${DEMO_PASSWORD}`); })
     .catch(async (e) => { await closePool(); console.error(e); process.exit(1); });
 }
