@@ -12,7 +12,7 @@ export default async function Numbering({ searchParams }: { searchParams: Promis
       <PageHead title="Document numbering" sub="One series per branch and document type. Numbers are given inside the saving transaction, so posted tax invoices have no gaps." />
       <Flash sp={sp} />
       <div className="card">
-        <form className="row" style={{ marginBottom: 8 }}><input name="b" defaultValue={sp.b} placeholder="Branch code, e.g. YAS" /><button className="btn ghost shrink">Filter</button></form>
+        <form className="row" style={{ marginBottom: 8 }}><div className="field"><label>Branch code</label><input name="b" defaultValue={sp.b} placeholder="e.g. YAS" /></div><button className="btn ghost shrink">Filter</button></form>
         <table>
           <thead><tr><th>Branch</th><th>Document</th><th>Prefix · next · padding · year part</th></tr></thead>
           <tbody>{rows.map((r) => (

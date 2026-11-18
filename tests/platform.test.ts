@@ -143,10 +143,10 @@ test("permission matrix changes are logged with old and new values (FP-06)", asy
 
 test("customer duplicate checks: duplicate VIN is blocked; mobile match needs a reason (CV-08)", async () => {
   const priya = await ctxFor("priya", "YAS");
-  const r1 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Copy", country_code: "SA", mobile: "+966558321109" });
+  const r1 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Copy", last_name: "Test", country_code: "SA", mobile: "+966558321109" });
   assert.equal(r1.id, undefined);
   assert.equal(r1.duplicates?.[0].kind, "mobile");
-  const r2 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Brother", country_code: "SA", mobile: "+966558321109", duplicate_reason: "Family phone" });
+  const r2 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Brother", last_name: "Test", country_code: "SA", mobile: "+966558321109", duplicate_reason: "Family phone" });
   assert.ok(r2.id);
   const v = await createVehicle(priya, { owner_customer_id: r2.id, registered_in: "DXB", plate_code: "A", plate_number: "1", vin: "JTMHV05J904123456", make: "Toyota", model: "LC", duplicate_reason: "anything" });
   assert.equal(v.id, undefined);
@@ -169,7 +169,7 @@ test("document numbers stay unique and sequential under concurrent saves", async
   const svc = await id("service", "code = $1", ["DIAG"]);
   const approved: string[] = [];
   for (let i = 0; i < 8; i++) {
-    const e = await createEnquiry(priya, { customer_id: cust, vehicle_id: lc, service_asked: "check", source: "walk_in", odometer_in: "300000" });
+    const e = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: lc, service_asked: "check", source: "walk_in", odometer_in: "300000" });
     await addEnquiryLine(priya, e.id, { line_type: "labour", service_id: svc });
     const q = await saveQuotation(priya, e.id, {});
     await sendQuotation(priya, q.id);

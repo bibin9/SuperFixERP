@@ -35,18 +35,18 @@ export function EmployeeForm({ e, l, custom, isNew, showBank }: { e?: any; l: L;
         <F label="Last name"><input name="last_name" defaultValue={v("last_name")} required /></F>
         <F label="Name in Arabic" opt><input name="name_ar" dir="rtl" defaultValue={v("name_ar")} /></F>
         <F label="Nationality"><select name="nationality" defaultValue={v("nationality")} required><option value="">Choose</option>{l.countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></F>
-        <F label="Date of birth" opt><input type="date" name="date_of_birth" defaultValue={v("date_of_birth")} /></F>
-        <F label="Gender" opt><select name="gender" defaultValue={v("gender")}><option value="">—</option><option value="male">Male</option><option value="female">Female</option></select></F>
+        <F label="Date of birth"><input type="date" name="date_of_birth" defaultValue={v("date_of_birth")} required /></F>
+        <F label="Gender"><select name="gender" defaultValue={v("gender")} required><option value="">—</option><option value="male">Male</option><option value="female">Female</option></select></F>
         <F label="Marital status" opt><select name="marital_status" defaultValue={v("marital_status")}><option value="">—</option>{["single", "married", "divorced", "widowed"].map((m) => <option key={m} value={m}>{m[0].toUpperCase() + m.slice(1)}</option>)}</select></F>
-        <F label="Mobile" opt><input name="mobile" defaultValue={v("mobile")} inputMode="tel" /></F>
+        <F label="Mobile"><input name="mobile" defaultValue={v("mobile")} inputMode="tel" required /></F>
         <F label="Email" opt><input name="email" type="email" defaultValue={v("email")} /></F>
         <F label="Emergency contact" opt><input name="emergency_contact" defaultValue={v("emergency_contact")} /></F>
         {cfs("personal").map(cf)}
       </div>
       <h3>Job</h3>
       <div className="row">
-        <F label="Department" opt><select name="department_id" defaultValue={v("department_id")}><option value="">—</option>{l.departments.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select></F>
-        <F label="Designation" opt><select name="designation_id" defaultValue={v("designation_id")}><option value="">—</option>{l.designations.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select></F>
+        <F label="Department"><select name="department_id" defaultValue={v("department_id")} required><option value="">—</option>{l.departments.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select></F>
+        <F label="Designation"><select name="designation_id" defaultValue={v("designation_id")} required><option value="">—</option>{l.designations.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select></F>
         <F label="Grade" opt><select name="grade" defaultValue={v("grade")}><option value="">—</option>{l.grades.map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></F>
         <F label="Line manager" opt><select name="line_manager_id" defaultValue={v("line_manager_id")}><option value="">—</option>{l.managers.filter((m) => m.id !== e?.id).map((m) => <option key={m.id} value={m.id}>{m.emp_no} {m.full_name} ({m.branch_code})</option>)}</select></F>
         <F label="Joining date"><input type="date" name="joining_date" defaultValue={v("joining_date")} required /></F>
@@ -60,8 +60,8 @@ export function EmployeeForm({ e, l, custom, isNew, showBank }: { e?: any; l: L;
       </div>
       <h3>Labour and WPS</h3>
       <div className="row">
-        <F label="MOHRE person code" opt><input name="mohre_person_code" defaultValue={v("mohre_person_code")} inputMode="numeric" placeholder="14 digits" /></F>
-        <F label="Labour card no." opt><input name="labour_card_no" defaultValue={v("labour_card_no")} /></F>
+        <F label="MOHRE person code (needed for WPS)"><input name="mohre_person_code" defaultValue={v("mohre_person_code")} inputMode="numeric" placeholder="14 digits" /></F>
+        <F label="Labour card no. (needed for WPS)"><input name="labour_card_no" defaultValue={v("labour_card_no")} /></F>
         <F label="Paid through (WPS agent)" opt><select name="wps_agent_id" defaultValue={v("wps_agent_id")}><option value="">—</option>{l.agents.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></F>
         <F label="Paid by"><select name="pay_method" defaultValue={v("pay_method") || "iban"}><option value="iban">Bank account (IBAN)</option><option value="wps_card">WPS salary card</option></select></F>
         {showBank ? <>

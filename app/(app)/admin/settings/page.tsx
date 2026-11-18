@@ -16,7 +16,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <div className="card" key={g}><h2>{g}</h2>
           <table><tbody>{rows.filter((r) => r.grp === g).map((r) => (
             <tr key={r.id}><td style={{ width: "45%" }} title={r.key}><b>{r.description || label(r.key.split(".").pop())}</b>{r.branch_code && ` (${r.branch_code})`}</td>
-              <td><form action={settingAction} className="row"><input type="hidden" name="id" value={r.id} /><input name="value" defaultValue={typeof r.value === "string" ? r.value : JSON.stringify(r.value)} /><button className="btn ghost sm shrink">Save</button></form></td></tr>
+              <td><form action={settingAction} className="row"><input type="hidden" name="id" value={r.id} /><input name="value" aria-label={r.description || r.key} defaultValue={typeof r.value === "string" ? r.value : JSON.stringify(r.value)} /><button className="btn ghost sm shrink">Save</button></form></td></tr>
           ))}</tbody></table>
         </div>
       ))}

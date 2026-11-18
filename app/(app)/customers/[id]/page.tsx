@@ -4,7 +4,7 @@ import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { CustomerForm } from "@/components/CustomerForm";
 import { addVehicleAction } from "@/app/actions";
-import { Flash, Link, PageHead, custName, plate, dt, label } from "@/components/ui";
+import { Flash, Link, PageHead, custName, plate, Plate, dt, label } from "@/components/ui";
 
 export default async function CustomerPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
@@ -25,7 +25,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
         <h2>Vehicles</h2>
         <table>
           <thead><tr><th>Plate</th><th>Vehicle</th><th>VIN</th><th>Odometer</th></tr></thead>
-          <tbody>{vehicles.map((v) => <tr key={v.id}><td><Link href={`/vehicles/${v.id}`}>{plate(v)}</Link></td><td>{v.make} {v.model} {v.model_year}</td><td>{v.vin ?? <span className="muted">n/a: {v.vin_missing_reason}</span>}</td><td className="num">{v.odometer?.toLocaleString()}</td></tr>)}</tbody>
+          <tbody>{vehicles.map((v) => <tr key={v.id}><td><Link href={`/vehicles/${v.id}`} aria-label={plate(v)}><Plate v={v} /></Link></td><td>{v.make} {v.model} {v.model_year}</td><td>{v.vin ?? <span className="muted">n/a: {v.vin_missing_reason}</span>}</td><td className="num">{v.odometer?.toLocaleString()}</td></tr>)}</tbody>
         </table>
         {can(ctx, "customers", "create") && (
           <form action={addVehicleAction} style={{ marginTop: 14 }}>
@@ -38,8 +38,8 @@ export default async function CustomerPage({ params, searchParams }: { params: P
             )}
             <input type="hidden" name="$back" value={back} /><input type="hidden" name="owner_customer_id" value={id} />
             <div className="row">
-              <div className="field"><label>Registered in</label><select name="registered_in" defaultValue={vf.registered_in ?? "AUH"}>{m.plates.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}</select></div>
-              <div className="field"><label>Plate code</label><input name="plate_code" defaultValue={vf.plate_code} placeholder="e.g. 5 or K" /></div>
+              <div className="field"><label>Registered in</label><select name="registered_in" required defaultValue={vf.registered_in ?? "AUH"}>{m.plates.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}</select></div>
+              <div className="field"><label>Plate code</label><input name="plate_code" defaultValue={vf.plate_code} placeholder="e.g. 5 or K" required /></div>
               <div className="field"><label>Plate number</label><input name="plate_number" defaultValue={vf.plate_number} required /></div>
               <div className="field"><label>VIN (17 characters)</label><input name="vin" defaultValue={vf.vin} /></div>
               <div className="field"><label>If no VIN, reason</label><input name="vin_missing_reason" defaultValue={vf.vin_missing_reason} /></div>
@@ -47,7 +47,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
             <div className="row">
               <div className="field"><label>Make</label><input name="make" defaultValue={vf.make} required /></div>
               <div className="field"><label>Model</label><input name="model" defaultValue={vf.model} required /></div>
-              <div className="field"><label>Year</label><input name="model_year" defaultValue={vf.model_year} /></div>
+              <div className="field"><label>Year</label><input name="model_year" defaultValue={vf.model_year} inputMode="numeric" required /></div>
               <div className="field"><label>Colour</label><input name="colour" defaultValue={vf.colour} /></div>
               <div className="field"><label>Odometer</label><input name="odometer" defaultValue={vf.odometer} /></div>
               <div className="field"><label>Mulkiya expiry</label><input type="date" name="mulkiya_expiry" defaultValue={vf.mulkiya_expiry} /></div>

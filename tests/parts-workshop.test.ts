@@ -44,7 +44,7 @@ let odo = 200000;
 /** A job card at YAS with the given part lines approved by the customer. */
 async function jobWith(parts: [string, string][], labour = true) {
   const priya = await ctxFor("priya", "YAS");
-  const e = await createEnquiry(priya, { customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
+  const e = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
   if (labour) await addEnquiryLine(priya, e.id, { line_type: "labour", service_id: svc["BRK-FR"] });
   for (const [p, q] of parts) await addEnquiryLine(priya, e.id, { line_type: "part", item_id: items[p], qty: q });
   const qt = await saveQuotation(priya, e.id, {});

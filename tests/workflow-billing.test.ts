@@ -30,7 +30,7 @@ after(async () => { await closePool(); });
 
 async function newEnquiry(user = "priya") {
   const ctx = await ctxFor(user, "YAS");
-  const e = await createEnquiry(ctx, { customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
+  const e = await createEnquiry(ctx, { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
   return { ctx, enqId: e.id };
 }
 let odo = 100000;
@@ -70,7 +70,7 @@ test("discount within the limit needs no approval; the manager's own below-margi
   assert.equal((await saveQuotation(priya, enqId, {})).status, "ready_to_send");
 
   const yousef = await ctxFor("yousef", "YAS");
-  const e2 = await createEnquiry(yousef, { customer_id: cust, vehicle_id: veh, service_asked: "brakes", source: "phone" });
+  const e2 = await createEnquiry(yousef, { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: veh, service_asked: "brakes", source: "phone" });
   const line = await addEnquiryLine(yousef, e2.id, { line_type: "part", item_id: items["BRK-PAD-FR-LC"], unit_price: "220.00" }); // cost 210 -> margin 4.5%
   assert.equal(line.belowMargin, true);
   const q = await saveQuotation(yousef, e2.id, {});

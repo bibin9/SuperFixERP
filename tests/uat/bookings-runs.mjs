@@ -66,7 +66,7 @@ await step("TC-BK02-03", "booking calendar lists the booking and the bay and tec
 let enq2 = "";
 await step("TC-BK03-01", "a second booking over the technician's hours shows the warning before saving", async () => {
   await go(priya, "/enquiries/new"); await priya.fill("input[name=contact_name]", "Hamdan Walk-in"); await priya.fill("input[name=contact_mobile]", "0501112233");
-  await priya.fill("input[name=service_asked]", "AC not cooling"); await priya.click("button:has-text('Save'), button:has-text('Create')"); await settle(priya); enq2 = priya.url();
+  await priya.fill("input[name=service_asked]", "AC not cooling"); await priya.fill("input[name=follow_up_at]", "2026-12-01T10:00"); await priya.click("button:has-text('Save'), button:has-text('Create')"); await settle(priya); enq2 = priya.url();
   must(/\/enquiries\/[0-9a-f-]{36}/.test(enq2), `not on the enquiry: ${enq2}`);
   await priya.fill("#bk-when", `${D1}T11:00`); await priya.selectOption("#bk-bay", { label: "B1 (9 h a day)" }); await priya.selectOption("#bk-tech", { label: "Ramesh K. (4 h a day)" });
   await priya.fill("#bk-hours", "2"); await priya.waitForSelector("[data-testid=overbook-warning]"); const w = await priya.locator("[data-testid=overbook-warning]").innerText();
@@ -164,7 +164,7 @@ await step("TC-VV01-02", "service interval: a wrong value is shown in red under 
 
 // ---------- inline errors on other forms ----------
 await step("TC-FE01-01", "customer form: a wrong mobile is shown in red under Mobile and the typed name stays", async () => {
-  await go(priya, "/customers/new"); await priya.fill("input[name=mobile]", "12345"); await priya.fill("input[name=first_name]", "Layla"); await priya.fill("input[name=last_name]", "Haddad");
+  await go(priya, "/customers/new"); await priya.fill("input[name=mobile]", "12345"); await priya.fill("input[name=first_name]", "Layla"); await priya.fill("input[name=last_name]", "Haddad"); await priya.selectOption("select[name=title]", { index: 1 });
   await priya.click("button:has-text('Save'), button:has-text('Create'), button:has-text('Add customer')"); await settle(priya);
   const e = await inlineErr(priya); must(/Mobile/.test(e) && /Mobile/.test(await fieldOfErr(priya)), `${e}`);
   must((await priya.inputValue("input[name=first_name]")) === "Layla", "name lost"); must((await priya.locator("input[name=mobile]").getAttribute("aria-invalid")) === "true", "not outlined");

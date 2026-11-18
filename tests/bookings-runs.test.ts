@@ -31,7 +31,7 @@ before(async () => {
 });
 after(async () => { await closePool(); });
 
-const newEnq = async () => (await createEnquiry(await ctxFor("priya", "YAS"), { customer_id: cust, vehicle_id: veh, service_asked: "booking test", source: "phone" })).id;
+const newEnq = async () => (await createEnquiry(await ctxFor("priya", "YAS"), { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: veh, service_asked: "booking test", source: "phone" })).id;
 
 test("booking: hours default to the enquiry's labour, status becomes booked, load counts it", async () => {
   const priya = await ctxFor("priya", "YAS");

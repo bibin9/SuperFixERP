@@ -105,7 +105,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
             : <p className="small">{e.customer_id && e.vehicle_id ? "Add the work below, save the quotation and send it to the customer. The job card is created after the customer approves." : "Pick the customer and the vehicle, then add the work to quote."}</p>}
           {open && canEditEnq && (
             <form action={lostEnquiryAction} style={{ marginTop: 14 }}><input type="hidden" name="id" value={id} /><input type="hidden" name="$back" value={back} />
-              <div className="row"><select name="reason">{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form>
+              <div className="row"><div className="field"><label>Why it was lost</label><select name="reason" required>{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select></div><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form>
           )}
         </div>
       </div>
@@ -142,7 +142,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
         <div className="card"><h2>Customer messages</h2>
           {e.customer_id && e.vehicle_id && canEditEnq && (
             <form action={whatsappAction}><input type="hidden" name="enquiry_id" value={id} /><input type="hidden" name="$back" value={back} />
-              <div className="row"><select name="event"><option value="enquiry_reply">Reply to enquiry</option></select><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>
+              <div className="row"><div className="field"><label>Message</label><select name="event"><option value="enquiry_reply">Reply to enquiry</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>
           )}
           <table><tbody>{msgs.map((x) => <tr key={x.id}><td>{x.event.replace(/_/g, " ")}</td><td><Status s={x.status} /></td><td className="small">{x.full_name}</td><td className="small muted">{dt(x.at)}</td></tr>)}</tbody></table>
           {!msgs.length && <p className="muted small">None yet. Messages are prepared here and sent by you; nothing is sent automatically.</p>}

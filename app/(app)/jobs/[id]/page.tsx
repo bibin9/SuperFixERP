@@ -64,13 +64,13 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {can(ctx, "jobs", "cancel", b) && nextStatuses(job.status).includes("cancelled") && (
             <form action={statusAction} style={{ marginTop: 10 }}>
               <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
-              <div className="row"><input name="reason" placeholder="Reason for cancelling" required /><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
+              <div className="row"><div className="field"><label>Reason for cancelling</label><input name="reason" required /></div><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
             </form>
           )}
         </div>
         <div className="card"><h2>Customer messages</h2>
           {canEdit && <form action={whatsappAction}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
-            <div className="row"><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>}
+            <div className="row"><div className="field"><label>Message</label><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>}
           {msgs.slice(0, 4).map((x) => <div key={x.id} className="small">{x.event.replace(/_/g, " ")} <Status s={x.status} /> <span className="muted">{dt(x.at)}</span></div>)}
           {canSeePrices && ["ready", "delivered", "invoiced"].includes(job.status) && can(ctx, "invoices", "create", b) && unbilled > 0 && <p><Link className="btn green" href={`/jobs/${id}/invoice`}>{job.status === "invoiced" ? "Invoice the rest" : "Prepare invoice"}</Link></p>}
           {!["closed", "cancelled"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn ghost sm" href={`/billing/advances?job=${id}`}>Take deposit</Link></p>}

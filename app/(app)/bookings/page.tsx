@@ -1,7 +1,7 @@
 import { requireCtx } from "@/lib/session";
 import { bookingDay } from "@/lib/services/bookings";
 import { closeBookingAction } from "@/app/actions-front";
-import { Flash, Link, PageHead, Status, custName, plate, label } from "@/components/ui";
+import { Flash, Link, PageHead, Status, custName, plate, Plate, label } from "@/components/ui";
 import { LoadBars } from "@/components/LoadBars";
 import { runType } from "@/components/RunsPanel";
 
@@ -23,7 +23,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         <Link className="btn ghost sm" href={`/bookings?date=${shift(date, -1)}`}>‹ Previous day</Link>
         {date !== today && <Link className="btn ghost sm" href="/bookings">Today</Link>}
         <Link className="btn ghost sm" href={`/bookings?date=${shift(date, 1)}`}>Next day ›</Link>
-        <form className="shrink"><input type="date" name="date" defaultValue={date} aria-label="Go to day" /> <button className="btn sm">Go</button></form>
+        <form className="shrink" style={{ display: "flex", gap: 6 }}><input type="date" name="date" defaultValue={date} aria-label="Go to day" style={{ width: 160 }} /><button className="btn sm">Go</button></form>
         {canBook && <Link className="btn" href="/enquiries/new">New enquiry to book</Link>}
       </PageHead>
       <Flash sp={sp} />
@@ -53,7 +53,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
             <tr key={b.id}>
               <td>{time(b.booked_for)}</td><td><Link href={`/enquiries/${b.id}#booking`}>{b.doc_no}</Link></td>
               <td>{b.customer_type ? custName(b) : `${b.contact_name ?? ""} ${b.contact_mobile ?? ""}`}</td>
-              <td>{b.plate_number ? `${plate(b)} · ${b.make} ${b.model}` : "—"}</td><td className="small">{b.service_asked}</td>
+              <td>{b.plate_number ? <><Plate v={b} /> {b.make} {b.model}</> : "—"}</td><td className="small">{b.service_asked}</td>
               <td>{b.bay_code ?? "—"}</td><td>{b.technician_name ?? "—"}</td><td className="num">{Number(b.booking_hours)}</td>
               <td><Status s={b.booking_status} />{b.booking_override_reason && <div className="small" title={b.booking_override_reason}><span className="pill red">Overbooked</span></div>}</td>
               {canBook && <td>{b.booking_status === "booked" && (

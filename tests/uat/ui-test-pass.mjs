@@ -55,9 +55,11 @@ await tc("TC-CV01-01", async (sp) => { sp(priya); await priya.goto(B + "/custome
   must(types.length >= 3, "types " + types); must(ctry.length >= 6, "countries " + ctry); return `Types: ${types.join(", ")}; countries: ${ctry.join(", ")}`; });
 const mob = "50" + String(Date.now()).slice(-7);
 await tc("TC-CV02-02", async (sp) => { sp(priya); await priya.goto(B + "/customers/new");
-  await priya.fill("input[name=first_name]", "Test"); await priya.fill("input[name=mobile]", "0" + mob); await act(priya, "button:has-text('Save customer')");
+  await priya.fill("input[name=first_name]", "Test"); await priya.fill("input[name=last_name]", "QA"); await priya.fill("input[name=mobile]", "0" + mob);
+  // The browser now stops a missing title itself (red *); switch that off to prove the server refuses it too.
+  await priya.evaluate(() => document.querySelectorAll("form").forEach((f) => { f.noValidate = true; })); await act(priya, "button:has-text('Save customer')");
   const f = await flash(priya); must(/title/i.test(f), "no title error, got: " + f);
-  await priya.selectOption("select[name=title]", { index: 1 }).catch(() => {}); await priya.fill("input[name=first_name]", "Test");
+  await priya.selectOption("select[name=title]", { index: 1 }).catch(() => {}); await priya.fill("input[name=first_name]", "Test"); await priya.fill("input[name=last_name]", "QA");
   await priya.selectOption("select[name=id_type]", "Emirates ID").catch(() => {}); await priya.fill("input[name=id_number]", "12345"); await priya.fill("input[name=mobile]", "0" + mob);
   await act(priya, "button:has-text('Save customer')"); const f2 = await flash(priya);
   must(/emirates id/i.test(f2), "bad Emirates ID accepted or no message: " + f2); return `Missing title: "${f}". Bad Emirates ID: "${f2}"`; });
@@ -68,7 +70,7 @@ await tc("TC-CV02-01", async (sp) => { sp(priya); await priya.goto(B + "/custome
   await priya.click("button:has-text('Save customer')"); await priya.waitForURL(/\/customers\/[0-9a-f-]{36}/); custUrl = priya.url().split("?")[0];
   const t = await text(priya); must(/Rashid/.test(t), "name not shown"); return "Saved: " + custUrl.replace(B, ""); });
 await tc("TC-CV08-01", async (sp) => { sp(priya); await priya.goto(B + "/customers/new");
-  await priya.selectOption("select[name=title]", { index: 1 }); await priya.fill("input[name=first_name]", "Dup"); await priya.fill("input[name=mobile]", "0" + mob);
+  await priya.selectOption("select[name=title]", { index: 1 }); await priya.fill("input[name=first_name]", "Dup"); await priya.fill("input[name=last_name]", "QA"); await priya.fill("input[name=mobile]", "0" + mob);
   await priya.click("button:has-text('Save customer')"); await priya.waitForLoadState("networkidle"); const t = await text(priya);
   must(await priya.locator("input[name=duplicate_reason]").count(), "no duplicate warning for same mobile");
   return "Same mobile: duplicate list shown and a reason is required before saving as new"; });
@@ -84,7 +86,7 @@ await tc("TC-CV08-02", async (sp) => { sp(priya); await priya.goto(custUrl);
   const vin = (await text(priya)).match(/JTMHV05J\d{9}/)?.[0]; must(vin, "no vin on page");
   await priya.selectOption("select[name=registered_in]", "AUH"); await priya.fill("input[name=plate_code]", "6").catch(async () => priya.selectOption("select[name=plate_code]", "6"));
   await priya.fill("input[name=plate_number]", "77" + String(Date.now()).slice(-3)); await priya.fill("input[name=vin]", vin);
-  await priya.fill("input[name=make]", "Toyota").catch(() => {}); await priya.fill("input[name=model]", "Prado").catch(() => {});
+  await priya.fill("input[name=make]", "Toyota").catch(() => {}); await priya.fill("input[name=model]", "Prado").catch(() => {}); await priya.fill("input[name=model_year]", "2021");
   await priya.click("button:has-text('Add vehicle')"); await priya.waitForLoadState("networkidle"); const f = await flash(priya);
   must(/VIN/i.test(f), "duplicate VIN not refused: " + f); return `Refused: "${f}"`; });
 await tc("TC-CV11-01", async (sp) => { sp(priya); await priya.goto(custUrl);
@@ -104,7 +106,7 @@ await tc("TC-CV10-01", async (sp) => { sp(priya); await priya.goto(B + "/enquiri
   const pick = priya.locator("a:has-text('Rashid'), button:has-text('Rashid')").first(); if (await pick.count()) await pick.click();
   await priya.waitForLoadState("networkidle");
   if (await priya.locator("select[name=vehicle_id]").count()) await priya.selectOption("select[name=vehicle_id]", { index: 1 }).catch(() => {});
-  await priya.fill("input[name=service_asked]", "Brake noise, 40K service"); if (await priya.locator("select[name=source] option").count() > 1) await priya.selectOption("select[name=source]", { index: 1 });
+  await priya.fill("input[name=service_asked]", "Brake noise, 40K service"); await priya.fill("input[name=follow_up_at]", "2026-12-01T10:00"); if (await priya.locator("select[name=source] option").count() > 1) await priya.selectOption("select[name=source]", { index: 1 });
   await priya.click("button:has-text('Save enquiry')"); await priya.waitForURL(/\/enquiries\/[0-9a-f-]{36}/); enqUrl = priya.url().split("?")[0];
   const t = await text(priya); must(/ENQ/.test(t), "no enquiry number"); must(!(await priya.locator("button:has-text('Create job card')").count()), "job card offered on new enquiry");
   return "Enquiry saved: " + (t.match(/YAS-ENQ-\d\d-\d+/) || [""])[0] + "; no Create job card offered"; });

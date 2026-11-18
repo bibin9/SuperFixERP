@@ -115,18 +115,23 @@ const EMP_FIELDS = ["first_name", "last_name", "name_ar", "nationality", "date_o
   "department_id", "designation_id", "grade", "line_manager_id", "joining_date", "contract_type", "contract_end", "probation_end", "mohre_person_code",
   "labour_card_no", "wps_agent_id", "pay_method", "iban", "wps_card_no", "shift_id", "weekly_off", "user_id"] as const;
 
-function cleanEmployee(f: Record<string, unknown>) {
+/** `fromHire`: a hired applicant starts as a partial file that HR completes; the full-file checks apply on the next save. */
+function cleanEmployee(f: Record<string, unknown>, fromHire = false) {
   const o: Record<string, unknown> = {};
   o.first_name = str(f.first_name); o.last_name = str(f.last_name);
   if (!o.first_name) throw invalid("First name is required.", { field: "first_name" });
   if (!o.last_name) throw invalid("Last name is required.", { field: "last_name" });
   o.name_ar = optStr(f.name_ar);
   o.nationality = str(f.nationality); if (!o.nationality) throw invalid("Nationality is required.", { field: "nationality" });
-  o.date_of_birth = optDate(f.date_of_birth, "Date of birth", "date_of_birth");
-  o.gender = optStr(f.gender); o.marital_status = optStr(f.marital_status);
-  o.mobile = optStr(f.mobile); o.email = optStr(f.email); o.emergency_contact = optStr(f.emergency_contact);
+  o.date_of_birth = fromHire ? optDate(f.date_of_birth, "Date of birth", "date_of_birth") : reqDate(f.date_of_birth, "Date of birth", "date_of_birth");
+  o.gender = optStr(f.gender); if (!fromHire && !o.gender) throw invalid("Gender is required.", { field: "gender" });
+  o.marital_status = optStr(f.marital_status);
+  o.mobile = optStr(f.mobile); if (!fromHire && !o.mobile) throw invalid("Mobile is required.", { field: "mobile" });
+  o.email = optStr(f.email); o.emergency_contact = optStr(f.emergency_contact);
   if (o.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(o.email))) throw invalid("Email is not valid.", { field: "email" });
-  o.department_id = optStr(f.department_id); o.designation_id = optStr(f.designation_id); o.grade = optStr(f.grade);
+  o.department_id = optStr(f.department_id); o.designation_id = optStr(f.designation_id);
+  if (!fromHire && !o.department_id) throw invalid("Department is required.", { field: "department_id" });
+  if (!fromHire && !o.designation_id) throw invalid("Designation is required.", { field: "designation_id" }); o.grade = optStr(f.grade);
   o.line_manager_id = optStr(f.line_manager_id);
   o.joining_date = reqDate(f.joining_date, "Joining date", "joining_date");
   o.contract_type = str(f.contract_type) || "limited";
@@ -139,6 +144,8 @@ function cleanEmployee(f: Record<string, unknown>) {
   if (o.mohre_person_code && !/^\d{14}$/.test(String(o.mohre_person_code))) throw invalid("MOHRE person code must be 14 digits.", { field: "mohre_person_code" });
   o.labour_card_no = optStr(f.labour_card_no);
   o.wps_agent_id = optStr(f.wps_agent_id);
+  if (o.wps_agent_id && !o.mohre_person_code) throw invalid("MOHRE person code is required for WPS.", { field: "mohre_person_code" });
+  if (o.wps_agent_id && !o.labour_card_no) throw invalid("Labour card no. is required for WPS.", { field: "labour_card_no" });
   o.pay_method = str(f.pay_method) || "iban";
   o.iban = optStr(String(f.iban ?? "").replace(/\s/g, "").toUpperCase());
   if (o.iban && !/^AE\d{21}$/.test(String(o.iban))) throw invalid("IBAN must be AE followed by 21 digits.", { field: "iban" });
@@ -166,11 +173,11 @@ async function readCustom(c: PoolClient, ctx: Ctx, f: Record<string, unknown>, b
   return out;
 }
 
-export async function createEmployee(ctx: Ctx, f: Record<string, unknown>, files: Record<string, Upload | undefined> = {}) {
+export async function createEmployee(ctx: Ctx, f: Record<string, unknown>, files: Record<string, Upload | undefined> = {}, fromHire = false) {
   const branchId = str(f.branch_id);
   if (!branchId) throw invalid("Choose the branch.", { field: "branch_id" });
   assertCan(ctx, "hr", "create", branchId);
-  const o = cleanEmployee(f);
+  const o = cleanEmployee(f, fromHire);
   return withTx(ctx, async (c) => {
     const custom = await readCustom(c, ctx, f, branchId, {}, files);
     const empNo = str(f.emp_no) || `SF-${(await c.query("SELECT nextval('employee_no_seq') n")).rows[0].n}`;
@@ -557,7 +564,7 @@ export async function hireApplicant(ctx: Ctx, id: string, f: Record<string, stri
   if (a.stage !== "offer") throw invalid("Make the offer first.");
   const [first, ...rest] = String(a.full_name).split(" ");
   const r = await createEmployee(ctx, { branch_id: a.branch_id, first_name: first, last_name: rest.join(" ") || "-", nationality: a.nationality ?? f.nationality ?? "AE", mobile: a.mobile, email: a.email,
-    department_id: a.department_id, designation_id: a.designation_id, joining_date: f.joining_date, contract_type: "limited" });
+    department_id: a.department_id, designation_id: a.designation_id, joining_date: f.joining_date, contract_type: "limited" }, {}, true);
   await withTx(ctx, async (c) => { await c.query("UPDATE applicant SET stage = 'hired', employee_id = $2 WHERE id = $1", [id, r.id]); });
   return r;
 }

@@ -33,7 +33,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
         </details>
       )}
       <div className="card">
-        <form className="row" style={{ marginBottom: 10 }}><input name="q" defaultValue={sp.q} placeholder="Part no. or description" /><button className="btn ghost shrink">Filter</button></form>
+        <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Search parts</label><input id="q" name="q" defaultValue={sp.q} placeholder="Part no. or description" /></div><button className="btn ghost shrink">Filter</button></form>
         <table>
           <thead><tr><th>Part</th><th>Branch</th><th className="num">On hand</th><th className="num">Committed</th><th className="num">Reserved</th><th className="num">Free</th>{cost && <th className="num">Avg cost</th>}{cost && <th className="num">Value</th>}</tr></thead>
           <tbody>{rows.map((r) => (

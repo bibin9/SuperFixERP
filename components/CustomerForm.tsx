@@ -30,19 +30,19 @@ export function CustomerForm({ back, countries, titles, lookups = [], c, dups }:
       )}
       <div className="row">
         <div className="field"><label>Customer type</label>
-          <select name="customer_type" value={ctype} onChange={(e) => setCtype(e.target.value)}>
+          <select name="customer_type" required value={ctype} onChange={(e) => setCtype(e.target.value)}>
             <option value="individual">Individual</option><option value="corporate">Corporate / fleet</option><option value="government">Government</option>
           </select></div>
         <div className="field"><label>Country</label>
-          <select name="country_code" value={country} onChange={(e) => setCountry(e.target.value)}>{countries.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
+          <select name="country_code" required value={country} onChange={(e) => setCountry(e.target.value)}>{countries.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
         <div className="field"><label>Mobile (with or without country code)</label><input name="mobile" defaultValue={v("mobile")} required placeholder="050 123 4567" /></div>
       </div>
       <div className="row">
         {isPerson ? (<>
           <div className="field shrink" style={{ minWidth: 110 }}><label>Title</label>
-            <select name="title" defaultValue={v("title")}><option value="">—</option>{titles.map((t) => <option key={t.code} value={t.code}>{t.name_en}</option>)}</select></div>
+            <select name="title" required defaultValue={v("title")}><option value="">—</option>{titles.map((t) => <option key={t.code} value={t.code}>{t.name_en}</option>)}</select></div>
           <div className="field"><label>First name</label><input name="first_name" defaultValue={v("first_name")} required /></div>
-          <div className="field"><label>Last name</label><input name="last_name" defaultValue={v("last_name")} /></div>
+          <div className="field"><label>Last name</label><input name="last_name" defaultValue={v("last_name")} required /></div>
         </>) : (<>
           <div className="field"><label>Company name</label><input name="company_name" defaultValue={v("company_name")} required /></div>
         </>)}
@@ -60,7 +60,7 @@ export function CustomerForm({ back, countries, titles, lookups = [], c, dups }:
         <div className="field"><label>Payment terms (days)</label><input name="payment_terms_days" defaultValue={v("payment_terms_days") || "0"} /></div>
         <div className="field"><label>Fleet discount %</label><input name="fleet_discount_pct" defaultValue={v("fleet_discount_pct") || "0"} /></div>
         <div className="field"><label>Price level</label>
-          <select name="price_level" defaultValue={v("price_level") || "retail"}>{list("price_level").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
+          <select name="price_level" required defaultValue={v("price_level") || "retail"}>{list("price_level").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
       </div>
       {!isPerson && (
         <fieldset className="einv">

@@ -13,8 +13,8 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
     <>
       <div className="row">
         <div className="field"><label>Service asked about</label><input name="service_asked" required /></div>
-        <div className="field"><label>Source</label><select name="source">{src.map((s) => <option key={s.code} value={s.code}>{s.name_en}</option>)}</select></div>
-        <div className="field"><label>Follow up at</label><input type="datetime-local" name="follow_up_at" /></div>
+        <div className="field"><label>Source</label><select name="source" required>{src.map((s) => <option key={s.code} value={s.code}>{s.name_en}</option>)}</select></div>
+        <div className="field"><label>Follow up at</label><input type="datetime-local" name="follow_up_at" required /></div>
       </div>
       <div className="field"><label>Notes</label><textarea name="notes" /></div>
     </>
@@ -26,12 +26,12 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
         <PageHead title="New enquiry · step 1: customer" sub="Find the customer, add a new one, or note a contact for a quick phone enquiry." />
         <Flash sp={sp} />
         <div className="card">
-          <form className="row" style={{ marginBottom: 10 }}><input name="q" defaultValue={sp.q} placeholder="Name or mobile" /><button className="btn ghost shrink">Find</button><Link className="btn shrink" href="/customers/new">New customer</Link></form>
+          <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name or mobile" /></div><button className="btn ghost shrink">Find</button><Link className="btn shrink" href="/customers/new">New customer</Link></form>
           <table><tbody>{customers.map((c) => <tr key={c.id}><td><Link href={`/enquiries/new?customer=${c.id}`}>{custName(c)}</Link></td><td>{c.mobile}</td><td className="muted">{c.vehicles} vehicles</td></tr>)}</tbody></table>
         </div>
         <div className="card"><h2>Contact only (no customer record yet)</h2>
           <form action={createEnquiryAction}><input type="hidden" name="$back" value="/enquiries/new" />
-            <div className="row"><div className="field"><label>Contact name</label><input name="contact_name" /></div><div className="field"><label>Contact mobile</label><input name="contact_mobile" required /></div></div>
+            <div className="row"><div className="field"><label>Contact name</label><input name="contact_name" required /></div><div className="field"><label>Contact mobile</label><input name="contact_mobile" required /></div></div>
             {details}
             <button className="btn">Save enquiry</button>
             <p className="small muted">Before a quotation can be made, pick or add the customer and the vehicle on the enquiry.</p>

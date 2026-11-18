@@ -48,19 +48,19 @@ export function WorkLines(p: {
         <div className="grid3" style={{ marginTop: 14 }}>
           <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="labour" />
             <h3>Add labour{isJob ? " (extra work)" : ""}</h3>
-            <div className="field"><select name="service_id">{p.m.services.map((s) => <option key={s.id} value={s.id}>{s.name_en} · {D(s.standard_hours).toString()} h{s.is_quick ? " · quick" : ""}</option>)}</select></div>
-            {p.discountEdit && <div className="field"><input name="discount_amount" placeholder="Discount AED (optional)" /></div>}
+            <div className="field"><label>Service or labour</label><select name="service_id" required>{p.m.services.map((s) => <option key={s.id} value={s.id}>{s.name_en} · {D(s.standard_hours).toString()} h{s.is_quick ? " · quick" : ""}</option>)}</select></div>
+            {p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}
             <button className="btn sm">Add labour</button></form>
           <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="part" />
             <h3>Add part</h3>
-            <div className="field"><select name="item_id">{p.m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select></div>
-            <div className="row"><input name="qty" defaultValue="1" placeholder="Qty" />{p.discountEdit && <input name="discount_amount" placeholder="Discount AED" />}</div>
-            {p.priceEdit && <div className="field" style={{ marginTop: 6 }}><input name="unit_price" placeholder="Override unit price (manager)" /></div>}
+            <div className="field"><label>Part</label><select name="item_id" required>{p.m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select></div>
+            <div className="row"><div className="field"><label>Qty</label><input name="qty" defaultValue="1" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
+            {p.priceEdit && <div className="field"><label>Override unit price (manager, optional)</label><input name="unit_price" inputMode="decimal" /></div>}
             <button className="btn sm" style={{ marginTop: 6 }}>Add part</button></form>
           <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="outside" />
             <h3>Add outside work</h3>
-            <div className="field"><input name="description" placeholder="Description" required /></div>
-            <div className="row"><input name="unit_price" placeholder="Price AED" required />{p.discountEdit && <input name="discount_amount" placeholder="Discount AED" />}</div>
+            <div className="field"><label>Description</label><input name="description" required /></div>
+            <div className="row"><div className="field"><label>Price AED</label><input name="unit_price" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
             <button className="btn sm" style={{ marginTop: 6 }}>Add outside work</button></form>
         </div>
       )}
@@ -112,8 +112,8 @@ export function QuotationPanel(p: {
                   <label className="inline"><input type="radio" name={`d_${l.id}`} value="approved" defaultChecked /> Approve</label>{"  "}
                   <label className="inline"><input type="radio" name={`d_${l.id}`} value="declined" /> Decline</label></td></tr>
               ))}</tbody></table>
-              <div className="row"><select name="channel"><option value="in_person">In person</option><option value="phone">Phone</option><option value="email">Email</option><option value="whatsapp_reply">WhatsApp reply</option></select>
-                <input name="note" placeholder="Note (required for phone or WhatsApp reply)" /><button className="btn green shrink">Record answer</button></div>
+              <div className="row"><div className="field"><label>How they answered</label><select name="channel"><option value="in_person">In person</option><option value="phone">Phone</option><option value="email">Email</option><option value="whatsapp_reply">WhatsApp reply</option></select></div>
+                <div className="field"><label>Note (needed for phone or WhatsApp reply)</label><input name="note" /></div><button className="btn green shrink">Record answer</button></div>
               <p className="small muted">If the customer approved through the link, there is nothing to do here: the answer appears on its own. If they replied YES in WhatsApp instead, choose WhatsApp reply and paste what they wrote into the note.</p>
             </form>
           )}

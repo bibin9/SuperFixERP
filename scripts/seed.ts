@@ -91,7 +91,7 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
   const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
 
   // Enquiry 1 (YAS): 60,000 km service, quotation sent and waiting for the customer (FSD 5.1 example, 978.08).
-  const e1 = await createEnquiry(priya, { customer_id: faisal, vehicle_id: lc, service_asked: "60,000 km service and brake noise", source: "whatsapp",
+  const e1 = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: faisal, vehicle_id: lc, service_asked: "60,000 km service and brake noise", source: "whatsapp",
     odometer_in: "60110", fuel_level: "5", complaints: "60k service due; squeal from front brakes" });
   await addEnquiryLine(priya, e1.id, { line_type: "labour", service_id: svc["SVC-60K"] });
   await addEnquiryLine(priya, e1.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "5" });
@@ -101,7 +101,7 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
   if (q1.status === "ready_to_send") await sendQuotation(priya, q1.id);
 
   // Enquiry 2 (YAS): approved in person (wiper declined), job card created, parts issued, ready to invoice.
-  const e2 = await createEnquiry(priya, { customer_id: fatima, vehicle_id: patrol, service_asked: "AC not cooling, oil change", source: "walk_in",
+  const e2 = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: fatima, vehicle_id: patrol, service_asked: "AC not cooling, oil change", source: "walk_in",
     odometer_in: "91240", fuel_level: "3", complaints: "AC not cooling; due for oil change" });
   await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
   await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["OIL-QK"] });
@@ -130,7 +130,7 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
   // Arjun is clocked in on the battery, so the board and the technician phone screen have live work to show.
   const noura = (await createCustomer(priya, { customer_type: "individual", title: "Ms", first_name: "Noura", last_name: "Al Hammadi", country_code: "AE", mobile: "052 610 7741", id_type: "Emirates ID", id_number: "784199012345671" })).id!;
   const prado = (await createVehicle(priya, { owner_customer_id: noura, registered_in: "AUH", plate_code: "2", plate_number: "60417", vin: "JTEBH3FJ70K123456", make: "Toyota", model: "Prado", model_year: "2019", colour: "Black", odometer: "120300" })).id!;
-  const e4 = await createEnquiry(priya, { customer_id: noura, vehicle_id: prado, service_asked: "AC weak, battery weak", source: "walk_in", odometer_in: "120410", fuel_level: "4", complaints: "AC not cold at noon; slow to start in the morning" });
+  const e4 = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: noura, vehicle_id: prado, service_asked: "AC weak, battery weak", source: "walk_in", odometer_in: "120410", fuel_level: "4", complaints: "AC not cold at noon; slow to start in the morning" });
   await addEnquiryLine(priya, e4.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
   await addEnquiryLine(priya, e4.id, { line_type: "labour", service_id: svc["BATT-FIT"] });
   await addEnquiryLine(priya, e4.id, { line_type: "part", item_id: items["BAT-70AH"], qty: "1" });
@@ -148,7 +148,7 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
 
   // Enquiry 3 (QUS, Al Qusais): fleet 10k service quoted at another branch, used to show branch separation.
   const sara = await ctxFor("sara", "QUS");
-  const e3 = await createEnquiry(sara, { customer_id: fleet, vehicle_id: hilux, service_asked: "Fleet 10k service", source: "phone", odometer_in: "64500", fuel_level: "4" });
+  const e3 = await createEnquiry(sara, { follow_up_at: "2026-12-01T10:00", customer_id: fleet, vehicle_id: hilux, service_asked: "Fleet 10k service", source: "phone", odometer_in: "64500", fuel_level: "4" });
   await addEnquiryLine(sara, e3.id, { line_type: "labour", service_id: svc["SVC-10K"] });
   await addEnquiryLine(sara, e3.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
   await saveQuotation(sara, e3.id, {});
@@ -197,9 +197,11 @@ async function seedHr(adminUrl: string) {
   for (const [u, fn, ln, nat, b, dp, dg, join, lm, pay, agent, method, shift] of staff) {
     n++;
     const key = u ?? `${fn}.${ln}`.toLowerCase();
-    const probation = join > plus(-180) ? plus(13) : null;
+    // Probation ends 13 days from today for a recent joiner, but never more than six months after joining (UAE Labour Law).
+    const sixMonths = (() => { const d = new Date(`${join}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 180); return d.toISOString().slice(0, 10); })();
+    const probation = join > plus(-180) ? (plus(13) < sixMonths ? plus(13) : sixMonths) : null;
     const e = await createEmployee(fatima, {
-      branch_id: await br(b), first_name: fn, last_name: ln, nationality: nat, gender: ["priya", "sara", "maryam", "fatima.hr"].includes(u ?? "") ? "female" : "male",
+      branch_id: await br(b), first_name: fn, last_name: ln, nationality: nat, date_of_birth: `19${80 + (n % 15)}-0${1 + (n % 9)}-1${n % 9}`, gender: ["priya", "sara", "maryam", "fatima.hr"].includes(u ?? "") ? "female" : "male",
       department_id: await dep(dp), designation_id: await des(dg), joining_date: join, contract_type: "unlimited", probation_end: probation,
       line_manager_id: lm ? empIds[lm] : "", mohre_person_code: String(10000000000000 + n * 7919), labour_card_no: `LC${100200 + n}`,
       wps_agent_id: agent, pay_method: method, iban: method === "iban" ? `AE07033123456789012${String(n).padStart(4, "0")}` : "", wps_card_no: method === "wps_card" ? `4012000011${String(n).padStart(6, "0")}` : "",

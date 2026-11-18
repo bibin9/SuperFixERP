@@ -2,7 +2,7 @@ import { requireCtx } from "@/lib/session";
 import { myJobs, minutesText } from "@/lib/services/workshop";
 import { masters } from "@/lib/services/masters";
 import { clockAction } from "@/app/actions-ops";
-import { Flash, PageHead, Link, plate, label } from "@/components/ui";
+import { Flash, PageHead, Link, Plate, label } from "@/components/ui";
 
 /** Technician phone screen (WS-04, UX-02): big buttons, one job at a time. */
 export default async function MyJobs({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
@@ -19,7 +19,7 @@ export default async function MyJobs({ searchParams }: { searchParams: Promise<R
       {!jobs.length && <p className="muted">No work is assigned to you right now.</p>}
       {jobs.map((j) => (
         <div key={j.line_id} className="techjob">
-          <div className="row"><b style={{ fontSize: 18 }}>{plate(j)}</b><span className={`pill ${j.colour}`}>{minutesText(j.minutes)}{j.standard_hours ? ` / ${Number(j.standard_hours)} h` : ""}</span></div>
+          <div className="row"><Plate v={j} /><span className={`pill ${j.colour}`}>{minutesText(j.minutes)}{j.standard_hours ? ` / ${Number(j.standard_hours)} h` : ""}</span></div>
           <div className="small">{j.make} {j.model} · <Link href={`/jobs/${j.job_id}`}>{j.doc_no}</Link>{j.bay_code ? ` · bay ${j.bay_code}` : ""}</div>
           <div style={{ marginTop: 4 }}>{j.description}</div>
           <div className="small muted">{j.state === "working" ? "Working" : j.state === "paused" ? `Paused: ${label(j.pauseReason)}` : j.state === "done" ? "Clocked out" : "Not started"}</div>

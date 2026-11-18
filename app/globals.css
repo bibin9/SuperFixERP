@@ -212,3 +212,56 @@ th:has(>.vh){position:relative}
 .fk::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--blue)}
 @media(max-width:700px){.help-toc ol{columns:1}.help-search .row{flex-direction:column;align-items:stretch}}
 @media print{.help-part,.card{break-inside:avoid}.fstep{break-inside:avoid}}
+/* Mandatory fields: a red * after the label of any required input */
+.field:has(> :is(input,select,textarea)[required]) > label::after,
+.field:has(> * > :is(input,select,textarea)[required]) > label::after{content:" *";color:var(--late);font-weight:700}
+/* Alignment: buttons line up with the boxes beside them */
+.btn{min-height:38px}
+.row>:not(.field):not(.ph-actions){margin-bottom:10px}
+.row>.shrink:has(>.btn:only-child){display:flex;align-items:flex-end}
+:is(input,select)~:is(.btn.sm,button.sm),.row .btn.sm{min-height:38px}
+tr:has(td :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select)) td :is(input:not([type=checkbox]):not([type=radio]),select){min-height:32px;padding:5px 8px;font-size:13.5px}
+tr:has(td :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select)) td .btn{min-height:32px;padding:5px 10px;font-size:13px}
+.ph-actions>.btn.sm,.ph-actions .btn.sm{min-height:38px}
+/* ---------- Theme: Superfix / BayPilot look ---------- */
+:root{--font:"Poppins",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;--primary:#d42a37;--primary-hover:#b8202c;--r:14px}
+body{font-size:13.5px;letter-spacing:.005em}
+h1{font-weight:600;letter-spacing:-.01em}h2{font-weight:600}
+.btn{background:var(--primary);border-radius:11px;font-weight:500}
+.btn:hover{filter:none;background:var(--primary-hover)}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid #d5dce6}.btn.ghost:hover{background:#f6f8fb;border-color:#b9c3d1}
+.btn.green{background:var(--green)}.btn.green:hover{background:#09652f}
+.btn.wa{background:#1c9c4f}.btn.wa:hover{background:#178543}
+.btn.amber:hover{background:#7d4a00}
+input,select,textarea{border:1.5px solid #d5dce6;border-radius:11px;padding:8px 11px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--red-soft)}
+.top input[type=search]{border-radius:11px;border:1.5px solid var(--line)}
+label{font-weight:500;color:var(--ink2)}
+.card{border:1px solid #edf0f5;box-shadow:0 1px 2px rgba(15,23,42,.04),0 6px 20px rgba(15,23,42,.05)}
+.brand .mk{background:var(--red)}
+.nav .grp{display:flex;align-items:center;gap:10px;font-weight:500}
+.nicon{flex:none;opacity:.85}.nav .navgrp.open .nicon,.nav .navgrp.here .nicon{opacity:1;color:#fff}
+.nav .navitems{margin-left:22px}
+.nav a.active{background:rgba(236,53,66,.16);color:#fff;box-shadow:inset 3px 0 0 var(--red)}
+.nav .navgrp.here .grp{color:#fff}
+.tabs a{border-radius:20px;border:1.5px solid var(--line);font-weight:500}.tabs a:hover{text-decoration:none;border-color:#c5cedb}
+.tabs a.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.tabs .cnt{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:#eef2f7;color:var(--ink2);font-size:11.5px;font-weight:600;text-align:center}
+.tabs a.on .cnt{background:rgba(255,255,255,.18);color:#fff}
+th{font-weight:600}
+.kpi .v{font-weight:600}
+/* Number plates */
+.plate{display:inline-flex;align-items:stretch;border:1.5px solid #1b2433;border-radius:6px;background:#fff;font-weight:700;font-size:12.5px;line-height:1;overflow:hidden;vertical-align:middle;white-space:nowrap;font-family:var(--font)}
+.plate .pe{background:#1b2433;color:#fff;font-size:9.5px;letter-spacing:.06em;padding:4px 5px;display:flex;align-items:center}
+.plate .pc{padding:4px 6px;border-right:1.5px solid #1b2433;color:var(--red);display:flex;align-items:center}
+.plate .pn{padding:4px 8px;letter-spacing:.06em;color:#111;display:flex;align-items:center}
+.tile .plate{font-size:15px}.techjob .plate{font-size:17px}
+button,input,select,textarea{font-family:inherit}
+input:not([type=checkbox]):not([type=radio]):not([type=file]),select{min-height:40px;height:40px}
+input[type=file]{min-height:40px;padding:6px 8px}
+.btn{min-height:40px}
+:is(input,select)~:is(.btn.sm,button.sm),.row .btn.sm,.ph-actions .btn.sm,.ph-actions>.btn.sm{min-height:40px}
+details.pick summary{border:1.5px solid #d5dce6;border-radius:11px;min-height:40px;display:flex;align-items:center}
+tr:has(td :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select)) td :is(input:not([type=checkbox]):not([type=radio]),select){min-height:34px;height:34px}
+tr:has(td :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select)) td .btn{min-height:34px}
+.budget input{height:30px;min-height:30px}

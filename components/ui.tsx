@@ -54,6 +54,12 @@ export function Status({ s }: { s: string }) {
 export const plate = (v: { registered_in?: string; plate_code?: string | null; plate_number?: string }) =>
   `${v.registered_in ?? ""} ${v.plate_code ?? ""} ${v.plate_number ?? ""}`.replace(/\s+/g, " ").trim();
 
+/** A number plate drawn like a UAE/GCC plate: emirate, code and number. */
+export function Plate({ v }: { v: { registered_in?: string; plate_code?: string | null; plate_number?: string } }) {
+  if (!v.plate_number) return <span className="muted">—</span>;
+  return <span className="plate" title={plate(v)}><span className="pe">{v.registered_in}</span>{v.plate_code ? <span className="pc">{v.plate_code}</span> : null}<span className="pn">{v.plate_number}</span></span>;
+}
+
 export const custName = (r: { customer_type?: string; title?: string | null; first_name?: string | null; last_name?: string | null; company_name?: string | null }) =>
   r.customer_type === "individual" ? [r.title, r.first_name, r.last_name].filter(Boolean).join(" ") : `M/s. ${r.company_name ?? ""}`;
 

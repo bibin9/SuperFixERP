@@ -3,7 +3,7 @@ import { Ctx, assertCan, canSee } from "../access";
 import { withTx } from "../db";
 import { invalid, notFound, conflict } from "../errors";
 import { audit, diff } from "./audit";
-import { normaliseMobile, normaliseVin, normaliseTrn, normaliseEmiratesId, optStr, required, str, optInt } from "../validate";
+import { normaliseMobile, normaliseVin, normaliseTrn, normaliseEmiratesId, optStr, required, str, optInt, int } from "../validate";
 
 /** M02. Customers and vehicles are shared by every branch (CV-12). */
 
@@ -76,7 +76,7 @@ async function buildCustomer(c: PoolClient, f: CustomerInput) {
     customer_type: type,
     title: type === "individual" ? required(f.title, "Title") : null,
     first_name: type === "individual" ? required(f.first_name, "First name") : null,
-    last_name: type === "individual" ? optStr(f.last_name) : null,
+    last_name: type === "individual" ? required(f.last_name, "Last name") : null,
     company_name: type === "individual" ? null : required(f.company_name, "Company name"),
     name_ar: optStr(f.name_ar),
     country_code: ctry.code,
@@ -192,7 +192,7 @@ export async function createVehicle(ctx: Ctx, f: Record<string, unknown>): Promi
   return withTx(ctx, async (c) => {
     const owner = required(f.owner_customer_id, "Owner");
     if (!(await c.query("SELECT 1 FROM customer WHERE id = $1 AND active", [owner])).rowCount) throw invalid("Owner not found.");
-    const plate = await plateKeyFor(c, required(f.registered_in, "Registered in"), optStr(f.plate_code), required(f.plate_number, "Plate number"));
+    const plate = await plateKeyFor(c, required(f.registered_in, "Registered in"), required(f.plate_code, "Plate code"), required(f.plate_number, "Plate number"));
     const vin = normaliseVin(f.vin);
     const vinMissing = vin ? null : optStr(f.vin_missing_reason);
     if (!vin && !vinMissing) throw invalid("Enter the VIN, or tick VIN not available and give a reason.");
@@ -201,7 +201,7 @@ export async function createVehicle(ctx: Ctx, f: Record<string, unknown>): Promi
     if (dups.some((d) => d.kind === "vin")) return { duplicates: dups.filter((d) => d.kind === "vin") };
     const reason = optStr(f.duplicate_reason);
     if (dups.length && !reason) return { duplicates: dups };
-    const year = optInt(f.model_year, "Year", 1950, new Date().getFullYear() + 1);
+    const year = int(required(f.model_year, "Year"), "Year", 1950, new Date().getFullYear() + 1);
     const r = await c.query(
       `INSERT INTO vehicle (registered_in, plate_code, plate_number, vin, vin_missing_reason, make, model, model_year, engine, fuel, transmission, colour,
                             mulkiya_expiry, odometer, owner_customer_id, duplicate_reason, created_by, updated_by)

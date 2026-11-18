@@ -1,6 +1,6 @@
 import { minutesText } from "@/lib/services/workshop";
 import { STATUS_LABEL } from "@/lib/services/jobs";
-import { plate } from "@/components/ui";
+import { Plate } from "@/components/ui";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const COLS = ["approved", "awaiting_parts", "in_progress", "quality_check", "ready"];
@@ -15,7 +15,7 @@ export function BoardTiles({ jobs, link, columns }: { jobs: Row[]; link?: boolea
       return <section key={s} style={{ marginBottom: 16 }}><h2 style={{ fontSize: 15 }}>{STATUS_LABEL[s]} ({list.length})</h2>
         <div className={columns ? "colstack" : "board"}>{list.map((j) => {
           const body = <>
-            <b>{plate(j)}</b> <span className="small">{j.doc_no}</span>
+            <Plate v={j} /> <span className="small">{j.doc_no}</span>
             <div className="small">{j.make} {j.model}{j.bay_code ? ` · bay ${j.bay_code}` : ""}</div>
             <div className="small">{j.technicians ?? "Not assigned"}</div>
             <div className="small">{j.minutesLeft === null ? "No promised time" : j.minutesLeft >= 0 ? `Due in ${minutesText(j.minutesLeft)}` : `Late by ${minutesText(-j.minutesLeft)}`}{j.waiting_parts ? " · waiting for parts" : ""}</div>

@@ -42,7 +42,7 @@ export default async function Roles({ searchParams }: { searchParams: Promise<Re
         <button className="btn">Save {role.name}</button>
       </form>
       <div className="card" style={{ marginTop: 16 }}><h2>Add role</h2>
-        <form action={createRoleAction} className="row"><input name="code" placeholder="code, e.g. cashier" required /><input name="name" placeholder="Name" required /><button className="btn shrink">Add role</button></form>
+        <form action={createRoleAction} className="row"><div className="field"><label>Role code</label><input name="code" placeholder="e.g. cashier" required /></div><div className="field"><label>Role name</label><input name="name" required /></div><button className="btn shrink">Add role</button></form>
         <p className="small muted">New roles start with no screens and every sensitive field hidden.</p>
       </div>
     </>

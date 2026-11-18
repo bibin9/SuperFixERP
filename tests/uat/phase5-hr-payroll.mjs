@@ -76,6 +76,9 @@ await step("TC-HR01-01", "HR adds an employee: a wrong IBAN is shown in red unde
   await fatima.fill("input[name=first_name]", "Salim"); await fatima.fill("input[name=last_name]", "Haddad");
   await pickOpt(fatima.locator("select[name=nationality]"), /^Jordan/);
   await pickOpt(fatima.locator("select[name=designation_id]"), /Technician/);
+  await fatima.selectOption("select[name=department_id]", { index: 1 }); await fatima.selectOption("select[name=gender]", "male");
+  await fatima.fill("input[name=date_of_birth]", "1990-04-12"); await fatima.fill("input[name=mobile]", "0501239876");
+  await fatima.fill("input[name=labour_card_no]", "LC900123");
   await fatima.fill("input[name=joining_date]", `${THIS}-01`);
   await fatima.fill("input[name=mohre_person_code]", "10000000123456");
   await pickOpt(fatima.locator("select[name=wps_agent_id]"), /Emirates NBD/);

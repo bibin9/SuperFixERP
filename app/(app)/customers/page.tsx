@@ -14,7 +14,7 @@ export default async function Customers({ searchParams }: { searchParams: Promis
       </PageHead>
       <Flash sp={sp} />
       <div className="card">
-        <form className="row" style={{ marginBottom: 10 }}><input name="q" defaultValue={sp.q} placeholder="Name, customer no. or mobile" /><button className="btn ghost shrink">Filter</button></form>
+        <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Search customers</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name, customer no. or mobile" /></div><button className="btn ghost shrink">Filter</button></form>
         <table>
           <thead><tr><th>No.</th><th>Name</th><th>Type</th><th>Mobile</th><th className="num">Vehicles</th></tr></thead>
           <tbody>{rows.map((r) => (

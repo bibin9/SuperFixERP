@@ -37,6 +37,8 @@ export async function createEnquiry(ctx: Ctx, f: Record<string, unknown>) {
     const customerId = optStr(f.customer_id);
     const vehicleId = optStr(f.vehicle_id);
     if (!customerId && !optStr(f.contact_mobile)) throw invalid("Pick a customer or enter a contact mobile.");
+    if (!customerId) required(f.contact_name, "Contact name");
+    required(f.follow_up_at, "Follow up at");
     await checkVehicle(c, customerId, vehicleId);
     const source = required(f.source, "Source");
     if (!(await c.query("SELECT 1 FROM lookup_value WHERE list = 'enquiry_source' AND code = $1 AND active", [source])).rowCount) throw invalid("Unknown enquiry source.");
@@ -209,4 +211,14 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
     await audit(c, ctx, "job_card", job.id, "create", { doc_no: docNo, enquiry: enq.doc_no, quotation: q.doc_no, approved_total: q.approved_total }, enq.branch_id);
     return { id: job.id as string, docNo: docNo as string, backOrdered };
   });
+}
+
+/** Enquiry count per status for the filter chips (same scope as listEnquiries). */
+export async function enquiryCounts(ctx: Ctx): Promise<Record<string, number>> {
+  if (!can(ctx, "customers", "view")) return {};
+  const rows = await withTx(ctx, async (c) => (await c.query(
+    "SELECT status, count(*)::int n FROM enquiry WHERE doc_no NOT LIKE 'LEGACY-%' GROUP BY status")).rows);
+  const out: Record<string, number> = { "": 0 };
+  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; }
+  return out;
 }

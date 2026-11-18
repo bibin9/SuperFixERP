@@ -39,7 +39,7 @@ let odo = 500000;
 /** A job at YAS: brake labour plus the given parts, approved, parts issued, QC passed, Ready. */
 async function readyJob(parts: [string, string][], issue = true) {
   const priya = await ctxFor("priya", "YAS");
-  const e = await createEnquiry(priya, { customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
+  const e = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: cust, vehicle_id: veh, service_asked: "test", source: "walk_in" });
   await addEnquiryLine(priya, e.id, { line_type: "labour", service_id: svc["BRK-FR"] });
   for (const [p, q] of parts) await addEnquiryLine(priya, e.id, { line_type: "part", item_id: items[p], qty: q });
   const qt = await saveQuotation(priya, e.id, {});

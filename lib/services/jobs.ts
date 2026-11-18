@@ -286,3 +286,16 @@ export async function assignTechnician(ctx: Ctx, lineId: string, techId: string 
 export function roleCodeAt(ctx: Ctx, branchId?: string | null) {
   return roleAt(ctx, branchId)?.roleCode ?? "";
 }
+
+/** Job count per status for the filter chips (same scope as listJobs). */
+export async function jobCounts(ctx: Ctx): Promise<Record<string, number>> {
+  if (!can(ctx, "jobs", "view") && !can(ctx, "workshop", "view")) return {};
+  const ownOnly = !can(ctx, "jobs", "view");
+  const rows = await withTx(ctx, async (c) => (await c.query(
+    `SELECT j.status, count(*)::int n FROM job_card j
+      WHERE (NOT $1 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND (l.technician_id = $2 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $2))))
+      GROUP BY j.status`, [ownOnly, ctx.userId])).rows);
+  const out: Record<string, number> = { "": 0 };
+  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; }
+  return out;
+}
