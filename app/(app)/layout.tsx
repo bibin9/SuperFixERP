@@ -10,6 +10,7 @@ import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
 import { FileSizeGuard } from "@/components/FileSizeGuard";
+import { HelpLink } from "@/components/HelpLink";
 import { PHONE_TABLES_INLINE } from "@/lib/phone-tables";
 import { FormErrors } from "@/components/FormErrors";
 import { Suspense } from "react";
@@ -100,6 +101,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/admin/settings", "Settings", can("settings")],
       ["/admin/audit", "Audit log", can("audit")],
     ]],
+    ["Help", [
+      ["/help", "User guide", true],
+      ["/help#flows", "Process flows", true],
+    ]],
   ];
   const groups: NavGroup[] = menu
     .map(([label, items]) => ({ key: label.toLowerCase().replace(/[^a-z]+/g, "-"), label, items: items.filter((i) => i[2]).map(([href, l, , badge]) => ({ href, label: l, badge })) }))
@@ -132,6 +137,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ) : (
             <span className="pill">{branches[0]?.code} · {branches[0]?.name_en}</span>
           )}
+          <HelpLink />
           <div className="who"><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</div>
         </header>
         <main className="main">{children}</main>

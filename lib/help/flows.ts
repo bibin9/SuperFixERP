@@ -1,0 +1,168 @@
+import type { HelpFlow } from "./types";
+
+export const FLOWS: HelpFlow[] = [
+  {
+    slug: "customer-visit", title: "A customer's visit, from enquiry to closed job",
+    summary: "The main flow of the workshop. Every job follows these steps in this order.", access: ["all"],
+    topics: ["enquiries", "quotation", "job-card", "my-jobs", "delivery", "invoicing", "payments"],
+    steps: [
+      { who: "Service advisor", what: "Take the enquiry: customer, vehicle, complaints and check-in", where: "/enquiries" },
+      { who: "Service advisor", what: "Make the quotation: labour, parts and outside work", note: "A big discount or low price goes to the branch manager first" },
+      { who: "Service advisor", what: "Send the approval link by WhatsApp and press Mark as sent" },
+      { who: "Customer", what: "Approves line by line on the link, or in person or by phone", note: "Declined lines are kept as deferred work" },
+      { who: "Service advisor", what: "Create the job card from the approved lines", note: "Approved parts are set aside in stock" },
+      { who: "Foreman", what: "Assign technicians and a bay to each labour line", where: "/workshop" },
+      { who: "Stock keeper", what: "Issue the approved parts to the job", where: "/stock/queue" },
+      { who: "Technician", what: "Clock in, do the work, clock out on My jobs", where: "/my-jobs", note: "Extra work found goes back to the customer as a revised quotation" },
+      { who: "Foreman", what: "Quality check: pass makes the car Ready, fail sends it back" },
+      { who: "Service advisor", what: "Prepare and post the invoice", where: "/invoices" },
+      { who: "Cashier", what: "Record the payment (cash, card, transfer or cheque)" },
+      { who: "Service advisor", what: "Deliver the car: walkthrough, old parts, odometer, customer's signature" },
+      { who: "System", what: "The job closes once invoiced, delivered and fully paid" },
+    ],
+  },
+  {
+    slug: "extra-work", title: "Extra work found during a job",
+    summary: "Nothing is added to a job without the customer's approval.", access: ["customers", "jobs", "workshop", "technician"],
+    topics: ["job-card", "quotation"],
+    steps: [
+      { who: "Technician", what: "Finds a problem, tells the foreman or presses Need part" },
+      { who: "Service advisor", what: "Adds the labour or parts on the job card and saves", note: "This makes a revised quotation" },
+      { who: "Service advisor", what: "Sends the revised quotation by WhatsApp" },
+      { who: "Customer", what: "Approves or declines the extra lines" },
+      { who: "Foreman", what: "Assigns the approved extra work; declined work is offered again next visit" },
+    ],
+  },
+  {
+    slug: "parts-for-job", title: "Getting parts for a job",
+    summary: "From the technician's request to the part in their hand.", access: ["stock", "workshop", "technician", "purchasing"],
+    topics: ["store-queue", "planning", "transfers", "purchase-orders"],
+    steps: [
+      { who: "Technician", what: "Presses Need part on My jobs (or the part is already approved on the job)", where: "/my-jobs" },
+      { who: "Stock keeper", what: "Sees it in the Store queue", where: "/stock/queue", note: "If not quoted, the advisor asks the customer first" },
+      { who: "Stock keeper", what: "In stock? Issue it and press Mark handed out" },
+      { who: "Stock keeper", what: "Not in stock? Planning: request it from another branch or Raise PO", where: "/stock/planning" },
+      { who: "Purchasing / other branch", what: "Order arrives or transfer is dispatched, and is received into stock" },
+      { who: "Stock keeper", what: "Issues the part to the job; it goes to that job first" },
+    ],
+  },
+  {
+    slug: "purchase", title: "Buying from a supplier",
+    summary: "Purchase order to supplier payment.", access: ["purchasing", "accounting"],
+    topics: ["purchase-orders", "supplier-bills", "receivables-payables"],
+    steps: [
+      { who: "Purchasing officer", what: "Create the purchase order and add lines", where: "/purchasing" },
+      { who: "Approver", what: "Approves it in Approvals (by amount)", where: "/approvals" },
+      { who: "Purchasing officer", what: "Sends the order to the supplier" },
+      { who: "Stock keeper", what: "Goods arrive: record good and damaged quantities, Receive into stock" },
+      { who: "Purchasing officer", what: "Enter the supplier's bill and match it to what was received", where: "/purchasing/bills", note: "A mismatch goes to the accountant" },
+      { who: "Accountant", what: "Pay the supplier by transfer, cheque or petty cash", where: "/accounts/payables" },
+    ],
+  },
+  {
+    slug: "counter-sale", title: "Counter sale",
+    summary: "Selling parts without a job card.", access: ["invoices"], topics: ["counter-sale"],
+    steps: [
+      { who: "Cashier", what: "Find the customer, or choose Walk-in", where: "/billing/counter-sale" },
+      { who: "Cashier", what: "Add items and quantities; price comes from the customer's price level" },
+      { who: "Branch manager", what: "Overrides only if the discount or price is outside the limits" },
+      { who: "Cashier", what: "Choose the payment method and press Post sale", note: "A walk-in pays in full" },
+      { who: "Cashier", what: "Print the invoice for the customer" },
+    ],
+  },
+  {
+    slug: "cash-day", title: "Cash at the end of the day",
+    summary: "From payments taken to cash signed off.", access: ["invoices", "accounting"], topics: ["payments", "cash-closing", "bank"],
+    steps: [
+      { who: "Cashier", what: "Takes payments during the day on invoices and counter sales" },
+      { who: "Cashier", what: "Counts the drawer by note and coin and presses Close my cash", where: "/billing/cash" },
+      { who: "Branch manager", what: "Checks the count and presses Sign off", note: "Differences go to cash over and short" },
+      { who: "Accountant", what: "Card settlements are posted when the bank pays", where: "/accounts/bank" },
+    ],
+  },
+  {
+    slug: "cheque", title: "A customer's cheque",
+    summary: "From receiving a cheque to cleared or returned.", access: ["invoices", "accounting"], topics: ["payments", "cheques"],
+    steps: [
+      { who: "Cashier", what: "Records the payment by cheque with number, bank and date" },
+      { who: "System", what: "The cheque stays on hand until its date", where: "/billing/cheques" },
+      { who: "Accountant", what: "Bank clears it: press Cleared, the money moves to the bank" },
+      { who: "Accountant", what: "Cheque bounces: press Returned with the reason", note: "The invoice opens again; follow up with the customer" },
+    ],
+  },
+  {
+    slug: "credit-note", title: "Credit note (return or correction)",
+    summary: "Reducing an invoice after it was posted.", access: ["invoices"], topics: ["credit-notes"],
+    steps: [
+      { who: "Cashier", what: "Opens the invoice and presses Credit note" },
+      { who: "Cashier", what: "Chooses lines, quantity or amount, what happens to the goods, and the reason" },
+      { who: "Branch manager", what: "Approves it in Approvals", where: "/approvals" },
+      { who: "System", what: "Credit note gets its number; parts go back to stock if chosen" },
+      { who: "Cashier", what: "If the invoice was paid, the credit is held for the customer to use later" },
+    ],
+  },
+  {
+    slug: "transfer", title: "Moving parts between branches",
+    summary: "Transfer order from request to receipt.", access: ["stock"], topics: ["transfers"],
+    steps: [
+      { who: "Receiving stock keeper", what: "Asks another branch for parts", where: "/stock/transfers" },
+      { who: "Supplying branch manager", what: "Approves the request" },
+      { who: "Supplying stock keeper", what: "Packs the parts and presses Dispatch" },
+      { who: "Receiving stock keeper", what: "Checks what arrived and presses Receive into stock", note: "Short or damaged quantities need a reason" },
+    ],
+  },
+  {
+    slug: "leave", title: "Leave request",
+    summary: "From the employee's request to the approved leave.", access: ["all"], topics: ["my-hr", "leave"],
+    steps: [
+      { who: "Employee", what: "Applies for leave on My HR and presses Send to my manager", where: "/me" },
+      { who: "Line manager", what: "Approves or rejects it in Approvals", where: "/approvals" },
+      { who: "HR", what: "Gives final approval" },
+      { who: "System", what: "The leave balance goes down; payroll uses it for the month" },
+    ],
+  },
+  {
+    slug: "payroll", title: "Monthly payroll",
+    summary: "From attendance to salaries paid.", access: ["payroll"], topics: ["attendance", "leave", "payroll"],
+    steps: [
+      { who: "HR", what: "Attendance imported, leave and overtime approved, salary changes and loans approved" },
+      { who: "HR", what: "Calculate the month and check the changes from last month", where: "/payroll" },
+      { who: "Owner", what: "Approves the run; the month is locked and posted to each branch" },
+      { who: "HR", what: "Downloads the WPS salary files and uploads them to the bank" },
+      { who: "HR", what: "Marks the run paid; payslips appear in My HR" },
+    ],
+  },
+  {
+    slug: "month-end", title: "Closing a month",
+    summary: "What must be done before the accountant closes the month.", access: ["accounting"], topics: ["cash-closing", "bank", "counts", "month-end", "vat"],
+    steps: [
+      { who: "Branch manager", what: "Every cash closing of the month signed off", where: "/billing/cash" },
+      { who: "Accountant", what: "Bank statements imported, matched and locked", where: "/accounts/bank" },
+      { who: "Stock keeper", what: "Stock counts submitted and approved", where: "/stock/adjustments" },
+      { who: "Accountant", what: "All vouchers and supplier bills posted; depreciation and allocation run" },
+      { who: "Accountant", what: "VAT return checked for the quarter", where: "/accounts/vat" },
+      { who: "Accountant", what: "Close the month on Month end", where: "/accounts/periods", note: "Only the owner can reopen it" },
+    ],
+  },
+  {
+    slug: "hire", title: "Hiring a new employee",
+    summary: "From an opening to a working employee with a sign-in.", access: ["hr", "admin"], topics: ["recruitment", "employees", "users"],
+    steps: [
+      { who: "HR", what: "Add the opening and the applicants", where: "/hr/recruitment" },
+      { who: "HR / manager", what: "Interview, make the offer, press Hire with the joining date" },
+      { who: "HR", what: "Complete the employee file: job, contract, WPS, documents, salary", where: "/hr/employees" },
+      { who: "Administrator", what: "Create their sign-in user and give a role at the branch", where: "/admin/users" },
+      { who: "HR", what: "Link the sign-in user on the employee file; tick the joining checklist" },
+    ],
+  },
+  {
+    slug: "approvals", title: "How an approval works",
+    summary: "The same steps for every document that needs a manager.", access: ["all"], topics: ["approvals", "basics"],
+    steps: [
+      { who: "You", what: "Press Send for approval (or Submit for approval)" },
+      { who: "System", what: "Finds the approver from the approval workflow (by amount or discount)" },
+      { who: "Approver", what: "Approve, Reject with a comment, or Send back with a comment", where: "/approvals" },
+      { who: "You", what: "See the result under Sent by me and in the document's Approval history" },
+    ],
+  },
+];

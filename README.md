@@ -128,6 +128,10 @@ Extra work found later is added on the job card and goes to the customer as a re
 
 - **Posting twice is prevented**: every posting form (invoice, payment, advance, counter sale, stock issue) carries a request key. A repeat of the same submission, even many at once, gets the first result back; the same key used for something different is refused. Invoices, payments, advances and credit notes lock the job card first, and a database deadlock is retried automatically, so busy counters do not see server errors (migration 017).
 
+## User guide in the app
+
+**Help, User guide** in the menu (and **? Help** at the top of every screen, which opens the guide for that screen) has step-by-step guides for every module, written for non-technical staff, and 14 process flows that show who does each step in order. Each user sees the guides for what their role can do; **Show every guide** shows them all. Guides can be searched and printed. The text lives in `lib/help/`.
+
 ## Demo data you will see
 
 - **YAS-ENQ-26-00001**: Faisal's 60K service, 103.50 discount, quotation YAS-Q-26-00001-1 sent. The total is 978.08, which matches the FSD 5.1 worked example. Open the customer link to approve, then create the job card.
