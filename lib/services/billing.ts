@@ -12,6 +12,7 @@ import { D, Decimal, parseDec, r2 } from "../money";
 import { today, addDaysLocal } from "./stock";
 import { optStr, str } from "../validate";
 import { claimRequest, finishRequest, lockJobFirst } from "./requests";
+import { lockSeries } from "./numbering";
 
 /**
  * M11 billing (FSD 4.11): tax invoices from job cards with split billing by line, warranty claims,
@@ -141,6 +142,7 @@ export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: strin
     const lock = await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [jobId]);
     if (!lock.rowCount) throw notFound("Job card");
     assertCan(ctx, "invoices", "create", lock.rows[0].branch_id);
+    await lockSeries(c, lock.rows[0].branch_id, ["invoice", "journal"]);
     const b = await invoiceBasis(c, jobId, opts.lineIds);
     const failed = b.checks.filter((x) => !x.ok);
     if (failed.length) throw invalid(`Cannot post the invoice: ${failed.map((x) => x.text).join("; ")}.`);
@@ -353,7 +355,7 @@ export async function recordReceipt(ctx: Ctx, f: PayIn & { invoice_id: string })
 export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id: string }) {
   const amount = parseDec(f.amount, "Amount", { min: "0.01", dp: 2 });
   if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
-  const hash = crypto.createHash("sha256").update(JSON.stringify([f.invoice_id, f.method, amount.toFixed(2), str(f.reference), str(f.cheque_no)])).digest("hex");
+  const hash = crypto.createHash("sha256").update(JSON.stringify([f.invoice_id, f.method, amount.toFixed(2), str(f.reference), str(f.cheque_no), str(f.cheque_bank), str(f.cheque_date)])).digest("hex");
   type Out = { id: string; docNo: string; duplicate: boolean; onAccount: string };
   const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "receipt", hash);
   if (replay) return replay;
@@ -369,6 +371,7 @@ export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id
   if (!inv.rowCount) throw notFound("Invoice");
   const invoice = inv.rows[0];
   assertCan(ctx, "invoices", "create", invoice.branch_id);
+  await lockSeries(c, invoice.branch_id, ["receipt", "journal"]);
   await assertCashOpen(c, ctx, invoice.branch_id, pm);
   const open = D(invoice.grand_total).minus(invoice.paid_amount).minus(invoice.credited_amount);
   const alloc = amount.lt(open) ? amount : Decimal.max(open, 0);
@@ -413,7 +416,7 @@ export async function recordAdvance(ctx: Ctx, f: PayIn & { customer_id: string; 
   if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
   const branchId = ctx.currentBranchId;
   if (!branchId) throw invalid("Choose a branch first.");
-  const hash = crypto.createHash("sha256").update(JSON.stringify(["advance", f.customer_id, f.job_card_id ?? "", f.method, amount.toFixed(2), str(f.reference)])).digest("hex");
+  const hash = crypto.createHash("sha256").update(JSON.stringify(["advance", branchId, f.customer_id, f.job_card_id ?? "", f.method, amount.toFixed(2), str(f.reference), str(f.cheque_no), str(f.cheque_bank), str(f.cheque_date)])).digest("hex");
   type Out = { id: string; docNo: string; duplicate: boolean; vat: string };
   return withTx(ctx, async (c) => {
     const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "advance", hash);
@@ -432,6 +435,7 @@ export async function recordAdvance(ctx: Ctx, f: PayIn & { customer_id: string; 
       bId = j.branch_id;
     }
     assertCan(ctx, "invoices", "create", bId);
+    await lockSeries(c, bId, ["receipt", "journal"]);
     const cust = (await c.query("SELECT * FROM customer WHERE id = $1 AND active", [f.customer_id])).rows[0];
     if (!cust || cust.is_walk_in) throw invalid("Choose the customer.");
     const { pm, isCheque } = await paymentMethod(c, f);

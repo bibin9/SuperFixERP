@@ -18,3 +18,16 @@ export async function nextDocNo(c: PoolClient, branchId: string, docType: string
   const yy = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", year: "2-digit" }).format(at);
   return `${prefix}${year_part ? yy + "-" : ""}${String(n).padStart(padding, "0")}`;
 }
+
+/**
+ * PERF-01: one lock order for number series. A posting that will use several series locks them all up
+ * front, document series first (by name) and the journal series last, before it touches stock or other
+ * rows. Every posting path that needs more than one series calls this, so no two postings can each hold
+ * one series while waiting for the other's.
+ */
+export async function lockSeries(c: PoolClient, branchId: string, docTypes: string[]) {
+  await c.query(
+    `SELECT doc_type FROM doc_series WHERE branch_id = $1 AND doc_type = ANY($2::text[])
+      ORDER BY (doc_type = 'journal'), doc_type FOR UPDATE`,
+    [branchId, docTypes]);
+}

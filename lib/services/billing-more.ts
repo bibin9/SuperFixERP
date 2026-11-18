@@ -13,7 +13,9 @@ import { D, Decimal, parseDec, r2 } from "../money";
 import { optStr, str } from "../validate";
 import { assertBuyerEinvoiceDetails, billToName, invoiceKindFor, maybeCloseJob, receiptTx, type PayIn } from "./billing";
 import { claimRequest, finishRequest, lockJobFirst } from "./requests";
+import { lockSeries } from "./numbering";
 import { setStatus } from "./jobs";
+import { csvRow } from "../csv";
 
 /** M11 credit notes and cash closing, M09 counter sales, and VAT reporting (FSD 4.9, 4.11, 5.1, 5.6). */
 
@@ -93,6 +95,7 @@ async function postCreditNote(c: PoolClient, ctx: Ctx, id: string) {
   await lockJobFirst(c, (await c.query("SELECT i.job_card_id FROM credit_note n JOIN sales_invoice i ON i.id = n.invoice_id WHERE n.id = $1", [id])).rows[0]?.job_card_id);
   const cn = (await c.query("SELECT * FROM credit_note WHERE id = $1 FOR UPDATE", [id])).rows[0];
   if (!cn || cn.status !== "pending_approval") return;
+  await lockSeries(c, cn.branch_id, ["credit_note", "journal"]);
   const inv = (await c.query("SELECT * FROM sales_invoice WHERE id = $1 FOR UPDATE", [cn.invoice_id])).rows[0];
   const lines = (await c.query(
     "SELECT cl.*, il.line_type, il.item_id, il.qty inv_qty, il.cost_value, il.credited_qty, il.credited_amount, il.taxable_amount inv_taxable, il.job_line_id FROM credit_note_line cl JOIN sales_invoice_line il ON il.id = cl.invoice_line_id WHERE cl.credit_note_id = $1 FOR UPDATE OF il", [id])).rows;
@@ -297,8 +300,10 @@ export async function postCounterSale(ctx: Ctx, f: { customer_id?: string | null
     const p = f.payment;
     const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "counter_sale", {
       branch: b, customer: f.customer_id ?? null, name: str(f.bill_to_name), lines: f.lines,
-      pay: p ? [p.method, String(p.amount ?? ""), str(p.reference), str(p.cheque_no)] : null });
+      pay: p ? [p.method, String(p.amount ?? ""), str(p.reference), str(p.cheque_no), str(p.cheque_bank), str(p.cheque_date)] : null });
     if (replay) return replay;
+    // Series first, in the shared order, before any stock row (PERF-01).
+    await lockSeries(c, b, p ? ["invoice", "receipt", "journal"] : ["invoice", "journal"]);
     const prior = (await c.query("SELECT id, doc_no FROM sales_invoice WHERE idempotency_key = $1", [f.idempotency_key])).rows[0];
     if (prior) return finishRequest<Out>(c, f.idempotency_key, { id: prior.id as string, docNo: prior.doc_no as string, duplicate: true });
     const cust = f.customer_id ? (await c.query("SELECT * FROM customer WHERE id = $1 AND active", [f.customer_id])).rows[0] : (await c.query("SELECT * FROM customer WHERE is_walk_in")).rows[0];
@@ -457,11 +462,7 @@ export async function vat201(ctx: Ctx, from: string, to: string, branchId: strin
   });
 }
 
-const csv = (rows: (string | number | null | undefined)[][]) => rows.map((r) => r.map((v) => {
-  let s = v == null ? "" : String(v);
-  if (/^[=+\-@\t\r]/.test(s) && Number.isNaN(Number(s))) s = `'${s}`; // a spreadsheet must not run text as a formula
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}).join(",")).join("\r\n");
+const csv = (rows: (string | number | null | undefined)[][]) => rows.map((r) => csvRow(r)).join("\r\n");
 
 /** FTA Audit File (VT-03): company, supply, purchase and general ledger sections for a period, as CSV. */
 export async function ftaAuditFile(ctx: Ctx, from: string, to: string) {

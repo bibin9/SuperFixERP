@@ -9,6 +9,7 @@ import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
+import { FileSizeGuard } from "@/components/FileSizeGuard";
 import { PHONE_TABLES_INLINE } from "@/lib/phone-tables";
 import { FormErrors } from "@/components/FormErrors";
 import { Suspense } from "react";
@@ -112,7 +113,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" width={56} height={30} /><span>Super Fix Auto Centers</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
-          Local build · phase 6
+          Superfix ERP
           <form action={logoutAction}><button type="submit">Sign out</button></form>
         </div>
       </aside>
@@ -135,7 +136,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main className="main">{children}</main>
         {/* Labels the phone card lists before first paint, so nothing shifts when the page hydrates. */}
-        <script dangerouslySetInnerHTML={{ __html: PHONE_TABLES_INLINE }} /><PhoneTables /><Suspense fallback={null}><FormErrors /></Suspense>
+        <script dangerouslySetInnerHTML={{ __html: PHONE_TABLES_INLINE }} /><PhoneTables /><FileSizeGuard /><Suspense fallback={null}><FormErrors /></Suspense>
       </div>
     </div>
   );

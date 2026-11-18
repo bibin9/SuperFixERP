@@ -6,6 +6,7 @@ import { audit } from "./audit";
 import { Col, Row, RunInput, reportDef, runReport, canOpenReport, reportBranches, canExport, reportToday, reportAddDays } from "./reports";
 import { SOURCES, sourceDef, sourceFor, cleanSpec, runSpec, Spec } from "./report-builder";
 import { toXlsx } from "../xlsx";
+import { csvRow } from "../csv";
 
 /**
  * Saved reports (copies of standard reports and builder reports), sharing with roles or users, the
@@ -190,8 +191,7 @@ export function subtitle(r: Ran) {
 }
 export function toCsv(r: Ran) {
   const t = tableFor(r);
-  const q = (v: unknown) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  return "﻿" + [[r.title], [subtitle(r)], t.header, ...t.rows].map((row) => row.map(q).join(",")).join("\r\n");
+  return "﻿" + [[r.title], [subtitle(r)], t.header, ...t.rows].map((row) => csvRow(row)).join("\r\n");
 }
 export function toExcel(r: Ran) {
   const t = tableFor(r);

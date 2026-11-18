@@ -4,6 +4,7 @@ import { invalid, notFound, conflict } from "../errors";
 import { audit, diff } from "./audit";
 import { hashPassword } from "./auth";
 import { optStr, required, str } from "../validate";
+import { csvCell } from "../csv";
 
 /** M01 administration: branches, users, roles, permissions, field permissions, numbering, settings, audit. */
 
@@ -246,7 +247,7 @@ export async function auditLog(ctx: Ctx, f: AuditFilter, limit = 300) {
 export async function auditCsv(ctx: Ctx, f: AuditFilter) {
   assertCan(ctx, "audit", "export");
   const rows = await auditLog(ctx, f, 50000);
-  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const q = (v: unknown) => csvCell(v, true);
   const lines = ["When,User,Name,Role,Branch,Record,Record id,Action,Changes", ...rows.map((r) => [new Date(r.at).toISOString(), r.username ?? "system", r.full_name ?? "", r.role ?? "", r.branch_code ?? "", r.entity, r.entity_id ?? "", r.action, JSON.stringify(r.changes ?? {})].map(q).join(","))];
   await withTx(ctx, (c) => audit(c, ctx, "audit_log", null, "export", { rows: rows.length, filter: f }));
   return lines.join("\r\n") + "\r\n";

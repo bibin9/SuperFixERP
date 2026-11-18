@@ -10,6 +10,7 @@ import { optStr, required, str, normaliseTrn } from "../validate";
 import { stockIn, today } from "./stock";
 import { registerHandler, submitForApproval } from "./workflow";
 import { getSetting } from "./settings";
+import { cfVisible, customFields } from "./hr";
 
 /** M08 purchasing: purchase orders, goods received, supplier bills with matching, petty cash. */
 
@@ -390,18 +391,57 @@ export async function getBill(ctx: Ctx, id: string) {
 
 export type Upload = { name: string; type: string; bytes: Buffer };
 
+/** FILE-02: the file's first bytes must match the type it claims (JPEG, PNG, WebP, HEIC or PDF). */
+export function contentMatches(mime: string, b: Buffer) {
+  const at = (i: number, sig: number[]) => sig.every((v, k) => b[i + k] === v);
+  const ascii = (i: number, t: string) => b.subarray(i, i + t.length).toString("latin1") === t;
+  switch (mime) {
+    case "image/jpeg": return at(0, [0xff, 0xd8, 0xff]);
+    case "image/png": return at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    case "image/webp": return ascii(0, "RIFF") && ascii(8, "WEBP");
+    case "image/heic": return ascii(4, "ftyp") && /^(heic|heix|hevc|hevx|mif1|msf1)$/.test(b.subarray(8, 12).toString("latin1"));
+    case "application/pdf": return b.subarray(0, 1024).toString("latin1").includes("%PDF-");
+    default: return false;
+  }
+}
+
 export async function saveAttachment(c: PoolClient, ctx: Ctx, branchId: string, entity: string, entityId: string | null, file: Upload) {
   if (!file.bytes.length) throw invalid("Attach the photo or PDF.");
   if (file.bytes.length > 5 * 1024 * 1024) throw invalid("The file is larger than 5 MB.");
   if (!/^image\/(jpeg|png|webp|heic)$|^application\/pdf$/.test(file.type)) throw invalid("Attach a photo (JPG or PNG) or a PDF.");
+  if (!contentMatches(file.type, file.bytes)) throw invalid("This file is not a real photo or PDF (its content does not match its type). Save it again as JPG, PNG or PDF.");
   return (await c.query("INSERT INTO attachment (branch_id, entity, entity_id, file_name, mime, size_bytes, content, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
     [branchId, entity, entityId, file.name.slice(0, 200), file.type, file.bytes.length, file.bytes, ctx.userId])).rows[0].id as string;
 }
 
+/**
+ * Serves a file only to someone who may open the record it belongs to (SEC-01): branch row security
+ * alone is not enough. Employee files: the employee themself, or HR view at the employee's branch,
+ * and for a custom field only if that field is visible to the role. Petty cash photos: purchasing
+ * view at the branch. Anything else is refused. A refusal looks the same as a missing file.
+ */
 export async function getAttachment(ctx: Ctx, id: string) {
   return withTx(ctx, async (c) => {
     const a = (await c.query("SELECT * FROM attachment WHERE id = $1", [id])).rows[0];
     if (!a) throw notFound("Attachment");
+    let ok = false;
+    if (a.entity === "petty_cash_entry") ok = can(ctx, "purchasing", "view", a.branch_id);
+    else if (String(a.entity).startsWith("employee_")) {
+      const custom = a.entity === "employee_custom";
+      const emp = (await c.query(
+        custom
+          ? "SELECT e.id, e.branch_id, e.user_id, kv.key field FROM employee e CROSS JOIN LATERAL jsonb_each_text(coalesce(e.custom, '{}'::jsonb)) kv WHERE kv.value = $1 LIMIT 1"
+          : "SELECT id, branch_id, user_id, NULL field FROM employee WHERE id = $1",
+        [custom ? id : a.entity_id])).rows[0];
+      if (emp) {
+        ok = emp.user_id === ctx.userId || can(ctx, "hr", "view", emp.branch_id);
+        if (ok && custom) {
+          const f = (await customFields(c)).find((x) => x.code === emp.field);
+          ok = !!f && cfVisible(ctx, f, emp.branch_id);
+        }
+      }
+    }
+    if (!ok) throw notFound("Attachment");
     return a as { file_name: string; mime: string; content: Buffer };
   });
 }

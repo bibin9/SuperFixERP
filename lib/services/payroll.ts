@@ -11,6 +11,7 @@ import { postJournal, type PostLine } from "./ledger";
 import { submitForApproval, registerHandler } from "./workflow";
 import { today, empName, myEmployee, branchDays, applyDueTransfers } from "./hr";
 import { leaveBalances } from "./hr-time";
+import { csvCell } from "../csv";
 import {
   addDays, monthEnd, daysBetween, serviceYears, gratuity, overtimeAmount, annualLeaveEarned, prorate, paidDays, splitByDays, capDeductions, buildSif, type SifEmployee,
 } from "./payroll-calc";
@@ -631,7 +632,7 @@ export async function registerCsv(ctx: Ctx, month: string) {
   const r = await register(ctx, month);
   const names = Object.fromEntries(r.comps.map((x) => [x.code, x.name_en]));
   const head = ["Branch", "Emp no", "Name", "Paid days", ...r.cols.map((k) => names[k] ?? (k === "overtime" ? "Overtime" : k === "loans" ? "Loan recovery" : "Disciplinary")), "Gross", "Deductions", "Net"];
-  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const q = (v: unknown) => csvCell(v, true);
   const out = [head.map(q).join(",")];
   for (const g of r.groups) {
     for (const x of g.rows) out.push([g.branch, x.emp_no, x.full_name, x.paid_days, ...r.cols.map((k) => x.cells[k].toFixed(2)), x.gross, x.total_deductions, x.net].map(q).join(","));

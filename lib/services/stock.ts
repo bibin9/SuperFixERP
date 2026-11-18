@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { claimRequest, finishRequest } from "./requests";
+import { lockSeries } from "./numbering";
 import Decimal from "decimal.js";
 import { Ctx, assertCan, canSee, redact } from "../access";
 import { withTx } from "../db";
@@ -14,7 +15,10 @@ export const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Du
 /** The UAE calendar date n days from today (YYYY-MM-DD), so dates never shift between midnight and 4 am. */
 export const addDaysLocal = (n: number) => { const d = new Date(today() + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
+/** Locks a stock balance row. The branch's journal series is locked first, so every posting takes
+ *  number series before stock rows and never the other way round (PERF-01). */
 export async function lockBalance(c: PoolClient, itemId: string, branchId: string) {
+  await lockSeries(c, branchId, ["journal"]);
   await c.query("INSERT INTO stock_balance (item_id, branch_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [itemId, branchId]);
   return (await c.query("SELECT * FROM stock_balance WHERE item_id = $1 AND branch_id = $2 FOR UPDATE", [itemId, branchId])).rows[0];
 }
@@ -171,7 +175,7 @@ export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown, r
       const replay = await claimRequest<Out>(c, ctx, requestKey, "stock_issue", { lineId, qty: qty.toFixed(3) });
       if (replay) return replay;
     }
-    const l = await c.query("SELECT l.*, j.doc_no, j.status job_status FROM job_line l JOIN job_card j ON j.id = l.job_card_id WHERE l.id = $1 FOR UPDATE OF l", [lineId]);
+    const l = await c.query("SELECT l.*, j.doc_no, j.status job_status FROM job_line l JOIN job_card j ON j.id = l.job_card_id WHERE l.id = $1 FOR NO KEY UPDATE OF l", [lineId]);
     if (!l.rowCount) throw notFound("Job line");
     const line = l.rows[0];
     assertCan(ctx, "stock", "edit", line.branch_id);
@@ -179,6 +183,7 @@ export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown, r
     if (line.approval_status !== "approved") throw invalid("Parts can only be issued to a line the customer approved.");
     if (["invoiced", "closed", "cancelled"].includes(line.job_status)) throw invalid("This job is closed.");
     if (D(line.issued_qty).plus(qty).gt(line.qty)) throw invalid("That is more than the line quantity.");
+    await lockSeries(c, line.branch_id, ["journal"]); // series before stock rows, as every posting does (PERF-01)
     const bal = await lockBalance(c, line.item_id, line.branch_id);
     const sc = (await c.query("SELECT * FROM stock_commitment WHERE job_line_id = $1 AND status = 'active' FOR UPDATE", [lineId])).rows[0];
     const fromCommit = Decimal.min(qty, D(sc?.qty ?? 0));
