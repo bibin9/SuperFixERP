@@ -118,6 +118,14 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **Vehicle page**: one page with the owner and quick actions (call, WhatsApp chat, book a visit, customer file, unpaid invoices), the open job lines with technician, estimated hours and status, the next service due (by date or km, interval per vehicle or from Settings), runs and past services from every branch.
 - **Errors under the field**: when the server refuses a form, the message is shown in red under the field it is about, the field is outlined and focused, and what you typed is put back.
 
+## Fixed after the Codex QA report (18 November 2026)
+
+- **Phone lists** no longer jump after loading: the one-card-per-row layout is chosen by CSS in the page the server sends, and each value's column name is filled in before the page is first painted.
+- **Contrast**: grey sub-titles and the green, amber and red status badges now meet 4.5:1.
+- **Table headings**: the enquiries list's last column is "Job card"; other button columns have a heading that screen readers read ("Actions").
+- **Sign-in page** and the public quotation page have a main landmark; the logo has a fixed width and height everywhere.
+- **Customer list** counts vehicles in one pass for the page shown, and migration 016 adds the vehicle-owner index and other lookup indexes.
+
 ## Demo data you will see
 
 - **YAS-ENQ-26-00001**: Faisal's 60K service, 103.50 discount, quotation YAS-Q-26-00001-1 sent. The total is 978.08, which matches the FSD 5.1 worked example. Open the customer link to approve, then create the job card.

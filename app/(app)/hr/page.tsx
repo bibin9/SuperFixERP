@@ -25,7 +25,7 @@ export default async function HrHome({ searchParams }: { searchParams: Promise<R
       </div>
       <div className="grid2">
         <div className="card"><h2>Expiring documents ({x.alerts.docs.length})</h2>
-          {x.alerts.docs.length ? <table><thead><tr><th>Employee</th><th>What</th><th>Expires</th><th></th></tr></thead><tbody>
+          {x.alerts.docs.length ? <table><thead><tr><th>Employee</th><th>What</th><th>Expires</th><th><span className="vh">Actions</span></th></tr></thead><tbody>
             {x.alerts.docs.map((r) => <tr key={r.id}><td><Link href={`/hr/employees/${r.employee_id}?tab=records`}>{r.emp_no} {r.full_name}</Link> <span className="muted small">{r.branch_code}</span></td><td>{r.what}</td><td>{d(r.expiry_date)}</td>
               <td><span className={`pill ${Number(r.days_left) < 0 ? "red" : Number(r.days_left) <= 30 ? "amber" : ""}`}>{r.band}</span></td></tr>)}
           </tbody></table> : <p className="muted small">Nothing expiring soon.</p>}

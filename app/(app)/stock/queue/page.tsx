@@ -19,7 +19,7 @@ export default async function Queue({ searchParams }: { searchParams: Promise<Re
       <Flash sp={sp} />
       <div className="card"><h2>Requests from technicians</h2>
         <table>
-          <thead><tr><th>Job</th><th>Part</th><th className="num">Qty</th><th>Asked by</th><th>Status</th><th>Note</th><th></th></tr></thead>
+          <thead><tr><th>Job</th><th>Part</th><th className="num">Qty</th><th>Asked by</th><th>Status</th><th>Note</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{requests.map((r) => (
             <tr key={r.id}><td><Link href={`/jobs/${r.job_card_id}`}>{r.job_no}</Link></td><td>{r.part_no ?? ""}<div className="small muted">{r.item_desc}</div></td>
               <td className="num">{D(r.qty).toString()}</td><td className="small">{r.requested_name}<div className="muted">{dt(r.requested_at)}</div></td>

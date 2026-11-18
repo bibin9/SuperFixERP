@@ -31,7 +31,7 @@ export default async function Recruitment({ searchParams }: { searchParams: Prom
               <button className="btn sm">Add opening</button></form></details>)}
       </div>
       <div className="card"><h2>Applicants</h2>
-        <table><thead><tr><th>Name</th><th>For</th><th>Contact</th><th>Stage</th><th>Notes</th><th></th></tr></thead>
+        <table><thead><tr><th>Name</th><th>For</th><th>Contact</th><th>Stage</th><th>Notes</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{r.applicants.map((a) => (
             <tr key={a.id}><td>{a.full_name}</td><td>{a.title} · {a.branch_code}</td><td className="small">{a.mobile} {a.email}</td><td><Status s={a.stage} />{a.offer_salary && <div className="small">Offer <Money v={a.offer_salary} /></div>}</td>
               <td className="small">{a.interview_notes}</td>

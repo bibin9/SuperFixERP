@@ -27,7 +27,7 @@ export function ReportChart({ type, points, title, valueLabel }: { type: "bar" |
         <title>{`${title}, ${valueLabel}`}</title>
         {ticks.map((t, i) => (
           <g key={i}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke="#e3e8ef" strokeWidth={1} />
-            <text x={L - 6} y={y(t) + 4} textAnchor="end" fontSize={10} fill="#64748b">{fmt(t)}</text></g>
+            <text x={L - 6} y={y(t) + 4} textAnchor="end" fontSize={10} fill="#5b6779">{fmt(t)}</text></g>
         ))}
         {type === "bar" && shown.map((p, i) => {
           const bw = Math.max(4, Math.min(48, step - 4)), x = L + i * step + (step - bw) / 2, top = y(Math.max(0, p.value)), h = Math.max(1, Math.abs(y(p.value) - y(0)));
@@ -45,7 +45,7 @@ export function ReportChart({ type, points, title, valueLabel }: { type: "bar" |
         </>)}
         <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#94a3b8" strokeWidth={1} />
         {shown.map((p, i) => (shown.length <= 16 || i % Math.ceil(shown.length / 16) === 0) && (
-          <text key={i} x={L + i * step + step / 2} y={H - B + 14} fontSize={10} fill="#64748b" textAnchor="end" transform={`rotate(-35 ${L + i * step + step / 2} ${H - B + 14})`}>{p.label.length > 18 ? `${p.label.slice(0, 17)}…` : p.label}</text>
+          <text key={i} x={L + i * step + step / 2} y={H - B + 14} fontSize={10} fill="#5b6779" textAnchor="end" transform={`rotate(-35 ${L + i * step + step / 2} ${H - B + 14})`}>{p.label.length > 18 ? `${p.label.slice(0, 17)}…` : p.label}</text>
         ))}
       </svg>
       {pts.length > shown.length && <figcaption className="small muted">Chart shows the first {shown.length} of {pts.length}; the table has them all.</figcaption>}

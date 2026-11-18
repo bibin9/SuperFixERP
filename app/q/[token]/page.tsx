@@ -9,15 +9,15 @@ export default async function PublicQuote({ params, searchParams }: { params: Pr
   const { token } = await params;
   const sp = await searchParams;
   const data = await getPublicQuotation(token);
-  if (!data) return <div className="public"><div className="card">This link is not valid.</div></div>;
+  if (!data) return <main className="public"><div className="card">This link is not valid.</div></main>;
   const { q, lines, expired } = data;
   const name = q.customer_type === "individual" ? `${q.title} ${q.first_name}` : q.company_name;
   const open = q.status === "sent" && !expired;
   return (
-    <div className="public">
+    <main className="public">
       <div className="card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/sflogo.png" alt="Superfix" style={{ height: 44 }} />
+        <img src="/sflogo.png" alt="Superfix" width={82} height={44} />
         <h1 style={{ marginTop: 8 }}>Quotation {q.doc_no}</h1>
         <p className="sub">Dear {name}, here is the work we recommend for {q.make} {q.model} ({q.registered_in} {q.plate_code} {q.plate_number}) at Superfix {q.branch_name}. Prices include 5% VAT.</p>
         {sp.err && <div className="flash err">{sp.err}</div>}
@@ -39,6 +39,6 @@ export default async function PublicQuote({ params, searchParams }: { params: Pr
           {open && <><p className="small muted">Untick anything you do not want today; we will remind you about it later.</p><button className="btn green" style={{ width: "100%", minHeight: 48 }}>Approve ticked work</button></>}
         </form>
       </div>
-    </div>
+    </main>
   );
 }

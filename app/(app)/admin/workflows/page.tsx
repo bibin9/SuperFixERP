@@ -19,7 +19,7 @@ export default async function Workflows({ searchParams }: { searchParams: Promis
               <button className={`btn sm ${w.enabled ? "ghost" : "green"}`}>{w.enabled ? "Switch off" : "Switch on"}</button></form>
           </div>
           <table style={{ marginTop: 8 }}>
-            <thead><tr><th>Step</th><th>Approver</th><th>From AED</th><th>To AED</th><th>Discount above %</th><th>On</th><th></th></tr></thead>
+            <thead><tr><th>Step</th><th>Approver</th><th>From AED</th><th>To AED</th><th>Discount above %</th><th>On</th><th><span className="vh">Actions</span></th></tr></thead>
             <tbody>{w.steps.map((s: Record<string, any>) => (
               <tr key={s.id}><td>{s.seq}. {s.name}</td><td>{s.role_name ?? s.user_name}{s.approver_role_scope === "supplying_branch" ? " (supplying branch)" : ""}{s.backup_name ? ` · backup ${s.backup_name}` : ""}</td>
                 <td colSpan={5}><form action={stepAction} className="row"><input type="hidden" name="id" value={s.id} />

@@ -18,7 +18,7 @@ export default async function Enquiries({ searchParams }: { searchParams: Promis
       <div className="tabs">{TABS.map(([s, label]) => <Link key={s} className={(sp.status ?? "") === s ? "on" : ""} href={`/enquiries${s ? `?status=${s}` : ""}`}>{label}</Link>)}</div>
       <div className="card">
         <table>
-          <thead><tr><th>No.</th><th>Branch</th><th>Customer</th><th>Vehicle</th><th>Service asked</th><th>Follow up</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>No.</th><th>Branch</th><th>Customer</th><th>Vehicle</th><th>Service asked</th><th>Follow up</th><th>Status</th><th>Job card</th></tr></thead>
           <tbody>{rows.map((e) => (
             <tr key={e.id}>
               <td><Link href={`/enquiries/${e.id}`}>{e.doc_no}</Link></td><td>{e.branch_code}</td>

@@ -118,7 +118,7 @@ export function PrintHead({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="print-only letterhead">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/sflogo.png" alt="" style={{ height: 40 }} />
+      <img src="/sflogo.png" alt="" width={74} height={40} />
       <div><b>Super Fix Auto Centers</b><br /><span className="small">{title} · {sub}</span></div>
     </div>
   );

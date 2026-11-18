@@ -15,7 +15,7 @@ export function Payslip({ p }: { p: any }) {
       <div className="card doc" style={{ maxWidth: 780, margin: "0 auto" }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/sflogo.png" alt="Superfix" style={{ height: 48 }} />
+          <img src="/sflogo.png" alt="Superfix" width={89} height={48} />
           <div style={{ textAlign: "right" }}><b>Payslip · {mon}</b><div dir="rtl" className="small">قسيمة الراتب</div></div>
         </div>
         <table style={{ marginTop: 12 }}><tbody>

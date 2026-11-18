@@ -67,7 +67,7 @@ export function RunsTable({ rows, back, canEdit, prices, showRef = true }: { row
   if (!rows.length) return <p className="small muted">No runs yet.</p>;
   return (
     <table data-testid="runs-table">
-      <thead><tr><th>Run</th><th>Type</th><th>When</th><th>Driver</th><th>From</th><th>To</th>{showRef && <th>For</th>}<th>Status</th><th className="num">km</th>{prices && <th className="num">Charge</th>}{canEdit && <th></th>}</tr></thead>
+      <thead><tr><th>Run</th><th>Type</th><th>When</th><th>Driver</th><th>From</th><th>To</th>{showRef && <th>For</th>}<th>Status</th><th className="num">km</th>{prices && <th className="num">Charge</th>}{canEdit && <th><span className="vh">Actions</span></th>}</tr></thead>
       <tbody>{rows.map((r) => (
         <tr key={r.id}>
           <td>{r.doc_no}</td><td>{runType(r.run_type)}</td><td className="small">{dt(r.scheduled_at)}</td>

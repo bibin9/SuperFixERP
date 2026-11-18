@@ -24,7 +24,7 @@ export default async function Users({ searchParams }: { searchParams: Promise<Re
       </div>
       <div className="card">
         <table>
-          <thead><tr><th>User</th><th>Access (branch: role)</th><th>Give or change access</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>User</th><th>Access (branch: role)</th><th>Give or change access</th><th>Status</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{users.map((u) => (
             <tr key={u.id}>
               <td><b>{u.full_name}</b><div className="small muted">{u.username}{u.locked_until && new Date(u.locked_until) > new Date() ? " · locked" : ""}</div></td>

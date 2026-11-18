@@ -21,7 +21,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
       <div className="tabs">{[["", "All payments"], ["issued", "Cheques still out"], ["cleared", "Cheques paid"], ["cancelled", "Cancelled"]].map(([k, l]) => <Link key={k} className={(sp.cheques ?? "") === k ? "on" : ""} href={`/accounts/payables/payments${k ? `?cheques=${k}` : ""}`}>{l}</Link>)}</div>
       <div className="card">
         <table>
-          <thead><tr><th>Payment</th><th>Date</th><th>Supplier</th><th>Branch</th><th>Method</th><th>Cheque</th><th className="num">Amount</th><th className="num">On account</th><th></th></tr></thead>
+          <thead><tr><th>Payment</th><th>Date</th><th>Supplier</th><th>Branch</th><th>Method</th><th>Cheque</th><th className="num">Amount</th><th className="num">On account</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((p) => (
             <tr key={p.id}><td>{p.doc_no}</td><td>{d(String(p.doc_date).slice(0, 10))}</td><td><Link href={`/accounts/statement?party=supplier&id=${p.supplier_id}`}>{p.supplier_name}</Link></td><td>{p.branch_code}</td>
               <td>{label(p.method)}{p.bank_name && <span className="small muted"> · {p.bank_name}</span>}{p.reference && <span className="small muted"> · {p.reference}</span>}</td>

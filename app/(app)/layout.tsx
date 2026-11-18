@@ -9,6 +9,7 @@ import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
+import { PHONE_TABLES_INLINE } from "@/lib/phone-tables";
 import { FormErrors } from "@/components/FormErrors";
 import { Suspense } from "react";
 
@@ -108,7 +109,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <input type="checkbox" id="navtoggle" className="navtoggle" aria-hidden />
         <div className="brand"><div className="mk">A</div><div><b>AUTOVIQO</b><small>Smart Garage ERP</small></div>
           <label htmlFor="navtoggle" className="menubtn" aria-label="Open or close the menu">☰ Menu</label></div>
-        <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" /><span>Super Fix Auto Centers</span></div>
+        <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" width={56} height={30} /><span>Super Fix Auto Centers</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
           Local build · phase 6
@@ -132,7 +133,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
           <div className="who"><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</div>
         </header>
-        <main className="main">{children}</main><PhoneTables /><Suspense fallback={null}><FormErrors /></Suspense>
+        <main className="main">{children}</main>
+        {/* Labels the phone card lists before first paint, so nothing shifts when the page hydrates. */}
+        <script dangerouslySetInnerHTML={{ __html: PHONE_TABLES_INLINE }} /><PhoneTables /><Suspense fallback={null}><FormErrors /></Suspense>
       </div>
     </div>
   );

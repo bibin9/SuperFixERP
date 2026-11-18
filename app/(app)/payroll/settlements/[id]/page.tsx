@@ -14,7 +14,7 @@ export default async function Settlement({ params, searchParams }: { params: Pro
       <div className="no-print"><PageHead title={`Final settlement ${s.doc_no ?? ""}`} sub={`${s.emp_no} ${s.full_name}`}><Status s={s.status} /><PrintButton /><Link className="btn ghost sm" href="/payroll/settlements">Final settlements</Link></PageHead><Flash sp={sp} /></div>
       <div className="card doc" style={{ maxWidth: 760, margin: "0 auto" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/sflogo.png" alt="Superfix" style={{ height: 48 }} />
+        <img src="/sflogo.png" alt="Superfix" width={89} height={48} />
         <h2>End of service settlement <span className="small muted" dir="rtl">تسوية نهاية الخدمة</span></h2>
         <table><tbody>
           <tr><td className="muted">Employee</td><td>{s.emp_no} · {s.full_name}{s.name_ar ? ` · ${s.name_ar}` : ""}</td></tr>

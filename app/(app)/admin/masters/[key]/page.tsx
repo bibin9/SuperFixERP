@@ -52,7 +52,7 @@ export default async function MasterPage({ params, searchParams }: { params: Pro
       {!editing && canCreate && <div className="card"><h2>Add</h2>{form(null)}</div>}
       <div className="card">
         <table>
-          <thead><tr>{def.fields.map((f) => <th key={f.name}>{f.label}</th>)}{def.hasActive && <th>Active</th>}<th></th></tr></thead>
+          <thead><tr>{def.fields.map((f) => <th key={f.name}>{f.label}</th>)}{def.hasActive && <th>Active</th>}<th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={keyOf(r)} style={def.hasActive && !r.active ? { opacity: 0.55 } : {}}>
               {def.fields.map((f) => <td key={f.name} className={f.type === "textarea" ? "small" : ""}>{label(f, r[f.name])}</td>)}

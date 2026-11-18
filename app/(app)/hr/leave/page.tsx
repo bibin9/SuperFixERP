@@ -24,7 +24,7 @@ export default async function Leave({ searchParams }: { searchParams: Promise<Re
         <div className="field"><label htmlFor="le">Employee</label><AutoSubmitSelect id="le" name="employee" defaultValue={sp.employee ?? ""}><option value="">Everyone</option>{l.managers.map((m) => <option key={m.id} value={m.id}>{m.emp_no} {m.full_name}</option>)}</AutoSubmitSelect></div>
       </form>
       <div className="card"><h2>{rows.length} request{rows.length === 1 ? "" : "s"}</h2>
-        <table><thead><tr><th>No.</th><th>Employee</th><th>Leave</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th></th></tr></thead>
+        <table><thead><tr><th>No.</th><th>Employee</th><th>Leave</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.id}><td>{r.doc_no}</td><td><Link href={`/hr/employees/${r.employee_id}?tab=leave`}>{r.emp_no} {r.full_name}</Link> <span className="small muted">{r.branch_code}</span></td><td>{r.leave_name}</td>
               <td>{d(r.from_d)}</td><td>{d(r.to_d)}</td><td className="num">{r.days}</td><td><Status s={r.status} />{r.reject_reason && <div className="small muted">{r.reject_reason}</div>}</td>

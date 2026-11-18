@@ -27,7 +27,7 @@ export default async function PoPage({ params, searchParams }: { params: Promise
       {po.status === "approved" && editable && <div className="flash warn">Approved. Changing a line sends the order back for approval.</div>}
       <div className="card">
         <table>
-          <thead><tr><th>#</th><th>Item</th><th>For job</th><th className="num">Qty</th><th className="num">Received</th>{cost && <th className="num">Unit price</th>}{cost && <th className="num">Net</th>}{cost && <th className="num">VAT</th>}<th></th></tr></thead>
+          <thead><tr><th>#</th><th>Item</th><th>For job</th><th className="num">Qty</th><th className="num">Received</th>{cost && <th className="num">Unit price</th>}{cost && <th className="num">Net</th>}{cost && <th className="num">VAT</th>}<th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{lines.map((l) => (
             <tr key={l.id}><td>{l.line_no}</td><td>{l.description}</td><td>{l.job_id ? <Link href={`/jobs/${l.job_id}`}>{l.job_no}</Link> : "—"}</td>
               <td className="num">{D(l.qty).toString()}</td><td className="num">{D(l.received_qty).toString()}</td>

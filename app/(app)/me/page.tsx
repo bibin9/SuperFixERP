@@ -39,7 +39,7 @@ export default async function Me({ searchParams }: { searchParams: Promise<Recor
         </div>
       </div>
       <div className="card"><h2>My leave requests</h2>
-        <table><thead><tr><th>No.</th><th>Leave</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th></th></tr></thead>
+        <table><thead><tr><th>No.</th><th>Leave</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{leave.map((r) => <tr key={r.id}><td>{r.doc_no}</td><td>{r.leave_name}</td><td>{d(r.from_d)}</td><td>{d(r.to_d)}</td><td className="num">{r.days}</td><td><Status s={r.status} />{r.reject_reason && <div className="small muted">{r.reject_reason}</div>}</td>
             <td>{(r.status === "pending_approval" || (r.status === "approved" && r.from_d > new Date().toISOString().slice(0, 10))) && <form action={cancelLeaveAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="$back" value="/me" /><ConfirmButton className="btn ghost sm" message="Cancel this leave request?">Cancel</ConfirmButton></form>}</td></tr>)}</tbody></table>
         {!leave.length && <p className="muted small">None yet.</p>}

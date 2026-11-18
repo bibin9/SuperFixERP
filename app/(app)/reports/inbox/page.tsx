@@ -21,7 +21,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<Re
       {ib.prepared > 0 && <div className="flash ok">{ib.prepared} scheduled report(s) were prepared just now.</div>}
       <div className="card" data-testid="inbox">
         <h2>Prepared files</h2>
-        <table><thead><tr><th>Report</th><th>Period</th><th className="num">Rows</th><th>Prepared</th><th /></tr></thead><tbody>
+        <table><thead><tr><th>Report</th><th>Period</th><th className="num">Rows</th><th>Prepared</th><th><span className="vh">Actions</span></th></tr></thead><tbody>
           {ib.items.map((i) => <tr key={i.id}><td>{i.opened_at ? i.title : <b>{i.title}</b>}</td><td>{i.period_label}</td><td className="num">{i.row_count}</td><td className="small">{dt(i.prepared_at)}</td>
             <td><a className="btn ghost sm" href={`/api/reports/inbox/${i.id}`} data-testid="inbox-download">Download Excel</a></td></tr>)}
           {!ib.items.length && <tr><td colSpan={5} className="muted">Nothing prepared yet.</td></tr>}
@@ -29,7 +29,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<Re
       </div>
       <div className="card" style={{ marginTop: 16 }} data-testid="schedules">
         <h2>My schedules</h2>
-        <table><thead><tr><th>Report</th><th>How often</th><th>Next due</th><th /></tr></thead><tbody>
+        <table><thead><tr><th>Report</th><th>How often</th><th>Next due</th><th><span className="vh">Actions</span></th></tr></thead><tbody>
           {ib.schedules.map((s) => <tr key={s.id}><td><Link href={s.report_ref.startsWith("std:") ? `/reports/run/${s.report_ref.slice(4)}` : `/reports/saved/${s.report_ref.slice(4)}`}>{s.title}</Link></td>
             <td>{FREQ[s.frequency]}</td><td>{d(s.next_due)}</td>
             <td className="row" style={{ gap: 6 }}>

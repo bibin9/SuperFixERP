@@ -23,7 +23,7 @@ export default async function CreditNotePage({ params, searchParams }: { params:
         <div className="row" style={{ alignItems: "flex-start" }}>
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/sflogo.png" alt="Superfix" style={{ height: 46 }} />
+            <img src="/sflogo.png" alt="Superfix" width={86} height={46} />
             <div><b>{cn.legal_name_en}</b></div><div className="small">{cn.branch_name} branch · TRN {cn.company_trn}</div>
           </div>
           <div className="right">

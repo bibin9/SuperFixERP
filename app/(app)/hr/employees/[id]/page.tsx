@@ -55,7 +55,7 @@ export default async function EmployeePage({ params, searchParams }: { params: P
         const canAdd = can(ctx, "hr", "create", e.branch_id) || (k.kind === "review" && can(ctx, "hr", "approve", e.branch_id));
         return (
           <div className="card" key={k.kind} id={k.kind}><h2>{k.title}</h2>
-            {rows.length ? <table><thead><tr><th>Record</th><th>Expires</th><th>Status</th><th>Added</th><th></th></tr></thead><tbody>{rows.map((r: any) => (
+            {rows.length ? <table><thead><tr><th>Record</th><th>Expires</th><th>Status</th><th>Added</th><th><span className="vh">Actions</span></th></tr></thead><tbody>{rows.map((r: any) => (
               <tr key={r.id}><td>{k.summary(r.data)}{r.amount && Number(r.amount) > 0 && x.salaryVisible ? <> · <Money v={r.amount} /></> : null}{r.data.details && <div className="small muted">{r.data.details}</div>}{r.data.closed_note && <div className="small muted">Closed: {r.data.closed_note}</div>}{r.attachment_id && <> · <a className="small" href={`/api/attachments/${r.attachment_id}`}>file</a></>}</td>
                 <td>{d(r.expiry_date)}</td><td><Status s={r.status} /></td><td className="small muted">{r.created_by_name} {dt(r.created_at)}</td>
                 <td>{r.status === "active" && can(ctx, "hr", "edit", e.branch_id) && <form action={closeRecordAction} className="row"><input type="hidden" name="record_id" value={r.id} /><input type="hidden" name="$back" value={`${here}#${k.kind}`} /><input name="note" placeholder="Note" style={{ maxWidth: 140 }} /><button className="btn ghost sm shrink">{k.closeLabel ?? "Close"}</button></form>}</td></tr>))}</tbody></table>

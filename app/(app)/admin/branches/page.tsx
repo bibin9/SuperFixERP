@@ -27,7 +27,7 @@ export default async function Branches({ searchParams }: { searchParams: Promise
       </div>
       <div className="card">
         <table>
-          <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Emirate</th><th>WhatsApp</th><th>Mode</th><th>Active</th><th></th></tr></thead>
+          <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Emirate</th><th>WhatsApp</th><th>Mode</th><th>Active</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((b) => (
             <tr key={b.id}><td><b>{b.code}</b></td><td>{b.name_en}</td><td>{label(b.branch_type)}</td><td>{b.emirate}</td><td>{b.whatsapp_number}</td><td>{label(b.whatsapp_mode)}</td><td>{b.active ? "Yes" : "No"}</td>
               <td><form action={branchActiveAction}><input type="hidden" name="id" value={b.id} /><input type="hidden" name="active" value={String(!b.active)} /><ConfirmButton className="btn ghost sm" message={b.active ? `Deactivate branch ${b.code}?` : `Activate branch ${b.code}?`}>{b.active ? "Deactivate" : "Activate"}</ConfirmButton></form></td></tr>

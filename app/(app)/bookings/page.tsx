@@ -48,7 +48,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
       </div>
       <div className="card"><h2>Bookings on {dayName(date)} ({open.length} open)</h2>
         <table data-testid="bookings-table">
-          <thead><tr><th>Time</th><th>Enquiry</th><th>Customer</th><th>Vehicle</th><th>Work</th><th>Bay</th><th>Technician</th><th className="num">Hours</th><th>Status</th>{canBook && <th></th>}</tr></thead>
+          <thead><tr><th>Time</th><th>Enquiry</th><th>Customer</th><th>Vehicle</th><th>Work</th><th>Bay</th><th>Technician</th><th className="num">Hours</th><th>Status</th>{canBook && <th><span className="vh">Actions</span></th>}</tr></thead>
           <tbody>{bookings.map((b) => (
             <tr key={b.id}>
               <td>{time(b.booked_for)}</td><td><Link href={`/enquiries/${b.id}#booking`}>{b.doc_no}</Link></td>

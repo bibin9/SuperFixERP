@@ -3,11 +3,11 @@ import { loginAction } from "@/app/actions";
 export default async function Login({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const sp = await searchParams;
   return (
-    <div className="public" style={{ maxWidth: 420, marginTop: 80 }}>
+    <main className="public" style={{ maxWidth: 420, marginTop: 80 }}>
       <div className="card">
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/sflogo.png" alt="Superfix" style={{ height: 44 }} />
+          <img src="/sflogo.png" alt="Superfix" width={82} height={44} />
           <div><b style={{ fontSize: 18 }}>AUTOVIQO</b><div className="muted small">Superfix garage ERP · local build</div></div>
         </div>
         {sp.err && <div className="flash err">{sp.err}</div>}
@@ -21,6 +21,6 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
           anil (stock keeper), maryam (accountant), omar (Al Qusais manager), sara (Al Qusais advisor).
         </p>
       </div>
-    </div>
+    </main>
   );
 }

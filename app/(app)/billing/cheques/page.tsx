@@ -22,7 +22,7 @@ export default async function Cheques({ searchParams }: { searchParams: Promise<
       <div className="tabs">{TABS.map(([k, l]) => <a key={k} className={st === k ? "on" : ""} href={`/billing/cheques?status=${k}`}>{l}</a>)}</div>
       <div className="card">
         <table>
-          <thead><tr><th>Receipt</th><th>Customer</th><th>Branch</th><th>Cheque</th><th>Cheque date</th><th className="num">Amount</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Receipt</th><th>Customer</th><th>Branch</th><th>Cheque</th><th>Cheque date</th><th className="num">Amount</th><th>Status</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((r) => {
             const manage = can(ctx, "invoices", "approve", r.branch_id) || can(ctx, "invoices", "edit", r.branch_id) || can(ctx, "accounting", "create", r.branch_id);
             return (

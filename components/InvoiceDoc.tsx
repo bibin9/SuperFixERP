@@ -16,7 +16,7 @@ export async function InvoiceDoc({ i, lines, link }: { i: Row; lines: Row[]; lin
       <div className="row" style={{ alignItems: "flex-start" }}>
         <div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/sflogo.png" alt="Superfix" style={{ height: 46 }} />
+          <img src="/sflogo.png" alt="Superfix" width={86} height={46} />
           <div><b>{i.legal_name_en}</b> · <span dir="rtl">{i.legal_name_ar}</span></div>
           <div className="small">{i.branch_name} branch{i.branch_address ? `, ${i.branch_address}` : ""}, {i.emirate}</div>
           <div className="small">TRN {i.company_trn}</div>

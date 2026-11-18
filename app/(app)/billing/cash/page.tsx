@@ -44,7 +44,7 @@ export default async function CashClosing({ searchParams }: { searchParams: Prom
       )}
       <div className="card"><h2>Closings</h2>
         <table>
-          <thead><tr><th>Date</th><th>Branch</th><th>Cashier</th><th className="num">Expected</th><th className="num">Counted</th><th className="num">Difference</th><th className="num">Card</th><th>Note</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Branch</th><th>Cashier</th><th className="num">Expected</th><th className="num">Counted</th><th className="num">Difference</th><th className="num">Card</th><th>Note</th><th>Status</th><th><span className="vh">Actions</span></th></tr></thead>
           <tbody>{rows.map((s) => {
             const sign = s.status === "submitted" && s.cashier_id !== ctx.userId && can(ctx, "invoices", "approve", s.branch_id);
             return (
