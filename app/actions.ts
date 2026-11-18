@@ -212,7 +212,10 @@ export async function receiveStockAction(fd: FormData) {
 
 export async function issueAction(fd: FormData) {
   const ctx = await requireCtx();
-  await run(String(fd.get("$back") || `/jobs/${fd.get("job_id")}`), () => issueToJobLine(ctx, String(fd.get("line_id")), String(fd.get("qty"))), "Parts issued to the job");
+  await run(String(fd.get("$back") || `/jobs/${fd.get("job_id")}`), async () => {
+    const r = await issueToJobLine(ctx, String(fd.get("line_id")), String(fd.get("qty")), String(fd.get("request_key") ?? ""));
+    if (r.duplicate) return withQ(String(fd.get("$back") || `/jobs/${fd.get("job_id")}`), "ok", "Already issued: this was a repeat of the same request, nothing was issued twice");
+  }, "Parts issued to the job");
 }
 
 // ---------- admin ----------

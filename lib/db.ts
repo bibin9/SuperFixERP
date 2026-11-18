@@ -3,7 +3,7 @@ import { Pool, PoolClient, types } from "pg";
 // DATE columns stay as YYYY-MM-DD strings; NUMERIC stays as exact strings (pg default).
 types.setTypeParser(1082, (v) => v);
 import { dbConfig } from "./env";
-import { invalid, notFound } from "./errors";
+import { conflict, invalid, notFound } from "./errors";
 import type { Ctx } from "./access";
 
 // The pool connects as superfix_app, which is subject to row-level security.
@@ -27,7 +27,28 @@ export async function closePool() {
 
 export type Tx = PoolClient;
 
+/** A deadlock or serialization failure rolls the whole transaction back, so it is safe to run it again (CONC-02). */
+const RETRYABLE = new Set(["40P01", "40001"]);
+const MAX_ATTEMPTS = 4;
+
 async function run<T>(setup: (c: PoolClient) => Promise<void>, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runOnce(setup, fn);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code && RETRYABLE.has(code)) {
+        if (attempt < MAX_ATTEMPTS) { await new Promise((r) => setTimeout(r, 15 * attempt + Math.random() * 40 * attempt)); continue; }
+        throw conflict("The system was busy with other postings and nothing was saved. Please try again.");
+      }
+      // Two requests raced for the same unique number or key; this one was rolled back in full.
+      if (code === "23505") throw conflict("This was saved by another request at the same moment and nothing was saved here. Reload the page to see it.");
+      throw e;
+    }
+  }
+}
+
+async function runOnce<T>(setup: (c: PoolClient) => Promise<void>, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const c = await pool().connect();
   try {
     await c.query("BEGIN");

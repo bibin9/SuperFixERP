@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { claimRequest, finishRequest } from "./requests";
 import Decimal from "decimal.js";
 import { Ctx, assertCan, canSee, redact } from "../access";
 import { withTx } from "../db";
@@ -157,9 +158,19 @@ export async function receiveStock(ctx: Ctx, f: { item_id: string; qty: unknown;
  * Issues parts to an approved job line (WS-08, IN-05). Committed stock is issued to its own job;
  * anything beyond the commitment must come from free stock. Cost moves from stock to work in progress.
  */
-export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown) {
+/**
+ * Issue parts to an approved job line. With a request key (every issue form has one), a replay of the
+ * same submission returns the first issue instead of issuing again (CONC-01); a different quantity or
+ * line under the same key is refused. Two intended issues come from two forms, so two keys.
+ */
+export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown, requestKey?: string) {
   const qty = parseDec(qtyIn, "Quantity", { min: "0.001", dp: 3 });
-  return withTx(ctx, async (c) => {
+  type Out = { lineId: string; qty: string; duplicate: boolean };
+  return withTx(ctx, async (c): Promise<Out> => {
+    if (requestKey !== undefined) {
+      const replay = await claimRequest<Out>(c, ctx, requestKey, "stock_issue", { lineId, qty: qty.toFixed(3) });
+      if (replay) return replay;
+    }
     const l = await c.query("SELECT l.*, j.doc_no, j.status job_status FROM job_line l JOIN job_card j ON j.id = l.job_card_id WHERE l.id = $1 FOR UPDATE OF l", [lineId]);
     if (!l.rowCount) throw notFound("Job line");
     const line = l.rows[0];
@@ -194,6 +205,8 @@ export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown) {
       lines: [{ event: "work_in_progress", debit: value }, { event: "inventory", credit: value }],
     });
     await audit(c, ctx, "job_line", lineId, "issue", { qty: qty.toFixed(3), job: line.doc_no }, line.branch_id);
+    const out: Out = { lineId, qty: qty.toFixed(3), duplicate: false };
+    return requestKey !== undefined ? finishRequest<Out>(c, requestKey, out) : out;
   });
 }
 

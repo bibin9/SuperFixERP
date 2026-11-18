@@ -126,6 +126,8 @@ Extra work found later is added on the job card and goes to the customer as a re
 - **Sign-in page** and the public quotation page have a main landmark; the logo has a fixed width and height everywhere.
 - **Customer list** counts vehicles in one pass for the page shown, and migration 016 adds the vehicle-owner index and other lookup indexes.
 
+- **Posting twice is prevented**: every posting form (invoice, payment, advance, counter sale, stock issue) carries a request key. A repeat of the same submission, even many at once, gets the first result back; the same key used for something different is refused. Invoices, payments, advances and credit notes lock the job card first, and a database deadlock is retried automatically, so busy counters do not see server errors (migration 017).
+
 ## Demo data you will see
 
 - **YAS-ENQ-26-00001**: Faisal's 60K service, 103.50 discount, quotation YAS-Q-26-00001-1 sent. The total is 978.08, which matches the FSD 5.1 worked example. Open the customer link to approve, then create the job card.

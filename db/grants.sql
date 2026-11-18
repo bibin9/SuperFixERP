@@ -13,3 +13,5 @@ REVOKE DELETE ON credit_note, credit_note_line, warranty_claim, customer_advance
 -- Phase 4: posted accounting documents are never deleted.
 REVOKE DELETE ON voucher, voucher_line, supplier_payment, supplier_payment_allocation, card_settlement, ho_allocation, fixed_asset, depreciation_run, depreciation_line, opening_item, migration_batch, accounting_period FROM superfix_app;
 REVOKE UPDATE ON voucher_line, depreciation_line FROM superfix_app;
+-- Posting request claims are kept as evidence of what each key meant (017).
+REVOKE DELETE ON post_request FROM superfix_app;

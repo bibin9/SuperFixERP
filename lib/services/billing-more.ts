@@ -12,6 +12,7 @@ import { stockIn, stockOut, today } from "./stock";
 import { D, Decimal, parseDec, r2 } from "../money";
 import { optStr, str } from "../validate";
 import { assertBuyerEinvoiceDetails, billToName, invoiceKindFor, maybeCloseJob, receiptTx, type PayIn } from "./billing";
+import { claimRequest, finishRequest, lockJobFirst } from "./requests";
 import { setStatus } from "./jobs";
 
 /** M11 credit notes and cash closing, M09 counter sales, and VAT reporting (FSD 4.9, 4.11, 5.1, 5.6). */
@@ -88,6 +89,8 @@ export async function createCreditNote(ctx: Ctx, invoiceId: string, f: { reason:
  * the cost they went out at; scrapped parts stay in cost of sales.
  */
 async function postCreditNote(c: PoolClient, ctx: Ctx, id: string) {
+  // Same lock order as invoicing and payments: job card, then invoice, then number series (CONC-02).
+  await lockJobFirst(c, (await c.query("SELECT i.job_card_id FROM credit_note n JOIN sales_invoice i ON i.id = n.invoice_id WHERE n.id = $1", [id])).rows[0]?.job_card_id);
   const cn = (await c.query("SELECT * FROM credit_note WHERE id = $1 FOR UPDATE", [id])).rows[0];
   if (!cn || cn.status !== "pending_approval") return;
   const inv = (await c.query("SELECT * FROM sales_invoice WHERE id = $1 FOR UPDATE", [cn.invoice_id])).rows[0];
@@ -290,8 +293,14 @@ export async function postCounterSale(ctx: Ctx, f: { customer_id?: string | null
   if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
   return withTx(ctx, async (c) => {
     assertCan(ctx, "invoices", "create", b);
+    type Out = { id: string; docNo: string; duplicate: boolean };
+    const p = f.payment;
+    const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "counter_sale", {
+      branch: b, customer: f.customer_id ?? null, name: str(f.bill_to_name), lines: f.lines,
+      pay: p ? [p.method, String(p.amount ?? ""), str(p.reference), str(p.cheque_no)] : null });
+    if (replay) return replay;
     const prior = (await c.query("SELECT id, doc_no FROM sales_invoice WHERE idempotency_key = $1", [f.idempotency_key])).rows[0];
-    if (prior) return { id: prior.id as string, docNo: prior.doc_no as string, duplicate: true };
+    if (prior) return finishRequest<Out>(c, f.idempotency_key, { id: prior.id as string, docNo: prior.doc_no as string, duplicate: true });
     const cust = f.customer_id ? (await c.query("SELECT * FROM customer WHERE id = $1 AND active", [f.customer_id])).rows[0] : (await c.query("SELECT * FROM customer WHERE is_walk_in")).rows[0];
     if (!cust) throw invalid("Choose the customer.");
     const inclusiveSetting = await getSetting<unknown>(c, "sales.prices_include_vat", b, true);
@@ -358,7 +367,7 @@ export async function postCounterSale(ctx: Ctx, f: { customer_id?: string | null
       await receiptTx(c, ctx, { ...payment, invoice_id: inv.id, idempotency_key: `${f.idempotency_key}:pay` });
     } else if (cust.is_walk_in) throw invalid("A walk-in sale must be paid now.");
     else if (Number(cust.payment_terms_days) <= 0) throw invalid(`${billToName(cust)} has no credit terms. Take the payment now.`);
-    return { id: inv.id as string, docNo, duplicate: false };
+    return finishRequest<Out>(c, f.idempotency_key, { id: inv.id as string, docNo, duplicate: false });
   });
 }
 

@@ -34,7 +34,7 @@ export function WorkLines(p: {
               {l.committed_qty !== null && l.committed_qty !== undefined && <div>committed {D(l.committed_qty).toString()}{D(l.back_ordered ?? 0).gt(0) && <span className="pill amber"> back-ordered {D(l.back_ordered).toString()}</span>}</div>}
               <div>issued {D(l.issued_qty).toString()} of {D(l.qty).toString()}</div>
               {p.canIssue && l.approval_status === "approved" && D(l.issued_qty).lt(l.qty) && (
-                <form action={issueAction} className="row" style={{ marginTop: 4 }}><input type="hidden" name="job_id" value={p.owner.id} /><input type="hidden" name="line_id" value={l.id} />
+                <form action={issueAction} className="row" style={{ marginTop: 4 }}><input type="hidden" name="job_id" value={p.owner.id} /><input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="request_key" value={crypto.randomUUID()} />
                   <input name="qty" defaultValue={D(l.qty).minus(l.issued_qty).toString()} style={{ width: 70, minWidth: 60 }} /><button className="btn sm shrink">Issue</button></form>
               )}</> : <>{D(l.free_here ?? 0).gte(l.qty) ? <span className="pill green">in stock here</span> : <span className="pill amber">short here</span>}<div className="muted">committed when the job card is created</div></>)
             : <span className="muted">—</span>}</td>

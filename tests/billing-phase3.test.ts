@@ -208,7 +208,9 @@ test("counter sale: VAT-inclusive price, discount limit by role, below-cost need
   assert.equal(inv.source, "counter");
   assert.equal(inv.bill_to_name, "Ali");
   assert.equal(Number((await one("SELECT on_hand FROM stock_balance WHERE item_id = $1 AND branch_id = $2", [oil, YAS])).on_hand), before - 2);
-  assert.equal((await bm.postCounterSale(priya, { lines: [{ item_id: oil, qty: "2" }], payment: { method: "cash", amount: "67.20", idempotency_key: "" }, idempotency_key: k })).duplicate, true);
+  assert.equal((await bm.postCounterSale(priya, { bill_to_name: "Ali", lines: [{ item_id: oil, qty: "2" }], payment: { method: "cash", amount: "67.20", idempotency_key: "" }, idempotency_key: k })).duplicate, true);
+  // the same key with a changed request (no name now) is refused, not treated as the first sale (CONC-04)
+  await rejects(bm.postCounterSale(priya, { lines: [{ item_id: oil, qty: "2" }], payment: { method: "cash", amount: "67.20", idempotency_key: "" }, idempotency_key: k }), "conflict");
   // the manager may go above the advisor's limit
   const m = await bm.postCounterSale(yousef, { lines: [{ item_id: oil, qty: "2", discount: "10.00" }], payment: { method: "card", amount: "57.20", reference: "SLIP-M", idempotency_key: "" }, idempotency_key: key() });
   assert.equal((await one("SELECT grand_total FROM sales_invoice WHERE id = $1", [m.id])).grand_total, "57.20");

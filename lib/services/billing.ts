@@ -11,6 +11,7 @@ import { getSetting } from "./settings";
 import { D, Decimal, parseDec, r2 } from "../money";
 import { today, addDaysLocal } from "./stock";
 import { optStr, str } from "../validate";
+import { claimRequest, finishRequest, lockJobFirst } from "./requests";
 
 /**
  * M11 billing (FSD 4.11): tax invoices from job cards with split billing by line, warranty claims,
@@ -122,14 +123,20 @@ export type InvoiceOptions = { lineIds?: string[] | null; billTo?: "customer" | 
  * is the server date, and the issued parts' cost moves from work in progress to cost of sales.
  * Advances held for the customer on this job are applied automatically. Idempotent by key.
  */
+
 export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: string, opts: InvoiceOptions = {}) {
   if (!idempotencyKey || idempotencyKey.length < 16) throw invalid("Missing idempotency key.");
   if (opts.billTo === "warranty") return postWarrantyClaim(ctx, jobId, opts);
+  type Out = { id: string; docNo: string; duplicate: boolean; kind: "invoice" };
   return withTx(ctx, async (c) => {
+    // The key is bound to the job, the chosen lines and the bill-to: the same key for anything else is refused (CONC-04).
+    const replay = await claimRequest<Out>(c, ctx, idempotencyKey, "invoice", {
+      jobId, lines: [...(opts.lineIds ?? [])].sort(), billTo: opts.billTo ?? "customer", fleet: opts.fleetCustomerId ?? null, notes: optStr(opts.notes) ?? null });
+    if (replay) return replay;
     const prior = await c.query("SELECT id, job_card_id, doc_no FROM sales_invoice WHERE idempotency_key = $1", [idempotencyKey]);
     if (prior.rowCount) {
       if (prior.rows[0].job_card_id !== jobId) throw conflict("This request key was already used for another invoice.");
-      return { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, kind: "invoice" as const };
+      return finishRequest<Out>(c, idempotencyKey, { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, kind: "invoice" as const });
     }
     const lock = await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [jobId]);
     if (!lock.rowCount) throw notFound("Job card");
@@ -194,7 +201,7 @@ export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: strin
       }
     }
     await maybeCloseJob(c, ctx, job.id);
-    return { id: invId, docNo, duplicate: false, kind: "invoice" as const };
+    return finishRequest<Out>(c, idempotencyKey, { id: invId, docNo, duplicate: false, kind: "invoice" as const });
   });
 }
 
@@ -347,12 +354,17 @@ export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id
   const amount = parseDec(f.amount, "Amount", { min: "0.01", dp: 2 });
   if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
   const hash = crypto.createHash("sha256").update(JSON.stringify([f.invoice_id, f.method, amount.toFixed(2), str(f.reference), str(f.cheque_no)])).digest("hex");
+  type Out = { id: string; docNo: string; duplicate: boolean; onAccount: string };
+  const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "receipt", hash);
+  if (replay) return replay;
   const prior = await c.query("SELECT id, doc_no, request_hash FROM receipt WHERE idempotency_key = $1", [f.idempotency_key]);
   if (prior.rowCount) {
     if (prior.rows[0].request_hash !== hash) throw conflict("This request key was already used for a different payment.");
-    return { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, onAccount: "0.00" };
+    return finishRequest<Out>(c, f.idempotency_key, { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, onAccount: "0.00" });
   }
   const { pm, isCheque } = await paymentMethod(c, f);
+  // Same lock order as invoicing: job card, then invoice, then number series (CONC-02).
+  await lockJobFirst(c, (await c.query("SELECT job_card_id FROM sales_invoice WHERE id = $1", [f.invoice_id])).rows[0]?.job_card_id);
   const inv = await c.query("SELECT * FROM sales_invoice WHERE id = $1 FOR UPDATE", [f.invoice_id]);
   if (!inv.rowCount) throw notFound("Invoice");
   const invoice = inv.rows[0];
@@ -388,7 +400,7 @@ export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id
   }
   if (invoice.job_card_id) await maybeCloseJob(c, ctx, invoice.job_card_id);
   await audit(c, ctx, "receipt", rid, "post", { doc_no: docNo, amount: amount.toFixed(2), allocated: alloc.toFixed(2), on_account: onAccount.toFixed(2), method: f.method }, invoice.branch_id);
-  return { id: rid, docNo, duplicate: false, onAccount: onAccount.toFixed(2) };
+  return finishRequest<Out>(c, f.idempotency_key, { id: rid, docNo, duplicate: false, onAccount: onAccount.toFixed(2) });
 }
 
 /**
@@ -402,15 +414,18 @@ export async function recordAdvance(ctx: Ctx, f: PayIn & { customer_id: string; 
   const branchId = ctx.currentBranchId;
   if (!branchId) throw invalid("Choose a branch first.");
   const hash = crypto.createHash("sha256").update(JSON.stringify(["advance", f.customer_id, f.job_card_id ?? "", f.method, amount.toFixed(2), str(f.reference)])).digest("hex");
+  type Out = { id: string; docNo: string; duplicate: boolean; vat: string };
   return withTx(ctx, async (c) => {
+    const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "advance", hash);
+    if (replay) return replay;
     const prior = await c.query("SELECT id, doc_no, request_hash FROM receipt WHERE idempotency_key = $1", [f.idempotency_key]);
     if (prior.rowCount) {
       if (prior.rows[0].request_hash !== hash) throw conflict("This request key was already used for a different payment.");
-      return { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, vat: "0.00" };
+      return finishRequest<Out>(c, f.idempotency_key, { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, vat: "0.00" });
     }
     let bId = branchId;
     if (f.job_card_id) {
-      const j = (await c.query("SELECT * FROM job_card WHERE id = $1", [f.job_card_id])).rows[0];
+      const j = (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [f.job_card_id])).rows[0];
       if (!j) throw notFound("Job card");
       if (j.customer_id !== f.customer_id) throw invalid("The job card belongs to another customer.");
       if (["closed", "cancelled"].includes(j.status)) throw invalid("The job is closed.");
@@ -441,7 +456,7 @@ export async function recordAdvance(ctx: Ctx, f: PayIn & { customer_id: string; 
     await c.query("INSERT INTO customer_advance (branch_id, customer_id, job_card_id, source, source_id, source_no, amount, vat_amount) VALUES ($1,$2,$3,'advance',$4,$5,$6,$7)",
       [bId, f.customer_id, optStr(f.job_card_id), r.rows[0].id, docNo, amount.toFixed(2), vat.toFixed(2)]);
     await audit(c, ctx, "receipt", r.rows[0].id, "advance", { doc_no: docNo, amount: amount.toFixed(2), vat: vat.toFixed(2) }, bId);
-    return { id: r.rows[0].id as string, docNo, duplicate: false, vat: vat.toFixed(2) };
+    return finishRequest<Out>(c, f.idempotency_key, { id: r.rows[0].id as string, docNo, duplicate: false, vat: vat.toFixed(2) });
   });
 }
 
@@ -476,6 +491,7 @@ export async function applyAdvance(ctx: Ctx, invoiceId: string, advanceId: strin
     const inv = (await c.query("SELECT * FROM sales_invoice WHERE id = $1", [invoiceId])).rows[0];
     if (!inv) throw notFound("Invoice");
     assertCan(ctx, "invoices", "create", inv.branch_id);
+    await lockJobFirst(c, inv.job_card_id);
     const a = (await c.query("SELECT * FROM customer_advance WHERE id = $1", [advanceId])).rows[0];
     if (!a) throw notFound("Advance");
     const open = D(inv.grand_total).minus(inv.paid_amount).minus(inv.credited_amount);

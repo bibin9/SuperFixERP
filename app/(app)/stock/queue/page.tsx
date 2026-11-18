@@ -37,7 +37,7 @@ export default async function Queue({ searchParams }: { searchParams: Promise<Re
             <tr key={r.job_line_id}><td><Link href={`/jobs/${r.job_id}`}>{r.job_no}</Link> <Status s={r.job_status} /></td><td>{r.part_no}<div className="small muted">{r.description}</div></td>
               <td className="num">{D(r.issued_qty).toString()} of {D(r.qty).toString()}</td>
               <td className="num">{r.committed ? D(r.committed).toString() : "0"}{D(r.back_ordered ?? 0).gt(0) && <div><span className="pill amber">back-ordered {D(r.back_ordered).toString()}</span></div>}</td>
-              <td>{canIssue && <form action={issueAction} className="row"><input type="hidden" name="job_id" value={r.job_id} /><input type="hidden" name="line_id" value={r.job_line_id} /><input type="hidden" name="$back" value="/stock/queue" />
+              <td>{canIssue && <form action={issueAction} className="row"><input type="hidden" name="job_id" value={r.job_id} /><input type="hidden" name="line_id" value={r.job_line_id} /><input type="hidden" name="request_key" value={crypto.randomUUID()} /><input type="hidden" name="$back" value="/stock/queue" />
                 <input name="qty" defaultValue={D(r.qty).minus(r.issued_qty).toString()} style={{ width: 80, minWidth: 60 }} /><button className="btn sm shrink">Issue</button></form>}</td></tr>
           ))}{!toIssue.length && <tr><td colSpan={5} className="muted">Nothing waiting.</td></tr>}</tbody>
         </table>
