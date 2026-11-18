@@ -182,3 +182,14 @@ test("document numbers stay unique and sequential under concurrent saves", async
   assert.equal(new Set(nums).size, 8);
   assert.equal(nums[7] - nums[0], 7);
 });
+
+test("history shows technician names, not ids, for line assignments (UX-HISTORY-01)", async () => {
+  const { docHistory } = await import("../lib/services/history");
+  const job = (await adminQuery("SELECT j.id FROM job_card j JOIN job_line l ON l.job_card_id = j.id JOIN job_assignment a ON a.job_line_id = l.id LIMIT 1"))[0];
+  const rows = await docHistory(await ctxFor("admin", "YAS"), "job_card", job.id);
+  const assign = rows.filter((r) => /assign/.test(r.action));
+  assert.ok(assign.length > 0, "no assignment in history");
+  const text = JSON.stringify(assign.map((r) => r.detail));
+  assert.doesNotMatch(text, /[0-9a-f]{8}-[0-9a-f]{4}-/);
+  assert.match(text, /Ramesh|Arjun/);
+});

@@ -42,7 +42,26 @@ export async function recordHistory(c: PoolClient, f: { refs: [string, string | 
     const u = (await c.query("SELECT u.full_name, (SELECT r.name FROM user_branch_role ubr JOIN role r ON r.id = ubr.role_id WHERE ubr.user_id = u.id ORDER BY ubr.branch_id NULLS LAST LIMIT 1) role_name FROM app_user u WHERE u.id = $1", [s.user_id])).rows[0];
     out.push({ at: String(s.at instanceof Date ? s.at.toISOString() : s.at), user: u?.full_name ?? "System", role: u?.role_name ?? null, action: s.action, detail: null, source: "record" });
   }
+  await namesForIds(c, out);
   return out.sort((a, b) => +new Date(a.at) - +new Date(b.at));
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Shows people, bays, branches and items by name instead of their ids in history details (e.g. technician assignments). */
+async function namesForIds(c: PoolClient, rows: HistoryRow[]) {
+  const ids = new Set<string>();
+  const walk = (v: unknown) => { if (typeof v === "string" && UUID.test(v)) ids.add(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === "object") Object.values(v).forEach(walk); };
+  rows.forEach((r) => walk(r.detail));
+  if (!ids.size) return;
+  const list = [...ids];
+  const names = new Map<string, string>((await c.query(
+    `SELECT id::text, full_name n FROM app_user WHERE id = ANY($1::uuid[])
+     UNION ALL SELECT id::text, code FROM bay WHERE id = ANY($1::uuid[])
+     UNION ALL SELECT id::text, code FROM branch WHERE id = ANY($1::uuid[])
+     UNION ALL SELECT id::text, part_no FROM item WHERE id = ANY($1::uuid[])`, [list])).rows.map((x) => [x.id, x.n]));
+  const swap = (v: unknown): unknown => typeof v === "string" && UUID.test(v) ? names.get(v) ?? v : Array.isArray(v) ? v.map(swap)
+    : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k.replace(/_id$/, ""), swap(x)])) : v;
+  for (const r of rows) r.detail = swap(r.detail);
 }
 
 /** Old/new pairs for the fields that changed. */

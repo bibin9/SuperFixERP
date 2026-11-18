@@ -2,7 +2,7 @@ import type { HistoryRow } from "@/lib/services/audit";
 import { dt, label } from "@/components/ui";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const show = (v: any) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const show = (v: any): string => (v === null || v === undefined || (Array.isArray(v) && !v.length) ? "—" : Array.isArray(v) ? v.map(show).join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v));
 function Detail({ d }: { d: any }) {
   if (!d || typeof d !== "object") return null;
   return <>{Object.entries(d).slice(0, 8).map(([k, v]: [string, any]) => (
