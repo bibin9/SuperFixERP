@@ -141,6 +141,18 @@ const REPORTS: ReportDef[] = [
     link: (r) => `/jobs/${r.id}`,
   },
   {
+    code: "jobs_by_complaint", area: "Workshop", name: "Jobs by customer complaint", desc: "How many job cards came in with each complaint from the complaint list, by branch, and how many of them were comebacks.",
+    module: "jobs", dates: "range", people: ["advisor"], archive: "job_card",
+    columns: [{ key: "complaint_group", label: "Group" }, { key: "complaint", label: "Complaint" }, { key: "branch", label: "Branch" }, int("jobs", "Job cards"), int("comebacks", "Comebacks"),
+      { key: "last_date", label: "Last seen", type: "date" }],
+    query: (f, p) => `SELECT cc.group_name complaint_group, cc.name_en complaint, b.code branch, count(*)::int jobs, count(*) FILTER (WHERE j.original_job_id IS NOT NULL)::int comebacks,
+        ${D("max(j.doc_date)")} last_date
+      FROM job_card j JOIN branch b ON b.id = j.branch_id JOIN customer_complaint cc ON j.complaints ILIKE '%' || cc.name_en || '%'
+      WHERE ${where(f, p, { date: "j.doc_date", branch: "j.branch_id", advisor: "j.advisor_id", arch: ["job_card", "j.id"] }, ["j.status <> 'cancelled'"])}
+      GROUP BY 1, 2, 3 ORDER BY 4 DESC, 2`,
+    chart: { x: "complaint", y: "jobs", type: "bar" },
+  },
+  {
     code: "bay_use", area: "Workshop", name: "Bay use", desc: "Hours planned and booked on each bay against its capacity for the days chosen.",
     module: "workshop", dates: "range",
     columns: [{ key: "branch", label: "Branch" }, { key: "bay", label: "Bay" }, { key: "bay_type", label: "Type", type: "status" }, { key: "capacity_h", label: "Capacity hours", type: "hours", total: true },

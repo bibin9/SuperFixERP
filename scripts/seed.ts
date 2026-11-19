@@ -102,7 +102,7 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
 
   // Enquiry 2 (YAS): approved in person (wiper declined), job card created, parts issued, ready to invoice.
   const e2 = await createEnquiry(priya, { follow_up_at: "2026-12-01T10:00", customer_id: fatima, vehicle_id: patrol, service_asked: "AC not cooling, oil change", source: "walk_in",
-    odometer_in: "91240", fuel_level: "3", complaints: "AC not cooling; due for oil change" });
+    odometer_in: "91240", fuel_level: "3", complaints: "A/C not cooling; Oil change due" });
   await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["AC-REGAS"] });
   await addEnquiryLine(priya, e2.id, { line_type: "labour", service_id: svc["OIL-QK"] });
   await addEnquiryLine(priya, e2.id, { line_type: "part", item_id: items["OIL-5W30-L"], qty: "6" });
@@ -311,7 +311,7 @@ async function seedServiceHistory(adminUrl: string) {
       const jobs = n === 1 ? [`${when} - interval '6 months'`, when] : [when];
       for (const [i, d] of jobs.entries()) {
         await c.query(`INSERT INTO job_card (branch_id, doc_no, doc_date, job_type, customer_id, vehicle_id, odometer_in, complaints, advisor_id, promised_at, ready_at, delivered_at, status, created_at, created_by)
-          VALUES ($1, $2, (${d})::date, 'service', $3, $4, $5, 'Periodic service (history imported from Tally)', $6, (${d})::date + time '17:00', (${d})::date + time '15:30', (${d})::date + time '18:00', 'closed', (${d})::date + time '08:30', $6)`,
+          VALUES ($1, $2, (${d})::date, 'service', $3, $4, $5, 'Periodic service due (history imported from Tally)', $6, (${d})::date + time '17:00', (${d})::date + time '15:30', (${d})::date + time '18:00', 'closed', (${d})::date + time '08:30', $6)`,
           [b, `${br}-HIST-${String(n).padStart(2, "0")}${i ? "B" : ""}`, cust, veh, i === jobs.length - 1 ? km : km - 9000, adv]);
       }
     }
