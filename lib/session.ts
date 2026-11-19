@@ -9,7 +9,11 @@ export const COOKIE = "sf_session";
 
 export async function requestMeta() {
   const h = await headers();
-  return { ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1", device: (h.get("user-agent") || "").slice(0, 200) };
+  // PEN-05: the first X-Forwarded-For entry is whatever the browser sent; the last one was added by our own proxy,
+  // so it is the only part a caller cannot choose.
+  const xff = (h.get("x-forwarded-for") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const ip = (xff[xff.length - 1] || h.get("x-real-ip")?.trim() || "127.0.0.1").slice(0, 64);
+  return { ip, device: (h.get("user-agent") || "").slice(0, 200) };
 }
 
 /** Current user context, re-read from the database on every request (no trust in the browser). */

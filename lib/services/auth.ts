@@ -12,6 +12,10 @@ export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
 type Meta = { ip?: string; device?: string };
 
 /** Sign-in with user name and password (FSD 2.3). Lock-out after N failures (NFR security). */
+/** Failed sign-ins allowed from one network address in 15 minutes, across all users. */
+const IP_MAX_FAILS = 30;
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
+
 export async function login(username: string, password: string, meta: Meta = {}, viaPin = false, tablet?: { id: string; branchId: string }): Promise<{ token: string; userId: string }> {
   const uname = String(username || "").trim().toLowerCase();
   // Failures are recorded and committed, then reported after the transaction.
@@ -22,7 +26,13 @@ export async function login(username: string, password: string, meta: Meta = {},
       await c.query("INSERT INTO login_event (user_id, username, event, ip, device) VALUES ($1,$2,'login_failed',$3,$4)", [user?.id ?? null, uname, meta.ip, meta.device]);
       return { error: msg };
     };
-    if (!user || user.status !== "active") return fail("Wrong user name or password.");
+    // PEN-03: one network may fail only so many sign-ins in 15 minutes (password guessing across many users),
+    // checked before the user is looked at, so it cannot be used to tell real user names apart.
+    const ipFails = meta.ip ? Number((await c.query(
+      "SELECT count(*) n FROM login_event WHERE ip = $1 AND event = 'login_failed' AND at > now() - interval '15 minutes'", [meta.ip])).rows[0].n) : 0;
+    if (ipFails >= IP_MAX_FAILS) return fail("Too many failed sign-ins from this network. Wait 15 minutes, then try again.");
+    // PEN-02: an unknown or switched-off user takes as long as a wrong password, so timing does not reveal user names.
+    if (!user || user.status !== "active") { bcrypt.compareSync(String(password || ""), DUMMY_HASH); return fail("Wrong user name or password."); }
     if (user.locked_until && new Date(user.locked_until) > new Date()) return fail("This account is locked after too many failed sign-ins. Try again later or ask the admin.");
     const secret = viaPin ? user.pin_hash : user.password_hash;
     const ok = !!secret && bcrypt.compareSync(String(password || ""), secret);

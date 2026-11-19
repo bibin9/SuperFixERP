@@ -3,6 +3,9 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { AppError } from "@/lib/errors";
+import { safePath } from "@/lib/safe-path";
+import { siteOrigin } from "@/lib/origin";
+import { allow } from "@/lib/rate-limit";
 import { COOKIE, requireCtx, requestMeta } from "@/lib/session";
 import { login, logout, switchBranch, disableUser } from "@/lib/services/auth";
 import { createCustomer, updateCustomer, createVehicle } from "@/lib/services/customers";
@@ -32,7 +35,7 @@ async function run(back: string, fn: () => Promise<string | void>, okMsg?: strin
     else throw e;
   }
   revalidatePath("/", "layout");
-  redirect(target);
+  redirect(safePath(target));
 }
 
 // ---------- session ----------
@@ -158,7 +161,7 @@ export async function saveQuotationAction(fd: FormData) {
 export async function sendQuotationAction(fd: FormData) {
   const ctx = await requireCtx();
   const back = String(fd.get("$back"));
-  const base = String(fd.get("$origin") || "http://localhost:3000");
+  const base = await siteOrigin();
   await run(back, async () => {
     const { token, enquiryId, jobId } = await sendQuotation(ctx, String(fd.get("quotation_id")));
     const msg = await prepareMessage(ctx, jobId ? { jobId } : { enquiryId }, "quotation_for_approval",
@@ -180,9 +183,10 @@ export async function publicDecisionAction(fd: FormData) {
     [...fd.entries()].filter(([k]) => k.startsWith("line_")).map(([k]) => [k.slice(5), "approved" as const]),
   );
   for (const k of String(fd.get("all_lines")).split(",")) if (!decisions[k]) (decisions as Record<string, string>)[k] = "declined";
-  let target = `/q/${token}?done=1`;
+  let target = `/q/${encodeURIComponent(token)}?done=1`;
+  if (!allow("quote", (await requestMeta()).ip, 20, 60 * 60_000)) redirect(`/q/${encodeURIComponent(token)}?err=${encodeURIComponent("Too many tries. Please try again later.")}`);
   try { await submitPublicDecisions(token, decisions as Record<string, "approved" | "declined">); }
-  catch (e) { if (e instanceof AppError) target = `/q/${token}?err=${encodeURIComponent(e.message)}`; else throw e; }
+  catch (e) { if (e instanceof AppError) target = `/q/${encodeURIComponent(token)}?err=${encodeURIComponent(e.message)}`; else throw e; }
   redirect(target);
 }
 

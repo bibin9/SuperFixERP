@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { AppError } from "./errors";
+import { safePath } from "./safe-path";
 
 export const obj = (fd: FormData) => Object.fromEntries([...fd.entries()].filter(([k, v]) => !k.startsWith("$") && typeof v === "string").map(([k, v]) => [k, String(v)]));
 export const withQ = (target: string, key: string, msg: string) => {
@@ -27,5 +28,5 @@ export async function run(back: string, fn: () => Promise<string | void>, okMsg?
     else throw e;
   }
   revalidatePath("/", "layout");
-  redirect(target);
+  redirect(safePath(target));
 }
