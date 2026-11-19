@@ -33,7 +33,8 @@ function render(list: Element) {
   const all = items(list);
   const bar0 = list.nextElementSibling?.classList.contains("pgbar") ? list.nextElementSibling as HTMLElement : null;
   const size = getSize(list);
-  if (all.length <= SIZES[0]) { all.forEach((r) => r.removeAttribute("data-pg-hide")); bar0?.remove(); return; }
+  // A list that fits on one page shows no pager at all.
+  if (all.length <= Math.max(SIZES[0], size)) { all.forEach((r) => r.removeAttribute("data-pg-hide")); bar0?.remove(); return; }
   const last = Math.ceil(all.length / size);
   const page = Math.min(pages.get(list) ?? 1, last);
   pages.set(list, page);
@@ -43,11 +44,11 @@ function render(list: Element) {
   const from = (page - 1) * size + 1, to = Math.min(page * size, all.length);
   const html = `<span class="pg-info">Showing ${from}–${to} of ${all.length}</span>`
     + `<label class="pg-size">Per page <select aria-label="Rows per page">${SIZES.map((s) => `<option${s === size ? " selected" : ""}>${s}</option>`).join("")}</select></label>`
-    + `<span class="pg-nav"><button type="button" class="btn ghost sm" data-go="1"${page <= 1 ? " disabled" : ""} aria-label="First page">«</button>`
+    + (last <= 1 ? "" : `<span class="pg-nav"><button type="button" class="btn ghost sm" data-go="1"${page <= 1 ? " disabled" : ""} aria-label="First page">«</button>`
     + `<button type="button" class="btn ghost sm" data-go="${page - 1}"${page <= 1 ? " disabled" : ""} aria-label="Previous page">‹ Prev</button>`
     + `<span class="pg-of">Page ${page} of ${last}</span>`
     + `<button type="button" class="btn ghost sm" data-go="${page + 1}"${page >= last ? " disabled" : ""} aria-label="Next page">Next ›</button>`
-    + `<button type="button" class="btn ghost sm" data-go="${last}"${page >= last ? " disabled" : ""} aria-label="Last page">»</button></span>`;
+    + `<button type="button" class="btn ghost sm" data-go="${last}"${page >= last ? " disabled" : ""} aria-label="Last page">»</button></span>`);
   if (bar.innerHTML !== html) bar.innerHTML = html;
   if (!bar0) list.after(bar);
   (bar as HTMLElement & { _list?: Element })._list = list;
@@ -56,7 +57,16 @@ function render(list: Element) {
 function renderAll() {
   if (busy) return;
   busy = true;
-  try { lists().forEach(render); } finally { busy = false; }
+  try {
+    const ls = lists();
+    // A bar whose list was re-drawn or moved (React replaced the rows, a search refreshed the list) is dropped,
+    // so a list never shows two pagers.
+    document.querySelectorAll(".main .pgbar").forEach((b) => {
+      const l = (b as HTMLElement & { _list?: Element })._list;
+      if (!l || !ls.includes(l) || l.nextElementSibling !== b) b.remove();
+    });
+    ls.forEach(render);
+  } finally { busy = false; }
 }
 
 export function ListPager({ user: u, defaultSize }: { user: string; defaultSize: number }) {
@@ -93,7 +103,7 @@ export function ListPager({ user: u, defaultSize }: { user: string; defaultSize:
     };
     main.addEventListener("click", click);
     main.addEventListener("change", change);
-    return () => { ob.disconnect(); main.removeEventListener("click", click); main.removeEventListener("change", change); };
+    return () => { document.querySelectorAll(".main .pgbar").forEach((b) => b.remove()); ob.disconnect(); main.removeEventListener("click", click); main.removeEventListener("change", change); };
   }, [path, u, defaultSize]);
   return null;
 }
