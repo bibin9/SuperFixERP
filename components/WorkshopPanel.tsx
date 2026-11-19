@@ -72,7 +72,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
             <div className="row" style={{ marginTop: 6 }}><input name="description" placeholder="Describe it if not in the list" /><input name="note" placeholder="Note" /><button className="btn sm shrink">Need part</button></div>
           </form>}
         </div>
-        <div className="card"><h2>Quality check</h2>
+        <div className="card" id="qc"><h2>Quality check</h2>
           {w.qc.map((q) => <div key={q.id} className="small"><Status s={q.result === "pass" ? "passed" : "failed"} /> {q.full_name} <span className="muted">{dt(q.checked_at)}</span>
             {(q.items as Row[]).filter((i) => i.result === "failed").map((i) => <div key={i.code} className="muted">✗ {i.label}: {i.note}</div>)}{q.note && <div className="muted">{q.note}</div>}</div>)}
           {job.status === "quality_check" && w.canSupervise ? (
@@ -88,7 +88,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
         </div>
       </div>
 
-      {(job.status === "ready" || (job.status === "invoiced" && !job.delivered_at) || w.delivery) && <div className="card"><h2>Delivery</h2>
+      {(job.status === "ready" || (job.status === "invoiced" && !job.delivered_at) || w.delivery) && <div className="card" id="delivery"><h2>Delivery</h2>
         {!w.delivery && rel && (
           <div className={`flash ${rel.basis ? "ok" : "warn"}`} style={{ marginBottom: 10 }}>
             {rel.basis === "paid" && "Nothing is owed. The car can be handed over."}

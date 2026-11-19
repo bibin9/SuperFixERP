@@ -5,7 +5,7 @@ export const SCREEN_TOPIC: [string, string][] = [
   ["/bookings", "bookings"], ["/approvals", "approvals"], ["/workshop/runs", "runs"], ["/workshop/keys", "key-drop"], ["/workshop/time", "workshop-board"], ["/workshop/tablets", "workshop-board"], ["/hr/machines", "attendance"], ["/feedback", "feedback"], ["/workshop", "workshop-board"], ["/my-jobs", "my-jobs"],
   ["/stock/queue", "store-queue"], ["/stock/reorder", "low-stock"], ["/stock/planning", "planning"], ["/stock/transfers", "transfers"], ["/stock/adjustments", "counts"], ["/stock/counts", "counts"], ["/stock", "stock"],
   ["/purchasing/bills", "supplier-bills"], ["/purchasing/petty-cash", "petty-cash"], ["/purchasing/direct", "buy-for-job"], ["/purchasing", "purchase-orders"],
-  ["/invoices", "invoicing"], ["/billing/counter-sale", "counter-sale"], ["/billing/advances", "advances"], ["/billing/cheques", "cheques"], ["/billing/credit-notes", "credit-notes"], ["/billing/cash", "cash-closing"],
+  ["/invoices", "invoicing"], ["/billing/counter-sale", "counter-sale"], ["/billing/quick", "invoicing"], ["/billing/advances", "advances"], ["/billing/cheques", "cheques"], ["/billing/credit-notes", "credit-notes"], ["/billing/cash", "cash-closing"],
   ["/accounts/ledger", "vouchers"], ["/accounts/vouchers", "vouchers"], ["/accounts/day-book", "vouchers"], ["/accounts/journal", "vouchers"],
   ["/accounts/receivables", "receivables-payables"], ["/accounts/payables", "receivables-payables"], ["/accounts/statement", "receivables-payables"],
   ["/accounts/bank", "bank"], ["/accounts/vat", "vat"], ["/accounts/periods", "month-end"], ["/accounts/opening", "month-end"], ["/accounts/assets", "month-end"],

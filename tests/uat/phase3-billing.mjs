@@ -32,7 +32,7 @@ await step("TC-P3-01 unpaid car cannot be handed over", async () => {
   await priya.screenshot({ path: `${EV}/p3-release-blocked.png`, fullPage: true }); return "owed warning shown, no Deliver button";
 });
 await step("TC-P3-02 invoice draft and post: simplified invoice, QR, amount in words", async () => {
-  await priya.click("a:has-text('Prepare invoice')"); await settle(priya);
+  await priya.click("a:has-text('Prepare the invoice')"); await settle(priya);
   must((await priya.locator("input[name=line_id]").count()) >= 2, "line checkboxes missing");
   await priya.click("button:has-text('Post invoice')"); await settle(priya); invUrl = priya.url();
   const t = await body(priya); must(/Simplified Tax Invoice/.test(t), "title"); must(/dirhams/i.test(t), "amount in words");
@@ -89,7 +89,7 @@ await step("TC-P3-10 discount above the advisor's limit is refused", async () =>
   await priya.click("button:has-text('Post sale')"); await settle(priya); const f = await flash(priya); must(/above your limit/i.test(f), f); return f;
 });
 await step("TC-P3-11 deposit on an open job with VAT shown", async () => {
-  await priya.goto(B + "/jobs"); await priya.click("a:has-text('YAS-1484')"); await settle(priya); await priya.click("a:has-text('Take deposit')"); await settle(priya);
+  await priya.goto(B + "/jobs"); await priya.click("a:has-text('YAS-1484')"); await settle(priya); await priya.click("summary:has-text('take a deposit')"); await priya.click("a:has-text('Take deposit')"); await settle(priya);
   await priya.selectOption("select[name=method]", "card"); await priya.fill("input[name=amount]", "105"); await priya.fill("input[name=reference]", "SLIP-DEP");
   await priya.click("button:has-text('Receive deposit')"); await settle(priya); const f = await flash(priya); must(/VAT AED 5\.00/.test(f), f); return f;
 });

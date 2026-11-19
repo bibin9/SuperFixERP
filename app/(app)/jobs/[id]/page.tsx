@@ -20,6 +20,8 @@ import { messagesFor } from "@/lib/services/messaging";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { WorkshopPanel } from "@/components/WorkshopPanel";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
+import { D } from "@/lib/money";
+import { withTx } from "@/lib/db";
 
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
@@ -42,6 +44,12 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const late = job.promised_at && new Date(job.promised_at) < new Date() && !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
   const manual = nextStatuses(job.status).filter((s) => !["approved", "ready", "delivered", "invoiced", "cancelled", "closed"].includes(s));
   const delayReasons = m.lookups.filter((l) => l.list === "delay_reason");
+  // Other finished job cards of the same customer at this branch: they can go on one combined invoice.
+  const otherJobs = ["ready", "delivered", "invoiced"].includes(job.status) && unbilled > 0 && can(ctx, "invoices", "create", b)
+    ? await withTx(ctx, async (c) => Number((await c.query(
+      `SELECT count(*) n FROM job_card j WHERE j.customer_id = $1 AND j.branch_id = $2 AND j.id <> $3 AND j.status IN ('ready','delivered','invoiced')
+          AND EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND NOT l.removed AND l.approval_status = 'approved' AND l.warranty_claim_id IS NULL
+                        AND NOT EXISTS (SELECT 1 FROM sales_invoice_line sil WHERE sil.job_line_id = l.id))`, [job.customer_id, b, id])).rows[0].n)) : 0;
   return (
     <>
       <PageHead title={`Job card ${job.doc_no}`} sub={`${plate(job)} · ${job.make} ${job.model} ${job.model_year ?? ""} · ${custName(job)} · ${job.mobile} · ${job.branch_name}`}>
@@ -52,7 +60,78 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />
       <p className="small muted">Created from enquiry <Link href={`/enquiries/${job.enquiry_id}`}>{job.enquiry_no}</Link> after the customer approved the quotation.</p>
 
-      <div className="grid3">
+      {(() => {
+        // One clear next step for the stage the job is at; everything else stays below or under "More".
+        const openInv = invoices.find((i) => D(i.paid_amount).plus(i.credited_amount).lt(i.grand_total));
+        const canInvoice = canSeePrices && can(ctx, "invoices", "create", b);
+        const delivered = !!job.delivered_at;
+        const rank = ({ approved: 0, awaiting_parts: 0, in_progress: 1, quality_check: 2, ready: 3, delivered: 3, invoiced: 3, closed: 9 } as Record<string, number>)[job.status] ?? -1;
+        const steps: [string, boolean][] = [
+          ["Approved", rank >= 0], ["Work", rank >= 2], ["Quality check", rank >= 3], ["Ready", rank >= 3],
+          ["Invoiced", invoices.length > 0 && unbilled === 0], ["Paid", invoices.length > 0 && !openInv], ["Handed over", delivered],
+        ];
+        const current = steps.findIndex(([, done]) => !done);
+        let title = "", hint = "", primary: React.ReactNode = null, primaryTo = "";
+        const go = (href: string, text: string) => <Link className="btn green" href={href}>{text}</Link>;
+        if (job.status === "cancelled") { title = "This job was cancelled"; }
+        else if (job.status === "closed") { title = "Job finished"; hint = "Paid and handed over. Nothing left to do."; }
+        else if (job.status === "approved" || job.status === "awaiting_parts") {
+          title = job.status === "awaiting_parts" ? "Waiting for parts" : "Start the work";
+          hint = job.status === "awaiting_parts" ? "Start once the parts arrive. Part requests are under Workshop below." : "Assign the technicians under Workshop, then start the job.";
+          primaryTo = "in_progress";
+        } else if (job.status === "in_progress") {
+          const toIssue = lines.filter((l) => !l.removed && l.approval_status === "approved" && ["part", "consumable"].includes(l.line_type) && D(l.issued_qty).lt(l.qty));
+          if (toIssue.length) { title = "Issue the parts"; hint = `The store still has to issue ${toIssue.map((l) => l.description).join(", ")}. Then send the job to quality check.`; primary = go("#lines", "See the parts"); }
+          else { title = "Send to quality check"; hint = "When the technicians have finished all the work."; primaryTo = "quality_check"; }
+        }
+        else if (job.status === "quality_check") {
+          title = "Record the quality check"; hint = "A pass makes the car Ready.";
+          if (can(ctx, "workshop", "edit", b)) primary = go("#qc", "Open the quality check"); else hint = "Waiting for the supervisor's quality check.";
+        } else if (unbilled > 0) {
+          title = job.status === "invoiced" ? "Invoice the rest" : "Prepare the invoice"; hint = "Check the lines, change them if needed, then post.";
+          if (canInvoice) primary = <>{go(`/jobs/${id}/invoice`, title)}{otherJobs > 0 && <> <Link className="btn ghost" href={`/invoices/combined?customer=${job.customer_id}`}>One invoice with {otherJobs} other car{otherJobs > 1 ? "s" : ""}</Link></>}</>;
+          else hint = "Waiting for someone who can invoice.";
+          if (canInvoice && otherJobs > 0) hint += ` This customer has ${otherJobs} other finished job card${otherJobs > 1 ? "s" : ""} waiting: you can bill them together on one invoice.`;
+        } else if (openInv) {
+          title = "Take payment"; hint = `Invoice ${openInv.doc_no} still has money owing.`;
+          if (canInvoice) primary = go(`/invoices/${openInv.id}`, "Take payment");
+        } else if (!delivered) { title = "Hand the car over"; hint = "Fill in the delivery checklist below."; if (canEdit) primary = go("#delivery", "Open delivery"); }
+        else { title = "Waiting to close"; hint = "The job closes by itself once every invoice is paid."; }
+        const others = canEdit ? manual.filter((s) => s !== primaryTo) : [];
+        const canCancel = can(ctx, "jobs", "cancel", b) && nextStatuses(job.status).includes("cancelled");
+        return (
+          <div className="card nextstep" id="move">
+            <div className="steps" aria-label="Job stages">{steps.map(([n, done], k) => <span key={n} className={done ? "done" : k === current ? "on" : ""}>{done ? "✓ " : ""}{n}</span>)}</div>
+            <div className="nextrow">
+              <div><div className="small muted">Next step</div><h2 style={{ margin: "2px 0" }}>{title}</h2>{hint && <div className="small muted">{hint}</div>}</div>
+              <div className="shrink">
+                {primaryTo && canEdit ? (
+                  <form action={statusAction} className="row" style={{ alignItems: "flex-end" }}>
+                    <input type="hidden" name="job_id" value={id} /><input type="hidden" name="version" value={job.version} />
+                    {late && !job.delay_reason && <div className="field"><label>Delay reason (job is late)</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select></div>}
+                    <button name="to" value={primaryTo} className="btn green shrink">{STATUS_LABEL[primaryTo] === "In progress" ? "Start work" : "Send to quality check"}</button>
+                  </form>
+                ) : primary}
+              </div>
+            </div>
+            {(others.length > 0 || canCancel) && (
+              <details className="more"><summary className="small">More: other moves{canCancel ? " or cancel" : ""}</summary>
+                {others.length > 0 && <form action={statusAction} className="row" style={{ marginTop: 8 }}>
+                  <input type="hidden" name="job_id" value={id} /><input type="hidden" name="version" value={job.version} />
+                  {late && !job.delay_reason && <div className="field"><label>Delay reason</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select></div>}
+                  {others.map((s) => <button key={s} name="to" value={s} className="btn ghost sm shrink">Move to {STATUS_LABEL[s]}</button>)}
+                </form>}
+                {canCancel && <form action={statusAction} style={{ marginTop: 10 }}>
+                  <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
+                  <div className="row"><div className="field"><label>Reason for cancelling</label><input name="reason" required /></div><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
+                </form>}
+              </details>
+            )}
+          </div>
+        );
+      })()}
+
+      <div className="grid2">
         <div className="card"><h2>Check-in</h2>
           <div className="small">Odometer <b>{job.odometer_in?.toLocaleString() ?? "—"} km</b> · fuel <b>{job.fuel_level ?? "—"}/8</b></div>
           <div className="small">Promised <b>{dt(job.promised_at) || "—"}</b> · advisor {job.advisor_name}</div>
@@ -72,30 +151,17 @@ export default async function JobPage({ params, searchParams }: { params: Promis
             </details>
           )}
         </div>
-        <div className="card"><h2>Move job</h2>
-          {canEdit && manual.length > 0 ? (
-            <form action={statusAction}>
-              <input type="hidden" name="job_id" value={id} /><input type="hidden" name="version" value={job.version} />
-              {late && <div className="field"><label>Delay reason (required)</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select><input name="delay_note" placeholder="Note" style={{ marginTop: 6 }} /></div>}
-              <div className="row">{manual.map((s) => <button key={s} name="to" value={s} className="btn sm shrink">{STATUS_LABEL[s]}</button>)}</div>
-            </form>
-          ) : <p className="muted small">Status moves automatically from here (quality check, delivery, invoice, payment).</p>}
-          {can(ctx, "jobs", "cancel", b) && nextStatuses(job.status).includes("cancelled") && (
-            <form action={statusAction} style={{ marginTop: 10 }}>
-              <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
-              <div className="row"><div className="field"><label>Reason for cancelling</label><input name="reason" required /></div><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
-            </form>
-          )}
-        </div>
-        <div className="card"><h2>Customer messages</h2>
-          {canEdit && <form action={whatsappAction}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
-            <div className="row"><div className="field"><label>Message</label><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>}
-          {canEdit && ["delivered", "invoiced", "closed"].includes(job.status) && <form action={askFeedbackAction} style={{ marginTop: 8 }}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$origin" value={origin} /><button className="btn ghost sm">Ask for a rating</button></form>}
-          {msgs.slice(0, 4).map((x) => <div key={x.id} className="small">{x.event.replace(/_/g, " ")} <Status s={x.status} /> <span className="muted">{dt(x.at)}</span></div>)}
-          {canSeePrices && ["ready", "delivered", "invoiced"].includes(job.status) && can(ctx, "invoices", "create", b) && unbilled > 0 && <p><Link className="btn green" href={`/jobs/${id}/invoice`}>{job.status === "invoiced" ? "Invoice the rest" : "Prepare invoice"}</Link></p>}
-          {!["closed", "cancelled"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn ghost sm" href={`/billing/advances?job=${id}`}>Take deposit</Link></p>}
+        <div className="card"><h2>Customer and invoices</h2>
           {invoices.map((i) => <div key={i.id} className="small">Invoice <Link href={`/invoices/${i.id}`}>{i.doc_no}</Link> · {i.bill_to_name} · <Money v={i.grand_total} /> · paid <Money v={i.paid_amount} />{Number(i.credited_amount) > 0 && <> · credited <Money v={i.credited_amount} /></>}</div>)}
           {warranty.map((w) => <div key={w.id} className="small">Warranty claim {w.doc_no}{w.claim_ref ? ` · ${w.claim_ref}` : ""}</div>)}
+          {!invoices.length && !warranty.length && <p className="small muted">No invoice yet.</p>}
+          {msgs.slice(0, 3).map((x) => <div key={x.id} className="small">{x.event.replace(/_/g, " ")} <Status s={x.status} /> <span className="muted">{dt(x.at)}</span></div>)}
+          {canEdit && <details className="more" style={{ marginTop: 8 }}><summary className="small">Message the customer, ask for a rating or take a deposit</summary>
+            <form action={whatsappAction} style={{ marginTop: 8 }}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
+              <div className="row"><div className="field"><label>Message</label><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>
+            {["delivered", "invoiced", "closed"].includes(job.status) && <form action={askFeedbackAction} style={{ marginTop: 8 }}><input type="hidden" name="job_id" value={id} /><button className="btn ghost sm">Ask for a rating</button></form>}
+            {!["closed", "cancelled"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn ghost sm" href={`/billing/advances?job=${id}`}>Take deposit</Link></p>}
+          </details>}
         </div>
       </div>
 
@@ -145,15 +211,17 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       <QuotationPanel enquiryId={job.enquiry_id} back={back} origin={origin} quotations={quotations} quotationLines={quotationLines} lines={lines}
         canEdit={canEdit && open} canSeePrices={canSeePrices} discountEdit={discountEdit} open={open} isJob />
 
-      <div className="grid2">
-        <div className="card"><h2>Approval history</h2>
-          <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{a.action.replace("_", " ")}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small muted">{dt(a.at)}</td><td className="small">{a.comment}</td></tr>)}</tbody></table>
-          {!approvals.length && <p className="muted small">None.</p>}
+      <details className="card history no-print"><summary><h2>Approval and status history <span className="small muted">({approvals.length + statusHistory.length})</span></h2></summary>
+        <div className="grid2">
+          <div><h3>Approvals</h3>
+            <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{a.action.replace("_", " ")}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small muted">{dt(a.at)}</td><td className="small">{a.comment}</td></tr>)}</tbody></table>
+            {!approvals.length && <p className="muted small">None.</p>}
+          </div>
+          <div><h3>Status changes</h3>
+            <table><tbody>{statusHistory.map((s) => <tr key={s.id}><td><Status s={s.to_status} /></td><td className="small">{s.reason}</td><td className="small">{s.full_name ?? "system / customer"}</td><td className="small muted">{dt(s.at)}</td></tr>)}</tbody></table>
+          </div>
         </div>
-        <div className="card"><h2>Status history</h2>
-          <table><tbody>{statusHistory.map((s) => <tr key={s.id}><td><Status s={s.to_status} /></td><td className="small">{s.reason}</td><td className="small">{s.full_name ?? "system / customer"}</td><td className="small muted">{dt(s.at)}</td></tr>)}</tbody></table>
-        </div>
-      </div>
+      </details>
       {await (async () => {
         const runs = await runsFor(ctx, { jobId: id, enquiryOfJob: job.enquiry_id });
         const runEdit = canEditRuns(ctx, job.branch_id);

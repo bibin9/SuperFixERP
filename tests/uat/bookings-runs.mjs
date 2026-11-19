@@ -14,7 +14,7 @@ async function as(user) {
 }
 const settle = async (p) => { await p.waitForTimeout(700); await p.waitForLoadState("networkidle"); };
 const go = async (p, path) => { await p.goto(B + path); await settle(p); };
-const body = async (p) => p.locator("body").innerText();
+const body = async (p) => { await p.evaluate(() => document.querySelectorAll("details.history").forEach((d) => { d.open = true; })); return p.locator("body").innerText(); };
 const flash = async (p) => (await p.locator(".flash").allInnerTexts()).join(" | ").replace(/\s+/g, " ");
 const results = []; let pass = 0, fail = 0;
 const step = async (id, name, fn) => {

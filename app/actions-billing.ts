@@ -4,6 +4,7 @@ import { requireCtx } from "@/lib/session";
 import { obj, keyed, run, withQ } from "@/lib/action-run";
 import * as bl from "@/lib/services/billing";
 import * as bm from "@/lib/services/billing-more";
+import * as bq from "@/lib/services/billing-quick";
 import { prepareMessage } from "@/lib/services/messaging";
 import { notFound } from "@/lib/errors";
 
@@ -18,11 +19,57 @@ const origin = async () => {
 };
 
 // ---------- invoices ----------
+/** Line changes typed on the invoice form: qty.<line>, price.<line>, disc.<line>, and new_* for one added line. */
+function invoiceEdits(fd: FormData) {
+  const edits: Record<string, bq.LineEdit> = {};
+  for (const [k, v] of fd.entries()) {
+    const m = /^(qty|price|disc)\.([0-9a-f-]{36})$/.exec(k);
+    if (m) (edits[m[2]] ??= {})[m[1] as keyof bq.LineEdit] = String(v);
+  }
+  const g = (n: string) => String(fd.get(`new_${n}`) ?? "");
+  const add: bq.NewLine = { line_type: g("line_type"), service_id: g("service_id"), item_id: g("item_id"), description: g("description"), qty: g("qty"), unit_price: g("unit_price"), discount_amount: g("discount_amount") };
+  return { edits, add };
+}
+
+export async function saveInvoiceLinesAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const jobId = String(fd.get("job_id"));
+  await run(`/jobs/${jobId}/invoice`, async () => {
+    const { edits, add } = invoiceEdits(fd);
+    const r = await bq.reviseAtBilling(ctx, jobId, edits, add);
+    return `/jobs/${jobId}/invoice?ok=${encodeURIComponent(r.changed ? "Changes saved. Check the totals, then post the invoice." : "Nothing was changed.")}`;
+  });
+}
+
+export async function quickJobAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const f = obj(fd);
+  await run("/billing/quick", async () => {
+    const lines: bq.NewLine[] = [];
+    for (let i = 0; i < 30; i++) {
+      const g = (n: string) => String(fd.get(`l${i}_${n}`) ?? "");
+      if (!g("line_type")) continue;
+      lines.push({ line_type: g("line_type"), service_id: g("service_id"), item_id: g("item_id"), description: g("description"), qty: g("qty"), unit_price: g("unit_price"), discount_amount: g("discount_amount") });
+    }
+    const r = await bq.postQuickInvoice(ctx, {
+      customer_id: f.customer_id, vehicle_id: f.vehicle_id, odometer_in: f.odometer_in, notes: f.notes, lines,
+      pay_method: f.method, pay_amount: f.amount, pay_full: f.pay === "full", ...(f.pay === "later" ? { pay_amount: "" } : {}), pay_reference: f.reference, handed_over: f.handed_over === "on", idempotency_key: f.idempotency_key,
+    });
+    return `/invoices/${r.invoiceId}?ok=${encodeURIComponent(`Quick job done: invoice ${r.docNo} posted`)}`;
+  });
+}
+
 export async function postInvoiceAction(fd: FormData) {
   const ctx = await requireCtx();
   const jobId = String(fd.get("job_id"));
   const billTo = String(fd.get("bill_to") || "customer") as bl.InvoiceOptions["billTo"];
   await run(`/jobs/${jobId}/invoice`, async () => {
+    // Changes typed in the lines are saved first; the user then sees the new totals before posting.
+    const { edits, add } = invoiceEdits(fd);
+    if (Object.keys(edits).length || add.service_id || add.item_id || add.description) {
+      const ch = await bq.reviseAtBilling(ctx, jobId, edits, add);
+      if (ch.changed) return `/jobs/${jobId}/invoice?ok=${encodeURIComponent("Your changes are saved. Check the new totals, then post the invoice.")}`;
+    }
     const r = await bl.postInvoice(ctx, jobId, String(fd.get("idempotency_key")), {
       lineIds: fd.getAll("line_id").map(String), billTo, fleetCustomerId: String(fd.get("fleet_customer_id") || "") || null,
       claimRef: String(fd.get("claim_ref") || "") || null, notes: String(fd.get("notes") || "") || null,

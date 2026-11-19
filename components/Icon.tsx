@@ -77,7 +77,7 @@ const BY_HREF: [string, string][] = [
   ["/workshop/runs", "truck"], ["/workshop/time", "clock"], ["/workshop/tablets", "phone"], ["/workshop/keys", "key"], ["/workshop", "board"], ["/my-jobs", "build"], ["/complaints", "alert"],
   ["/stock/planning", "list"], ["/stock/reorder", "alert"], ["/stock/queue", "part"], ["/stock/transfers", "swap"], ["/stock/adjustments", "sliders"], ["/stock", "box"],
   ["/purchasing/bills", "bill"], ["/purchasing/petty-cash", "wallet"], ["/purchasing/direct", "tag"], ["/purchasing/quotes", "bars"], ["/purchasing", "cart"],
-  ["/invoices", "doc"], ["/billing/counter-sale", "tag"], ["/billing/trade", "truck"], ["/billing/fleet", "briefcase"], ["/billing/advances", "hand"], ["/billing/cheques", "cheque"],
+  ["/invoices", "doc"], ["/billing/counter-sale", "tag"], ["/billing/quick", "doc"], ["/billing/trade", "truck"], ["/billing/fleet", "briefcase"], ["/billing/advances", "hand"], ["/billing/cheques", "cheque"],
   ["/billing/credit-notes", "undo"], ["/billing/cash", "cash"],
   ["/accounts/ledger", "ledger"], ["/accounts/receivables", "trend"], ["/accounts/payables", "exit"], ["/accounts/bank", "bank"], ["/accounts/vat", "percent"],
   ["/accounts/periods", "lock"], ["/accounts", "bars"],

@@ -15,7 +15,7 @@ import { optInt, str } from "../validate";
 
 const OPEN = ["draft", "pending_internal_approval", "ready_to_send", "sent"];
 /** Quotation number from the enquiry number: YAS-ENQ-26-00012 revision 2 is YAS-Q-26-00012-2. */
-function quoteNo(enquiryNo: string, rev: number) {
+export function quoteNo(enquiryNo: string, rev: number) {
   return `${enquiryNo.replace("-ENQ-", "-Q-")}-${rev}`;
 }
 

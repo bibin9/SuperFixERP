@@ -70,6 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ["Billing", [
       ["/invoices", "Invoices", can("invoices")],
       ["/billing/counter-sale", "Counter sale", can("invoices", "create")],
+      ["/billing/quick", "Quick job", can("invoices", "create") && can("jobs", "create")],
       ["/billing/advances", "Advances", can("invoices")],
       ["/billing/cheques", "Cheques", can("invoices")],
       ["/billing/credit-notes", "Credit notes", can("invoices")],

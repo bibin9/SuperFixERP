@@ -158,7 +158,12 @@ export async function getEnquiry(ctx: Ctx, id: string) {
  * card without an approved quotation of the same enquiry.
  */
 export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<string, unknown> = {}) {
-  return withTx(ctx, async (c) => {
+  return withTx(ctx, (c) => createJobCardIn(c, ctx, enquiryId, f));
+}
+
+/** createJobCard inside the caller's transaction; `quick` is the one-screen quick job (OT-02). */
+export async function createJobCardIn(c: import("pg").PoolClient, ctx: Ctx, enquiryId: string, f: Record<string, unknown> = {}, quick = false) {
+  {
     const e = await c.query("SELECT * FROM enquiry WHERE id = $1 FOR UPDATE", [enquiryId]);
     if (!e.rowCount) throw notFound("Enquiry");
     const enq = e.rows[0];
@@ -168,8 +173,8 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
     const q = (await c.query("SELECT * FROM quotation WHERE enquiry_id = $1 ORDER BY revision DESC LIMIT 1 FOR UPDATE", [enquiryId])).rows[0];
     if (!q || !["approved", "partly_approved"].includes(q.status)) throw invalid("The latest quotation is not approved. Wait for the customer's answer first.");
 
-    const jobType = str(f.job_type) || "service";
-    if (!["service", "repair", "warranty_comeback", "internal", "recovery"].includes(jobType)) throw invalid("Unknown job type.");
+    const jobType = quick ? "quick" : str(f.job_type) || "service";
+    if (!quick && !["service", "repair", "warranty_comeback", "internal", "recovery"].includes(jobType)) throw invalid("Unknown job type.");
     let originalJob: string | null = null;
     if (jobType === "warranty_comeback") {
       // JC-08: must link to the original job, which may be at any branch.
@@ -213,7 +218,7 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
     if (backOrdered) await setStatus(c, ctx, job, "awaiting_parts", "Approved part is back-ordered");
     await audit(c, ctx, "job_card", job.id, "create", { doc_no: docNo, enquiry: enq.doc_no, quotation: q.doc_no, approved_total: q.approved_total }, enq.branch_id);
     return { id: job.id as string, docNo: docNo as string, backOrdered };
-  });
+  }
 }
 
 /** Enquiry count per status for the filter chips (same scope as listEnquiries). */

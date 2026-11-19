@@ -17,7 +17,7 @@ export function WorkLines(p: {
   const isJob = p.owner.kind === "job";
   const hidden = (<><input type="hidden" name="owner_kind" value={p.owner.kind} /><input type="hidden" name="owner_id" value={p.owner.id} /><input type="hidden" name="$back" value={p.back} /></>);
   return (
-    <div className="card">
+    <div className="card" id="lines">
       <h2>{isJob ? "Job lines" : "Work to quote"}</h2>
       <table>
         <thead><tr><th>#</th><th>Work or part</th><th className="num">Qty / hrs</th>{p.canSeePrices && <th className="num">Unit price</th>}{p.canSeePrices && <th className="num">Discount</th>}<th>Customer</th><th>Parts</th>{isJob && <th>Technician</th>}<th><span className="vh">Actions</span></th></tr></thead>

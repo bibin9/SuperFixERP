@@ -18,6 +18,7 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Rec
   return (
     <>
       <PageHead title={tech ? "My jobs" : "Job cards"} sub={tech ? "Jobs with work assigned to you." : "Your branches only; the owner sees all branches."}>
+        {can(ctx, "invoices", "create") && can(ctx, "jobs", "create") && <Link className="btn ghost" href="/billing/quick">Quick job</Link>}
         {can(ctx, "customers", "create") && <Link className="btn" href="/enquiries/new">New enquiry</Link>}
       </PageHead>
       <Flash sp={sp} />

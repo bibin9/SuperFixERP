@@ -620,3 +620,22 @@ th{font-size:11.5px;letter-spacing:.6px}
 .recent-pop .rp-i:hover,.recent-pop .rp-i:focus{background:var(--bg)}.recent-pop .rp-i span{color:var(--muted)}
 .olderrows{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 16px;padding:10px 14px;background:#fff;border:1px dashed var(--line);border-radius:12px;font-size:13px;color:var(--muted)}
 .olderrows .olr-nav{display:flex;gap:8px;margin-left:auto}
+/* Job card: one clear next step (stages, the next action, the rest under More) */
+.nextstep{border-left:4px solid var(--blue)}
+.nextstep .nextrow{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.nextstep .steps{margin-bottom:10px}
+details.more>summary{cursor:pointer;color:var(--blue);margin-top:10px}
+details.card>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::before{content:"▸";color:var(--muted);font-size:14px}
+details.card[open]>summary::before{content:"▾"}
+details.card>summary h2{margin:0}
+details.card[open]>summary{margin-bottom:10px}
+@media print{details.card.history{display:none}}
+/* Invoice form: lines edited in place */
+.invlines .numin{width:90px;text-align:right;padding:4px 6px;min-height:32px}
+.invlines .addline select,.invlines .addline input:not(.numin){margin:2px 0;width:100%}
+.invlines .addline td{background:#f8fafc;vertical-align:top}
+.invlines input[readonly]{background:#f3f4f6;color:var(--muted)}
+.quicklines select{margin:2px 0;width:100%}.quicklines .numin{width:90px;text-align:right;padding:4px 6px;min-height:32px}
+.quicklines td:first-child select{min-width:120px}

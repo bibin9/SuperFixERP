@@ -61,7 +61,7 @@ export async function jobsOfInvoice(c: PoolClient, inv: { id: string; job_card_i
   return (await c.query("SELECT job_card_id FROM sales_invoice_job WHERE invoice_id = $1 ORDER BY job_card_id", [inv.id])).rows.map((r) => r.job_card_id as string);
 }
 
-async function invoiceBasis(c: PoolClient, jobId: string, lineIds?: string[] | null) {
+export async function invoiceBasis(c: PoolClient, jobId: string, lineIds?: string[] | null) {
   const j = await c.query("SELECT * FROM job_card WHERE id = $1", [jobId]);
   if (!j.rowCount) throw notFound("Job card");
   const job = j.rows[0];
@@ -137,8 +137,13 @@ export type InvoiceOptions = { lineIds?: string[] | null; billTo?: "customer" | 
 export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: string, opts: InvoiceOptions = {}) {
   if (!idempotencyKey || idempotencyKey.length < 16) throw invalid("Missing idempotency key.");
   if (opts.billTo === "warranty") return postWarrantyClaim(ctx, jobId, opts);
+  return withTx(ctx, (c) => postInvoiceIn(c, ctx, jobId, idempotencyKey, opts));
+}
+
+/** postInvoice inside the caller's transaction (also used by the quick job). */
+export async function postInvoiceIn(c: PoolClient, ctx: Ctx, jobId: string, idempotencyKey: string, opts: InvoiceOptions = {}) {
   type Out = { id: string; docNo: string; duplicate: boolean; kind: "invoice" };
-  return withTx(ctx, async (c) => {
+  {
     // The key is bound to the job, the chosen lines and the bill-to: the same key for anything else is refused (CONC-04).
     const replay = await claimRequest<Out>(c, ctx, idempotencyKey, "invoice", {
       jobId, lines: [...(opts.lineIds ?? [])].sort(), billTo: opts.billTo ?? "customer", fleet: opts.fleetCustomerId ?? null, notes: optStr(opts.notes) ?? null });
@@ -213,7 +218,7 @@ export async function postInvoice(ctx: Ctx, jobId: string, idempotencyKey: strin
     }
     await maybeCloseJob(c, ctx, job.id);
     return finishRequest<Out>(c, idempotencyKey, { id: invId, docNo, duplicate: false, kind: "invoice" as const });
-  });
+  }
 }
 
 async function issuedCostByLine(c: PoolClient, lineIds: string[]) {

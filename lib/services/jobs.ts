@@ -136,7 +136,7 @@ async function lockJob(c: PoolClient, ctx: Ctx, id: string, action: "edit" | "ca
  * FP-05 below-cost check without showing cost: flags a part line whose net selling price gives a
  * margin below the minimum margin setting, or is below cost.
  */
-async function isBelowMargin(c: PoolClient, branchId: string, itemId: string | null, qty: string, unitPrice: string, discount: string) {
+export async function isBelowMargin(c: PoolClient, branchId: string, itemId: string | null, qty: string, unitPrice: string, discount: string) {
   if (!itemId) return false;
   const b = await c.query("SELECT avg_cost FROM stock_balance WHERE item_id = $1 AND branch_id = $2", [itemId, branchId]);
   const cost = D(b.rows[0]?.avg_cost ?? 0);
@@ -154,10 +154,11 @@ export type Owner = { kind: "job" | "enquiry"; id: string };
  * Locks whatever owns the work lines. Before the job card exists that is the enquiry (the quotation
  * is built there); after it exists, new lines go on the job card as extra work (JC-07).
  */
-async function lockOwner(c: PoolClient, ctx: Ctx, owner: Owner) {
+async function lockOwner(c: PoolClient, ctx: Ctx, owner: Owner, atBilling = false) {
   if (owner.kind === "job") {
     const job = await lockJob(c, ctx, owner.id);
-    if (!EDITABLE.includes(job.status)) throw invalid(`Lines cannot be changed while the job is ${STATUS_LABEL[job.status]}.`);
+    // At billing (a line added on the invoice form) a Ready or Delivered job can still take a line.
+    if (!(atBilling ? ["ready", "delivered", "invoiced"] : EDITABLE).includes(job.status)) throw invalid(`Lines cannot be changed while the job is ${STATUS_LABEL[job.status]}.`);
     return { branchId: job.branch_id as string, enquiryId: job.enquiry_id as string, jobId: job.id as string | null, extra: true, ref: job.doc_no as string };
   }
   const e = await c.query("SELECT * FROM enquiry WHERE id = $1 FOR UPDATE", [owner.id]);
@@ -175,9 +176,9 @@ async function addLine(ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
 }
 
 /** Adds one work line inside the caller's transaction (also used to add a whole service bundle). */
-export async function addLineIn(c: PoolClient, ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
+export async function addLineIn(c: PoolClient, ctx: Ctx, owner: Owner, f: Record<string, unknown>, atBilling = false) {
   {
-    const o = await lockOwner(c, ctx, owner);
+    const o = await lockOwner(c, ctx, owner, atBilling);
     const type = required(f.line_type, "Line type");
     let description = optStr(f.description);
     let unitPrice: string | null = null;

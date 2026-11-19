@@ -35,7 +35,7 @@ const saeed = await as("saeed"), priya = await as("priya"), yousef = await as("y
 // ---------------------------------------------------------------- data for the period (through the normal screens)
 await step("TC-RP00-01", "Setup: Priya invoices the ready job and takes payment by card and cash; a counter sale; Anil raises a PO and asks QUS for parts", async () => {
   await go(priya, "/jobs"); await priya.click("a:has-text('YAS-1483')"); await settle(priya);
-  await priya.click("a:has-text('Prepare invoice')"); await settle(priya); await priya.click("button:has-text('Post invoice')"); await settle(priya);
+  await priya.click("a:has-text('Prepare the invoice')"); await settle(priya); await priya.click("button:has-text('Post invoice')"); await settle(priya);
   await priya.selectOption("select[name=method]", "card"); await priya.fill("input[name=amount]", "200"); await priya.fill("input[name=reference]", "SLIP-6001");
   await priya.click("button:has-text('Record payment')"); await settle(priya);
   await priya.selectOption("select[name=method]", "cash"); await priya.click("button:has-text('Record payment')"); await settle(priya);

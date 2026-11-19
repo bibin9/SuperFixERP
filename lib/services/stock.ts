@@ -175,13 +175,26 @@ export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown, r
       const replay = await claimRequest<Out>(c, ctx, requestKey, "stock_issue", { lineId, qty: qty.toFixed(3) });
       if (replay) return replay;
     }
+    await issueToLineIn(c, ctx, lineId, qty);
+    const out: Out = { lineId, qty: qty.toFixed(3), duplicate: false };
+    return requestKey !== undefined ? finishRequest<Out>(c, requestKey, out) : out;
+  });
+}
+
+/**
+ * Issues parts to a job line inside the caller's transaction. The store issues with Stock edit; a sale
+ * at the counter or at billing (quick job, a part added on the invoice) moves its own stock under
+ * the invoice permission, as a counter sale does (`asSale`).
+ */
+export async function issueToLineIn(c: PoolClient, ctx: Ctx, lineId: string, qty: Decimal, asSale = false) {
+  {
     const l = await c.query("SELECT l.*, j.doc_no, j.status job_status FROM job_line l JOIN job_card j ON j.id = l.job_card_id WHERE l.id = $1 FOR NO KEY UPDATE OF l", [lineId]);
     if (!l.rowCount) throw notFound("Job line");
     const line = l.rows[0];
-    assertCan(ctx, "stock", "edit", line.branch_id);
+    assertCan(ctx, asSale ? "invoices" : "stock", asSale ? "create" : "edit", line.branch_id);
     if (!line.item_id || line.removed) throw invalid("This line has no stock part.");
     if (line.approval_status !== "approved") throw invalid("Parts can only be issued to a line the customer approved.");
-    if (["invoiced", "closed", "cancelled"].includes(line.job_status)) throw invalid("This job is closed.");
+    if ((asSale ? ["closed", "cancelled"] : ["invoiced", "closed", "cancelled"]).includes(line.job_status)) throw invalid("This job is closed.");
     if (D(line.issued_qty).plus(qty).gt(line.qty)) throw invalid("That is more than the line quantity.");
     await lockSeries(c, line.branch_id, ["journal"]); // series before stock rows, as every posting does (PERF-01)
     const bal = await lockBalance(c, line.item_id, line.branch_id);
@@ -209,10 +222,8 @@ export async function issueToJobLine(ctx: Ctx, lineId: string, qtyIn: unknown, r
       branchId: line.branch_id, date: today(), sourceType: "stock_issue", sourceId: line.job_card_id, narration: `Issue to ${line.doc_no}: ${line.description}`,
       lines: [{ event: "work_in_progress", debit: value }, { event: "inventory", credit: value }],
     });
-    await audit(c, ctx, "job_line", lineId, "issue", { qty: qty.toFixed(3), job: line.doc_no }, line.branch_id);
-    const out: Out = { lineId, qty: qty.toFixed(3), duplicate: false };
-    return requestKey !== undefined ? finishRequest<Out>(c, requestKey, out) : out;
-  });
+    await audit(c, ctx, "job_line", lineId, "issue", { qty: qty.toFixed(3), job: line.doc_no, at_sale: asSale || undefined }, line.branch_id);
+  }
 }
 
 /** Stock by branch. Quantities at every branch are visible (BR-03); cost and value follow FP. */

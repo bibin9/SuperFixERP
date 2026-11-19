@@ -42,7 +42,7 @@ const priya = await as("priya");
 await priya.goto(B + "/jobs"); await priya.click("a:has-text('YAS-1484')"); await settle(priya); const jobUrl = priya.url();
 const anil = await as("anil");
 await step("issue parts", async () => { await anil.goto(jobUrl); const btns = anil.locator("button:has-text('Issue')"); const n = await btns.count(); for (let i = 0; i < n; i++) { await anil.locator("button:has-text('Issue')").first().click(); await settle(anil); } return `${n} issue buttons; ${await flash(anil)}`; });
-await step("ready/delivered not manual", async () => { await priya.goto(jobUrl); const t = await priya.locator(".card", { hasText: "Move job" }).innerText(); if (/\bReady\b|Delivered/.test(t)) throw new Error(t); return t.replace(/\n/g, " "); });
+await step("ready/delivered not manual", async () => { await priya.goto(jobUrl); const t = (await priya.locator(".nextstep button[name=to]").allInnerTexts()).join(", "); if (/\bReady\b|Delivered/.test(t)) throw new Error(t); return t.replace(/\n/g, " "); });
 await step("to QC", async () => { await priya.locator("button:has-text('Quality check')").first().click(); await settle(priya); return await flash(priya); });
 const khalid = await as("khalid");
 await step("QC fail", async () => {
