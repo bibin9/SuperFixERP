@@ -65,7 +65,10 @@ await step("TC-AC01-02", "bank accounts are a master form with IBAN check", asyn
   await goto(admin, "/admin/masters/bank-accounts"); const t = await body(admin); must(/Main current account/.test(t) && /Second account/.test(t), "bank accounts missing"); return "2 bank accounts";
 });
 await step("TC-AC02-02", "posting rules list the accounting events", async () => {
-  await goto(admin, "/admin/masters/posting"); const t = await body(admin); must(/pdc_issued/.test(t) && /depreciation/.test(t) && /interbranch/.test(t), "events missing"); return "events listed";
+  await goto(admin, "/admin/masters/posting");
+  // the list is paged: show every rule on one page first, as a user would
+  if (await admin.locator(".pgbar select").count()) await admin.locator(".pgbar select").first().selectOption("200");
+  const t = await body(admin); must(/pdc_issued/.test(t) && /depreciation/.test(t) && /interbranch/.test(t), "events missing"); return "events listed";
 });
 await step("TC-TM01-01", "Tally masters import: suppliers added, a repeat import skips them", async () => {
   await goto(admin, "/accounts/opening");
