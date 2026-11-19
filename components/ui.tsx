@@ -30,7 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const WORDS: Record<string, string> = {
-  whatsapp: "WhatsApp", whatsapp_reply: "WhatsApp reply", whatsapp_link: "WhatsApp link", walk_in: "Walk-in", in_person: "In person",
+  part_for_job: "Part bought for a job", whatsapp: "WhatsApp", whatsapp_reply: "WhatsApp reply", whatsapp_link: "WhatsApp link", walk_in: "Walk-in", in_person: "In person",
   sms: "SMS", email: "Email", lpo: "LPO", vat: "VAT", trn: "TRN", job_no: "Job number", doc_no: "Document number", max_pct: "Maximum %",
   sent_manually: "Sent manually", wps_created: "WPS file created", missing_out: "No check-out", not_in_yet: "Not in yet", worked_off_day: "Worked on day off", worked_holiday: "Worked on holiday", early_leave: "Left early", rest_day: "Rest day", wps_card: "WPS card", iban: "IBAN", end_of_contract: "End of contract", job_card: "Job card", credit_note: "Credit note", purchase_order: "Purchase order",
   transfer: "Transfer order", stock_transfer: "Transfer order", voucher: "Voucher (before 17 Nov)", voucher_journal: "Journal voucher", voucher_payment: "Payment voucher",
@@ -54,10 +54,20 @@ export function Status({ s }: { s: string }) {
 export const plate = (v: { registered_in?: string; plate_code?: string | null; plate_number?: string }) =>
   `${v.registered_in ?? ""} ${v.plate_code ?? ""} ${v.plate_number ?? ""}`.replace(/\s+/g, " ").trim();
 
-/** A number plate drawn like a UAE/GCC plate: emirate, code and number. */
-export function Plate({ v }: { v: { registered_in?: string; plate_code?: string | null; plate_number?: string } }) {
+/** A number plate drawn like a UAE/GCC plate: the code box in the emirate's or country's style, then the number. */
+const PLATE_STYLE: Record<string, [string, string]> = {
+  AUH: ["ad", ""], DXB: ["du", "DUBAI"], SHJ: ["sh", "SHJ"], AJM: ["aj", "AJMAN"], UAQ: ["aj", "UAQ"], RAK: ["aj", "RAK"], FUJ: ["aj", "FUJ"],
+  KSA: ["ksa", "KSA"], OMN: ["om", "OMAN"], QAT: ["qa", "QATAR"], BHR: ["bh", "BAHRAIN"], KWT: ["kw", "KUWAIT"],
+};
+export function Plate({ v, lg }: { v: { registered_in?: string; plate_code?: string | null; plate_number?: string }; lg?: boolean }) {
   if (!v.plate_number) return <span className="muted">—</span>;
-  return <span className="plate" title={plate(v)}><span className="pe">{v.registered_in}</span>{v.plate_code ? <span className="pc">{v.plate_code}</span> : null}<span className="pn">{v.plate_number}</span></span>;
+  const [cls, sub] = PLATE_STYLE[v.registered_in ?? ""] ?? ["", v.registered_in ?? ""];
+  return (
+    <span className={`plate ${cls}${lg ? " lg" : ""}`} title={plate(v)}>
+      <span className="pc">{v.plate_code || (cls === "ad" ? "AD" : "")}{sub && <small>{sub}</small>}</span>
+      <span className="pn">{v.plate_number}</span>
+    </span>
+  );
 }
 
 export const custName = (r: { customer_type?: string; title?: string | null; first_name?: string | null; last_name?: string | null; company_name?: string | null }) =>

@@ -10,6 +10,9 @@ import { can, canSee, fieldLevel } from "@/lib/access";
 import { updateEnquiryAction, lostEnquiryAction, createJobAction, whatsappAction } from "@/app/actions";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt, label } from "@/components/ui";
 import { WorkLines, QuotationPanel } from "@/components/WorkPanel";
+import { listBundles, rankForVehicle, complaintList, suggestedServices } from "@/lib/services/bundles";
+import { ComplaintPicker } from "@/components/ComplaintPicker";
+import { addSuggestedAction } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ManualMessage } from "@/components/ManualMessage";
 import { BookingCard } from "@/components/BookingCard";
@@ -27,7 +30,10 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
   const { id } = await params;
   const sp = await searchParams;
   const { enquiry: e, vehicles, lines, quotations, quotationLines, approvals, canSeePrices } = await getEnquiry(ctx, id);
-  const m = await masters(ctx);
+  const [m0, bundles, complaints] = await Promise.all([masters(ctx), listBundles(ctx), complaintList(ctx)]);
+  const suggested = suggestedServices(e.complaints, complaints).filter((s) => !lines.some((l: { service_id?: string; removed?: boolean }) => l.service_id === s.id));
+  const car = vehicles.find((v: { id: string }) => v.id === e.vehicle_id) ?? null;
+  const m = { ...m0, bundles: rankForVehicle(bundles, car) };
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
   const b = e.branch_id;
@@ -72,7 +78,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
                 <div className="field"><label>Fuel (0 to 8)</label><input name="fuel_level" type="number" min={0} max={8} defaultValue={e.fuel_level ?? ""} /></div>
               </div>
               <div className="row">
-                <div className="field"><label>Customer complaints</label><textarea name="complaints" defaultValue={e.complaints ?? ""} /></div>
+                <div className="field"><label>Customer complaints</label><ComplaintPicker list={complaints} defaultValue={e.complaints ?? ""} /></div>
                 <div className="field"><label>Valuables</label><textarea name="valuables" defaultValue={e.valuables ?? ""} /></div>
               </div>
               <button className="btn sm">Save</button>
@@ -127,6 +133,14 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
 
       {e.customer_id && e.vehicle_id && (
         <>
+          {canQuote && open && suggested.length > 0 && (
+            <form action={addSuggestedAction} className="callout info">
+              <input type="hidden" name="enquiry_id" value={id} /><input type="hidden" name="$back" value={back} />
+              <div style={{ flex: 1 }}><b>Suggested from the complaints:</b>{" "}
+                {suggested.map((s) => <label key={s.id} className="shrink" style={{ marginRight: 12, whiteSpace: "nowrap" }}><input type="checkbox" name="service_id" value={s.id} defaultChecked /> {s.name}</label>)}</div>
+              <button className="btn sm">Add to quotation</button>
+            </form>
+          )}
           <WorkLines owner={{ kind: "enquiry", id }} back={back} lines={lines} m={m} canEdit={canQuote} canSeePrices={canSeePrices}
             discountEdit={fieldLevel(ctx, "discount", b) === "edit"} priceEdit={fieldLevel(ctx, "selling_price", b) === "edit"} open={open} />
           <QuotationPanel enquiryId={id} back={back} origin={origin} quotations={quotations} quotationLines={quotationLines} lines={lines}

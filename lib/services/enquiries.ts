@@ -88,7 +88,7 @@ export async function updateEnquiry(ctx: Ctx, id: string, f: Record<string, unkn
   });
 }
 
-export async function listEnquiries(ctx: Ctx, status = "") {
+export async function listEnquiries(ctx: Ctx, status = "", q = "") {
   if (!can(ctx, "customers", "view")) throw forbidden();
   return withTx(ctx, async (c) => { await expireQuotations(c); return (await c.query(
     `SELECT e.*, b.code branch_code, c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, u.full_name assigned_name,
@@ -96,7 +96,9 @@ export async function listEnquiries(ctx: Ctx, status = "") {
             (e.follow_up_at < now() AND e.status IN ('open','booked','quoted')) overdue
        FROM enquiry e JOIN branch b ON b.id = e.branch_id LEFT JOIN customer c ON c.id = e.customer_id LEFT JOIN app_user u ON u.id = e.assigned_to
        LEFT JOIN vehicle v ON v.id = e.vehicle_id LEFT JOIN job_card j ON j.id = e.converted_job_id
-      WHERE ($1 = '' OR e.status = $1) AND e.doc_no NOT LIKE 'LEGACY-%' ORDER BY e.created_at DESC LIMIT 200`, [status],
+      WHERE ($1 = '' OR e.status = $1 OR ($1 = 'due' AND e.follow_up_at < now() AND e.status IN ('open','booked','quoted'))) AND e.doc_no NOT LIKE 'LEGACY-%'
+        AND ($2 = '' OR concat_ws(' ', e.doc_no, e.contact_name, e.contact_mobile, e.service_asked, c.first_name, c.last_name, c.company_name, c.mobile, v.plate_code, v.plate_number, v.make, v.model) ILIKE '%' || $2 || '%')
+      ORDER BY e.created_at DESC LIMIT 200`, [status, q.trim().slice(0, 80)],
   )).rows; });
 }
 
@@ -217,8 +219,8 @@ export async function createJobCard(ctx: Ctx, enquiryId: string, f: Record<strin
 export async function enquiryCounts(ctx: Ctx): Promise<Record<string, number>> {
   if (!can(ctx, "customers", "view")) return {};
   const rows = await withTx(ctx, async (c) => (await c.query(
-    "SELECT status, count(*)::int n FROM enquiry WHERE doc_no NOT LIKE 'LEGACY-%' GROUP BY status")).rows);
-  const out: Record<string, number> = { "": 0 };
-  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; }
+    "SELECT status, count(*)::int n, count(*) FILTER (WHERE follow_up_at < now() AND status IN ('open','booked','quoted'))::int due FROM enquiry WHERE doc_no NOT LIKE 'LEGACY-%' GROUP BY status")).rows);
+  const out: Record<string, number> = { "": 0, due: 0 };
+  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; out.due += r.due; }
   return out;
 }

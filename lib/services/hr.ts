@@ -571,3 +571,34 @@ export async function hireApplicant(ctx: Ctx, id: string, f: Record<string, stri
 
 export const HR_SCREENS_ANYWHERE = (ctx: Ctx) => canAnywhere(ctx, "hr", "view");
 export const salaryLevel = (ctx: Ctx, b?: string | null) => fieldLevel(ctx, "salary", b);
+
+// ---------------------------------------------------------------- renewing an expiring document or visa
+/** HR starts the renewal (the PRO takes it from here); the bell stops reminding while it is in progress. */
+export async function startRenewal(ctx: Ctx, recordId: string, note: string) {
+  const n = str(note).slice(0, 300);
+  return withTx(ctx, async (c) => {
+    const r = (await c.query("SELECT id, branch_id, employee_id, data, expiry_date FROM employee_record WHERE id = $1 AND status = 'active' FOR UPDATE", [recordId])).rows[0];
+    if (!r || !r.expiry_date) throw notFound("Document");
+    if (!can(ctx, "hr", "edit", r.branch_id)) throw forbidden("Only HR can start a renewal.");
+    if (r.data.renewal_started) throw invalid("The renewal has already been started.");
+    const data = { ...r.data, renewal_started: new Date().toISOString().slice(0, 10), renewal_by: ctx.fullName, renewal_note: n || undefined };
+    await c.query("UPDATE employee_record SET data = $2, updated_by = $3, updated_at = now() WHERE id = $1", [recordId, JSON.stringify(data), ctx.userId]);
+    await audit(c, ctx, "employee", r.employee_id, "renewal_started", { record: recordId, note: n }, r.branch_id);
+  });
+}
+
+/** The new document is in hand: the new expiry date replaces the old one and the renewal is finished. */
+export async function markRenewed(ctx: Ctx, recordId: string, newExpiry: string) {
+  const v = str(newExpiry);
+  if (!isDate(v)) throw invalid("New expiry date is required.", { field: "new_expiry" });
+  return withTx(ctx, async (c) => {
+    const r = (await c.query("SELECT id, branch_id, employee_id, data, to_char(expiry_date,'YYYY-MM-DD') expiry FROM employee_record WHERE id = $1 AND status = 'active' FOR UPDATE", [recordId])).rows[0];
+    if (!r || !r.expiry) throw notFound("Document");
+    if (!can(ctx, "hr", "edit", r.branch_id)) throw forbidden("Only HR can record a renewal.");
+    if (v <= r.expiry) throw invalid("The new expiry date must be after the old one.", { field: "new_expiry" });
+    const { renewal_started: _s, renewal_by: _b, renewal_note: _n, ...rest } = r.data;
+    const data = { ...rest, expiry_date: v };
+    await c.query("UPDATE employee_record SET data = $2, expiry_date = $3, updated_by = $4, updated_at = now() WHERE id = $1", [recordId, JSON.stringify(data), v, ctx.userId]);
+    await audit(c, ctx, "employee", r.employee_id, "renewed", { record: recordId, from: r.expiry, to: v }, r.branch_id);
+  });
+}

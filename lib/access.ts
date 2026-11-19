@@ -36,6 +36,8 @@ export type Ctx = {
   perms: Map<string, Set<string>>; // roleId -> "screen:action"
   fields: Map<string, Map<string, FieldLevel>>; // roleId -> field group -> level
   sessionId?: string;
+  /** Signed in with the quick PIN on a bay tablet: technician screens only. */
+  pinOnly?: boolean;
   ip?: string;
   device?: string;
 };

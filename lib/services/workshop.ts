@@ -347,3 +347,78 @@ export async function newBoardLink(ctx: Ctx) {
 
 export const minutesText = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 export { D };
+
+// ---------- technician time timeline (demo "Technician time") ----------
+export type Seg = { kind: "work" | "pause"; from: number; to: number; job: string; jobId: string; line: string; reason?: string | null; tone?: "ok" | "near" | "over" };
+
+/**
+ * Every clock in, pause and clock out at this branch on one day, as bars per technician, with the
+ * standard time of each job line. Efficiency counts lines clocked out that day: standard / actual.
+ */
+export async function techTimeline(ctx: Ctx, day: string) {
+  const b = ctx.currentBranchId;
+  if (!b) throw invalid("Choose a branch first.");
+  assertCan(ctx, "workshop", "view", b);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw invalid("Date is not valid.");
+  return withTx(ctx, async (c) => {
+    const span = (await c.query(`SELECT extract(epoch FROM ($1::date)::timestamp AT TIME ZONE 'Asia/Dubai') * 1000 s, extract(epoch FROM now()) * 1000 n`, [day])).rows[0];
+    const start = Number(span.s), end = start + 86400000, now = Number(span.n);
+    const techs = (await c.query(
+      `SELECT u.id, u.full_name FROM user_branch_role ubr JOIN app_user u ON u.id = ubr.user_id JOIN role r ON r.id = ubr.role_id
+        WHERE r.code = 'technician' AND ubr.branch_id = $1 AND u.status = 'active' ORDER BY u.full_name`, [b])).rows;
+    // All events of lines touched today (earlier days too, so the running total against standard is right).
+    const ev = (await c.query(
+      `SELECT e.technician_id, e.job_line_id, e.kind, e.reason, extract(epoch FROM e.at) * 1000 t, j.id job_id, j.doc_no, l.description, coalesce(l.standard_hours, 0) std
+         FROM time_event e JOIN job_card j ON j.id = e.job_card_id JOIN job_line l ON l.id = e.job_line_id
+        WHERE e.branch_id = $1 AND e.job_line_id IN (SELECT job_line_id FROM time_event WHERE branch_id = $1 AND at >= to_timestamp($2 / 1000.0) AND at < to_timestamp($3 / 1000.0))
+        ORDER BY e.technician_id, e.at, e.created_at`, [b, start, end])).rows;
+    const reasons = Object.fromEntries((await c.query("SELECT code, name_en FROM lookup_value WHERE list = 'pause_reason'")).rows.map((r) => [r.code, r.name_en]));
+    const stop = Math.min(now, end);
+    type LineAcc = { worked: number; std: number; outToday: boolean; tech: string };
+    const lines = new Map<string, LineAcc>();
+    const segs = new Map<string, Seg[]>();
+    const pauseBy = new Map<string, number>();
+    // Walk each technician's events: a work bar runs from clock in or resume to pause or clock out.
+    const byTech = new Map<string, typeof ev>();
+    for (const e of ev) { if (!byTech.has(e.technician_id)) byTech.set(e.technician_id, []); byTech.get(e.technician_id)!.push(e); }
+    for (const [tech, list] of byTech) {
+      const open = new Map<string, { kind: "work" | "pause"; from: number; reason?: string | null }>();
+      const out: Seg[] = [];
+      const close = (lineId: string, at: number, e: (typeof ev)[number]) => {
+        const o = open.get(lineId); if (!o) return;
+        open.delete(lineId);
+        const acc = lines.get(lineId) ?? { worked: 0, std: Number(e.std) * 3600000, outToday: false, tech };
+        if (o.kind === "work") acc.worked += at - o.from;
+        lines.set(lineId, acc);
+        const from = Math.max(o.from, start), to = Math.min(at, end);
+        if (to > from) {
+          const tone = o.kind === "work" && acc.std > 0 ? (acc.worked > acc.std ? "over" : acc.worked >= acc.std * 0.85 ? "near" : "ok") : "ok";
+          out.push({ kind: o.kind, from, to, job: e.doc_no, jobId: e.job_id, line: e.description, reason: o.reason ? reasons[o.reason] ?? o.reason : null, tone });
+          if (o.kind === "pause") { const r = o.reason ? reasons[o.reason] ?? o.reason : "Other"; pauseBy.set(r, (pauseBy.get(r) ?? 0) + (to - from)); }
+        }
+      };
+      for (const e of list) {
+        const t = Number(e.t);
+        if (e.kind === "clock_in" || e.kind === "resume") { close(e.job_line_id, t, e); open.set(e.job_line_id, { kind: "work", from: t }); }
+        else if (e.kind === "pause") { close(e.job_line_id, t, e); open.set(e.job_line_id, { kind: "pause", from: t, reason: e.reason }); }
+        else if (e.kind === "clock_out") {
+          close(e.job_line_id, t, e);
+          if (t >= start && t < end) { const acc = lines.get(e.job_line_id); if (acc) acc.outToday = true; }
+        }
+      }
+      for (const [lineId] of [...open]) { const last = list.filter((x) => x.job_line_id === lineId).at(-1)!; close(lineId, stop, last); }
+      segs.set(tech, out.filter((s) => s.to > start && s.from < end));
+    }
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+    const done = [...lines.values()].filter((l) => l.outToday && l.std > 0);
+    const eff = (ls: LineAcc[]) => { const w = sum(ls.map((l) => l.worked)); return w > 0 ? Math.round((sum(ls.map((l) => l.std)) / w) * 100) : null; };
+    const worked = sum([...segs.values()].flat().filter((s) => s.kind === "work").map((s) => s.to - s.from));
+    const paused = sum([...segs.values()].flat().filter((s) => s.kind === "pause").map((s) => s.to - s.from));
+    const stdBooked = sum([...lines.values()].map((l) => l.std));
+    return {
+      start, end, now, techs: techs.map((t) => ({ ...t, segs: segs.get(t.id) ?? [], eff: eff(done.filter((l) => l.tech === t.id)) })),
+      kpi: { eff: eff(done), worked, paused, stdBooked, over: [...lines.values()].filter((l) => l.std > 0 && l.worked > l.std).length },
+      pauses: [...pauseBy].sort((a, b) => b[1] - a[1]),
+    };
+  });
+}

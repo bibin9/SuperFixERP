@@ -164,7 +164,7 @@ await step("TC-VV01-02", "service interval: a wrong value is shown in red under 
 
 // ---------- inline errors on other forms ----------
 await step("TC-FE01-01", "customer form: a wrong mobile is shown in red under Mobile and the typed name stays", async () => {
-  await go(priya, "/customers/new"); await priya.fill("input[name=mobile]", "12345"); await priya.fill("input[name=first_name]", "Layla"); await priya.fill("input[name=last_name]", "Haddad"); await priya.selectOption("select[name=title]", { index: 1 });
+  await go(priya, "/customers/new"); await priya.fill("input[name=mobile]", "12345"); await priya.fill("input[name=first_name]", "Layla"); await priya.fill("input[name=last_name]", "Haddad"); await priya.selectOption("select[name=title]", { index: 1 }); await priya.selectOption("select[name=id_type]", "Passport"); await priya.fill("input[name=id_number]", "P1234567");
   await priya.click("button:has-text('Save'), button:has-text('Create'), button:has-text('Add customer')"); await settle(priya);
   const e = await inlineErr(priya); must(/Mobile/.test(e) && /Mobile/.test(await fieldOfErr(priya)), `${e}`);
   must((await priya.inputValue("input[name=first_name]")) === "Layla", "name lost"); must((await priya.locator("input[name=mobile]").getAttribute("aria-invalid")) === "true", "not outlined");

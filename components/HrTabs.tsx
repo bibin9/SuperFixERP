@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const GROUPS: Record<string, [string, string][]> = {
-  hr: [["/hr", "HR dashboard"], ["/hr/employees", "Employees"], ["/hr/attendance", "Attendance"], ["/hr/roster", "Roster"], ["/hr/leave", "Leave"], ["/hr/overtime", "Overtime"],
+  hr: [["/hr", "HR dashboard"], ["/hr/employees", "Employees"], ["/hr/attendance", "Attendance"], ["/hr/machines", "Punching machines"], ["/hr/roster", "Roster"], ["/hr/leave", "Leave"], ["/hr/overtime", "Overtime"],
     ["/hr/letters", "Letters"], ["/hr/transfers", "Transfers and org chart"], ["/hr/recruitment", "Recruitment"]],
   payroll: [["/payroll", "Payroll runs"], ["/payroll/revisions", "Salary updates"], ["/payroll/loans", "Advances and loans"], ["/payroll/settlements", "Final settlements"], ["/payroll/liabilities", "Gratuity and liabilities"]],
 };

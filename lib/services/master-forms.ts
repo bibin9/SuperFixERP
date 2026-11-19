@@ -39,6 +39,14 @@ export const MASTERS: MDef[] = [
       { name: "labour_rate", label: "Price (AED, before VAT)", type: "number", dp: 2, min: 0, required: true },
       { name: "is_quick", label: "Quick service", type: "bool" }, { name: "vat_code", label: "Tax code", type: "select", sql: TAX, required: true },
     ] },
+  { key: "complaints", title: "Customer complaints", group: "Front office", table: "customer_complaint", pk: ["id"], autoId: true, hasActive: true, order: "group_name, sort, name_en",
+    note: "The list of complaints picked at check-in and on enquiries. A suggested service is offered for the quotation. Reports count jobs by complaint.",
+    fields: [
+      { name: "group_name", label: "Group", type: "text", required: true, hint: "For example Brakes, A/C, Engine" },
+      { name: "name_en", label: "Complaint (English)", type: "text", required: true }, { name: "name_ar", label: "Complaint (Arabic)", type: "text" },
+      { name: "service_id", label: "Suggested service", type: "select", sql: "SELECT id::text, code || ' · ' || name_en FROM service WHERE active ORDER BY code" },
+      { name: "sort", label: "Order in the list", type: "number", dp: 0, min: 0 },
+    ] },
   { key: "items", title: "Parts and items", group: "Stock", table: "item", pk: ["id"], autoId: true, hasActive: true, order: "part_no",
     note: "Item master shared by all branches. Cost is kept per branch by the stock ledger and is not edited here.",
     fields: [

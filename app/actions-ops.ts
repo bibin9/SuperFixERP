@@ -124,6 +124,38 @@ export async function pettyCashAction(fd: FormData) {
   });
 }
 
+export async function directPurchaseAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const job = String(fd.get("job_id") || "");
+  await run(`/purchasing/direct${job ? `?job=${job}` : ""}`, async () => {
+    const f = fd.get("photo");
+    const photo = f instanceof File && f.size ? { name: f.name, type: f.type, bytes: Buffer.from(await f.arrayBuffer()) } : null;
+    const r = await pu.directPurchase(ctx, obj(fd), photo);
+    return `/purchasing/direct?ok=${encodeURIComponent(`${r.docNo} recorded on job ${r.job}`)}`;
+  });
+}
+
+export async function reorderPoAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run("/stock/reorder", async () => {
+    const po = await pu.raiseReorderPo(ctx, String(fd.get("item_id")), fd.get("qty"), String(fd.get("supplier_id") || "") || undefined);
+    return `/purchasing/${po.id}?ok=${encodeURIComponent(`${po.docNo} created as a draft. Check the price and submit it.`)}`;
+  });
+}
+
+export async function reorderTransferAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run("/stock/reorder", async () => {
+    const t = await so.requestTransfer(ctx, { from_branch_id: String(fd.get("from_branch_id")), note: "Reorder: stock at or below the reorder level", lines: [{ item_id: String(fd.get("item_id")), qty: fd.get("qty") }] });
+    return `/stock/reorder?ok=${encodeURIComponent(`Transfer ${t.docNo} requested`)}`;
+  });
+}
+
+export async function reorderLevelAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run("/stock/reorder?all=1", () => so.setReorder(ctx, String(fd.get("item_id")), fd.get("reorder_level"), fd.get("reorder_qty")), "Reorder level saved");
+}
+
 // ---------- workshop ----------
 export async function assignAction(fd: FormData) {
   const ctx = await requireCtx();

@@ -124,7 +124,7 @@ await step("TC-HR03-01", "branch manager sees the branch staff but no salary, no
   return "Staff of YAS only; salary and IBAN hidden; payroll refused";
 });
 await step("TC-HR12-01", "a technician has self-service only: HR screens refused, no HR menu items except My HR", async () => {
-  await ramesh.click("aside button.grp:has-text('HR')"); const nav = await ramesh.locator("aside").evaluate((e) => e.textContent);
+  const nav = await ramesh.locator("aside").evaluate((e) => e.textContent);
   must(/My HR/.test(nav) && !/Employees/.test(nav) && !/Payroll/.test(nav), `menu wrong: ${nav.slice(0, 200)}`);
   await ramesh.goto(`${B}/hr/employees`); must(/could not be shown/i.test(await ramesh.locator("body").innerText()), "HR list opened");
   await ramesh.goto(`${B}/admin/masters/salary-components`); must(/could not be shown/i.test(await ramesh.locator("body").innerText()), "master opened");

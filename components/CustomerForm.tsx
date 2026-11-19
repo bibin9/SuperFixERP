@@ -51,8 +51,8 @@ export function CustomerForm({ back, countries, titles, lookups = [], c, dups }:
         <div className="field"><label>Name in Arabic</label><input name="name_ar" dir="rtl" defaultValue={v("name_ar")} /></div>
         <div className="field"><label>Email</label><input name="email" type="email" defaultValue={v("email")} /></div>
         <div className="field"><label>ID type</label>
-          <select name="id_type" key={country} defaultValue={idOptions.includes(savedId) ? savedId : ""}><option value="">—</option>{idOptions.map((t) => <option key={t}>{t}</option>)}</select></div>
-        <div className="field"><label>ID number</label><input name="id_number" defaultValue={v("id_number")} /></div>
+          <select name="id_type" key={country} required={isPerson} defaultValue={idOptions.includes(savedId) ? savedId : ""}><option value="">—</option>{idOptions.map((t) => <option key={t}>{t}</option>)}</select></div>
+        <div className="field"><label>ID number</label><input name="id_number" defaultValue={v("id_number")} required={isPerson} /></div>
       </div>
       <div className="row">
         <div className="field"><label>TRN (VAT-registered business)</label><input name="trn" defaultValue={v("trn")} /></div>
@@ -67,7 +67,7 @@ export function CustomerForm({ back, countries, titles, lookups = [], c, dups }:
           <legend>E-invoicing details (needed for a full tax invoice to a VAT-registered business)</legend>
           <div className="row">
             <div className="field"><label>Peppol ID</label><input name="peppol_id" defaultValue={v("peppol_id")} placeholder="0235:100234567800003" /></div>
-            <div className="field"><label>Trade licence no.</label><input name="trade_licence_no" defaultValue={v("trade_licence_no")} /></div>
+            <div className="field"><label>Trade licence no.</label><input name="trade_licence_no" defaultValue={v("trade_licence_no")} required /></div>
             <div className="field"><label>Licence issued by</label>
               <select name="licence_authority" defaultValue={v("licence_authority")}><option value="">—</option>{list("licence_authority").map((x) => <option key={x.code} value={x.code}>{x.name_en}</option>)}</select></div>
           </div>

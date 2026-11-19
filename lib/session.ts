@@ -20,6 +20,7 @@ export const getCtx = cache(async (): Promise<Ctx | null> => {
 
 export async function requireCtx(): Promise<Ctx> {
   const ctx = await getCtx();
-  if (!ctx) redirect("/login");
+  // A bay tablet goes back to its names screen when the PIN session has locked.
+  if (!ctx) redirect((await cookies()).get("sf_tablet")?.value ? "/tablet" : "/login");
   return ctx;
 }

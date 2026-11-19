@@ -67,6 +67,24 @@ export const BACK: HelpTopic[] = [
 
   // ---------------- Billing ----------------
   {
+    slug: "buy-for-job", group: "Purchasing", title: "Buying a part for one job",
+    summary: "A part bought from a local shop for one car goes on the job at cost, never into stock.", who: "Stock keeper, purchasing, branch manager",
+    access: ["purchasing"], open: { label: "Open Buy for a job", href: "/purchasing/direct" },
+    parts: [
+      { h: "Record the purchase", steps: [
+        "Open **Purchasing, Buy for a job**. Choose the **Job card** and press **Choose**.",
+        "Under **For which line**, choose the job line the part is for. A manager or advisor can choose **New line on the job** instead; the customer then approves it like other extra work.",
+        "Type the **Part bought**, the **Shop or supplier**, and their **TRN** if it is on the receipt.",
+        "Type the **Cost before VAT** and the **VAT**. VAT can be claimed only with the shop's TRN.",
+        "For a new line, type the **Price to the customer**. Leave it empty to charge the cost.",
+        "Take a photo of the receipt and press **Add to the job at cost**.",
+      ], tips: [
+        "The money comes out of petty cash, so the box must hold enough.",
+        "The cost stays on the job until it is invoiced, then it goes to cost of sales. A job with a part bought for it cannot be cancelled.",
+      ] },
+    ],
+  },
+  {
     slug: "invoicing", group: "Billing", title: "Invoicing a job",
     summary: "Bill the work on a job card to the customer, a company, or a warranty claim.", who: "Service advisor, cashier",
     access: ["invoices"], open: { label: "Open Invoices", href: "/invoices" }, flows: ["customer-visit"],
@@ -252,10 +270,10 @@ export const BACK: HelpTopic[] = [
   {
     slug: "bank", group: "Accounting", title: "Bank, card settlements and reconciliation",
     summary: "Post card settlements, import bank statements and reconcile.", who: "Accountant",
-    access: ["accounting"], open: { label: "Open Bank and reconciliation", href: "/accounts/bank" },
+    access: ["accounting"], open: { label: "Open Bank & reconciliation", href: "/accounts/bank" },
     parts: [
       { h: "Card settlements", steps: [
-        "Open **Accounting, Bank and reconciliation**. **Card receipts waiting at this branch** shows card money not yet in the bank.",
+        "Open **Accounting, Bank & reconciliation**. **Card receipts waiting at this branch** shows card money not yet in the bank.",
         "Under **Card settlement** choose the **Batch**, type the **Bank credit (AED)** and **Commission**, and the **Bank account credited**.",
         "Press **Post settlement**.",
       ] },
@@ -362,6 +380,12 @@ export const BACK: HelpTopic[] = [
         "Fill in the fields, attach a photo or PDF in **File (optional)**, and press **Save**.",
         "Documents near expiry show on the HR dashboard.",
       ] },
+      { h: "Renew a visa or document before it expires", steps: [
+        "Documents and visas that expire within 60 days are listed on the **HR dashboard** under **Expiring documents and visas**. Those within 30 days also show in the bell at the top.",
+        "When the PRO starts the renewal, press **Start renewal**. It shows **Started** with the date and your name, and the bell stops reminding.",
+        "When the new visa or document is in hand, type the **New expiry date** and press **Renewed**. The new date replaces the old one, and the change is kept in the audit log.",
+        "To keep a copy of the new document, add it on the employee's **Documents and records** with the file.",
+      ] },
       { h: "Salary", steps: [
         "On the **Salary** tab, press **Update salary**, type each component's new monthly amount and the **From date**, and press **Send for approval**.",
       ] },
@@ -373,15 +397,25 @@ export const BACK: HelpTopic[] = [
     ],
   },
   {
-    slug: "attendance", group: "HR", title: "Attendance and roster",
-    summary: "Import punches, add missing punches, and plan the week.", who: "HR",
-    access: ["hr"], open: { label: "Open Attendance and roster", href: "/hr/attendance" },
+    slug: "attendance", group: "HR", title: "Attendance & roster",
+    summary: "Punching machines, missing punches, imports and the weekly roster.", who: "HR, branch manager",
+    access: ["hr"], open: { label: "Open Attendance & roster", href: "/hr/attendance" },
     parts: [
       { h: "See attendance", steps: [
-        "Open **HR, Attendance and roster**. Choose the branch and date and press **Show**. Each person's in, out, hours and **Late** minutes are shown.",
+        "Open **HR, Attendance & roster**. Choose the branch and date and press **Show**. Each person's in, out, hours and **Late** minutes are shown.",
+      ] },
+      { h: "Fix a missing punch", steps: [
+        "When someone punched in but not out, the day shows under **Missing punches to fix** at the top of Attendance (last 7 days), and in the bell for HR and the branch manager.",
+        "Ask the employee what time they left. Type the **Time out**, change the reason if needed, and press **Fix**. It is saved as a punch added by hand, with your name.",
+      ] },
+      { h: "Punching machines (biometric sync)", steps: [
+        "Open **HR, Punching machines**. Each machine shows **Online** or **Offline**, its last sync and today's punches. A machine that has sent nothing for 30 minutes shows **Offline**, and the bell tells HR.",
+        "To add a machine, choose the **Branch**, type a **Machine code** (for example YAS-ZK2), a **Name** and the **Model**, and press **Add machine**.",
+        "Press **Make key**. The key is shown once: type it into the machine's cloud or push settings (or the sync program on the branch PC). From then on the machine sends its punches by itself.",
+        "If the key was seen by someone else, press **New key**: the old key stops working. **Switch off** stops a machine sending.",
       ] },
       { h: "Import from the biometric device", steps: [
-        "Export the punches from the device as CSV.",
+        "If a machine cannot send by itself, export the punches from it as CSV.",
         "Under **Import from the biometric device**, type the **Device** name, attach the **File** and press **Import**.",
       ] },
       { h: "Add a punch by hand", steps: [
@@ -604,6 +638,12 @@ export const BACK: HelpTopic[] = [
       { h: "Master forms", steps: [
         "**Administration, Master forms** holds every list: services and labour rates, parts, suppliers, tax codes, payment methods, pick lists, bays, technician capacity, message templates, the chart of accounts, posting rules, leave types, letters and employee custom fields.",
         "Open a list, press **Add** to add a row or **Edit** to change one. Untick **Active** to stop using a row without deleting it.",
+      ] },
+      { h: "Service bundles", steps: [
+        "Open **Administration, Service bundles** and press **New bundle**, or **Change** on a bundle.",
+        "Type the **Code**, the **Name**, and in **For vehicles** the make, model or size it fits (for example Toyota Land Cruiser). Matching cars see it first.",
+        "On each line choose **Labour** or **Part**, the service or part, and the **Qty**. For labour, Qty is how many times it is done (for example 4 tyres fitted).",
+        "Press **Save bundle**. Prices are not kept in the bundle; they come from the service and part lists when the bundle is added.",
       ] },
       { h: "Approval workflows", steps: [
         "**Administration, Approval workflows**: for each document, set the **Step**, the **Approver**, the amount band (**From AED**, **To AED**) or **Discount above %**, and press **Save**.",

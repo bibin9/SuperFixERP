@@ -94,6 +94,25 @@ export const FRONT: HelpTopic[] = [
 
   // ---------------- Front office ----------------
   {
+    slug: "my-day", group: "Front office", title: "My day: what needs you now",
+    summary: "The Home page lists what to do next, with one button on each line.", who: "Service advisor, branch manager",
+    access: ["customers", "jobs"], open: { label: "Open Home", href: "/" },
+    parts: [
+      { h: "Start from the top", steps: [
+        "Open **Home**. The line under your name says how many things need you today.",
+        "Use the big search box to find a customer or car by plate, mobile, name or job card number.",
+        "The four tiles start the common jobs: **Customer is asking** (a new enquiry), **A car has arrived**, **Book a time** and **Take payment**.",
+      ] },
+      { h: "Needs you now", steps: [
+        "**Reply or call back**: enquiries whose follow-up is due today or overdue. Press **Open** and call the customer.",
+        "**Waiting for customer OK**: quotations sent with no answer yet. Press **Open** to send a reminder or record the answer.",
+        "**Approved, create the job card**: shown when a customer has approved. Press **Create job card**.",
+        "**Ready for the customer**: cars that passed the quality check. Press **Car ready** to prepare the WhatsApp message, then **Invoice** or **Deliver**.",
+        "**Running late, tell the customer**: press **Send new time** (see [Working with a job card](/help/job-card)).",
+      ] },
+    ],
+  },
+  {
     slug: "enquiries", group: "Front office", title: "Taking an enquiry (a customer arrives or calls)",
     summary: "Every job starts with an enquiry. Record the customer, the car and what they want.", who: "Service advisor",
     access: ["customers"], open: { label: "Open Enquiries", href: "/enquiries" }, flows: ["customer-visit"],
@@ -118,7 +137,7 @@ export const FRONT: HelpTopic[] = [
         "Set the **Promised delivery** date and time you agreed with the customer.",
         "Make the quotation in the work panel (see [Making a quotation](/help/quotation)).",
         "To book a time in the workshop, use the booking box (see [Booking calendar](/help/bookings)).",
-        "If the car must be collected, press **Schedule a run** (see [Pickup, drop-off and recovery](/help/runs)).",
+        "If the car must be collected, press **Schedule a run** (see [Pickup & recovery](/help/runs)).",
         "If the customer decides not to go ahead, press **Mark lost** and give the reason.",
       ] },
       { h: "Find an enquiry later", steps: [
@@ -168,6 +187,12 @@ export const FRONT: HelpTopic[] = [
     summary: "Add labour, parts and outside work, send the approval link, and record the customer's answer.", who: "Service advisor",
     access: ["customers", "jobs"], open: { label: "Open Enquiries", href: "/enquiries" }, flows: ["customer-visit", "extra-work"],
     parts: [
+      { h: "Add a whole service in one tap (service bundles)", steps: [
+        "Open the enquiry. Under the work lines is **Add a whole service in one tap**.",
+        "Bundles that fit this car are marked **Fits this car** and shown first.",
+        "Each bundle shows its labour, its parts and the price today. Press **Add bundle**.",
+        "Every labour line and part is added at once, priced from the master lists. Remove any line the customer does not need with **Remove**.",
+      ], tips: ["The administrator sets up bundles under **Administration, Service bundles**."] },
       { h: "Build the quotation", steps: [
         "Open the enquiry. The work panel is in the middle of the page.",
         "Press **Add labour** for each job (for example \"60,000 km service\"). Choose the service from the list. The hours and price come from the master list.",
@@ -207,7 +232,9 @@ export const FRONT: HelpTopic[] = [
     parts: [
       { h: "Find a job card", steps: [
         "Open **Front office, Job cards**. Late jobs are marked **Late**. Press the job number to open it.",
-        "Or type the job number or plate in the search box at the top.",
+        "Type a job number, plate, customer name or mobile in the search box above the list and press Enter.",
+        "Press a chip (for example **In progress** or **Late**) to see only those jobs. The number on each chip is how many there are.",
+        "Press **Cards** to see each job as a card with the plate, car, customer, work and promised time. Press **List** to go back to the table.",
       ] },
       { h: "What a job card shows", steps: [
         "The top shows the customer, vehicle, check-in (odometer, fuel, complaints), the promised time and the status.",
@@ -224,6 +251,19 @@ export const FRONT: HelpTopic[] = [
         "**Delivered**: the car has been handed over with the delivery form.",
         "**Invoiced**, then **Closed** once it is invoiced, handed over and fully paid.",
         "**Cancelled**: stopped with a reason.",
+      ] },
+      { h: "Check-in record: damage, photos and signature", steps: [
+        "Open the job card and go to **Check-in record**.",
+        "Walk round the car with the customer. Tap each damaged part on the car drawing: one tap is a **Scratch**, two taps a **Dent**, three **Broken or cracked**, a fourth tap clears it.",
+        "Ask the customer to sign in the box with a finger. Check the name in **Signed by**.",
+        "Press **Save check-in**. The signature is kept with the date and time and cannot be replaced.",
+        "To add a photo, choose **What it shows** (for example Front or Odometer), take or choose the photo and press **Add photo**. Up to 12 photos per job.",
+      ] },
+      { h: "The job is running late: send a new time", steps: [
+        "Late jobs show **Running late: send the customer a new time** under Check-in. Late jobs are also listed on **Home** and counted on **Workshop board** in the menu.",
+        "Choose the **New promised time** and the **Delay reason**. **Note** is for the team and is not sent.",
+        "Press **Send new time**. The job gets the new time and the WhatsApp text with it is shown.",
+        "Press **Open WhatsApp**, send it, then press **Mark as sent**.",
       ] },
       { h: "Move the job or record a delay", steps: [
         "Use the status buttons under **Move job** to move it on, for example to **Awaiting parts**.",
@@ -302,6 +342,56 @@ export const FRONT: HelpTopic[] = [
     ],
   },
 
+  {
+    slug: "feedback", group: "Front office", title: "Customer feedback and complaints",
+    summary: "Ask the customer for a star rating after delivery, and call back anyone who rated 1 or 2.", who: "Service advisor, branch manager",
+    access: ["jobs"], open: { label: "Open Customer feedback", href: "/feedback" }, flows: ["customer-visit"],
+    parts: [
+      { h: "Ask for a rating", steps: [
+        "Open the job card after the car is delivered or invoiced.",
+        "Press **Ask for a rating**. WhatsApp opens with the message and the rating link filled in. Press send in WhatsApp.",
+        "The customer opens the link, taps 1 to 5 stars and can write a comment. The link works for 30 days and only once.",
+      ] },
+      { h: "Follow up a low rating", steps: [
+        "Open **Front office, Customer feedback**. Ratings of 1 or 2 show under **To follow up**, and in the bell at the top.",
+        "Call the customer. Then type **What was done** and press **Save**. Your name and the time are saved.",
+      ] },
+      { h: "See who has not answered", steps: [
+        "Press **Not answered** to see the customers who were asked but have not rated yet.",
+        "The boxes at the top show the average rating and how many customers answered.",
+      ] },
+      { h: "Customer complaints on the enquiry", steps: [
+        "On a new enquiry, choose what the customer says from **Customer complaints** (for example *AC not cooling*), and add extra notes in the customer's own words.",
+        "The enquiry then suggests the services for those complaints. Press **Add to quotation** to add them.",
+        "The list of complaints and the services they suggest is kept under **Administration, Master forms, Customer complaints**.",
+      ] },
+    ],
+  },
+
+  {
+    slug: "key-drop", group: "Front office", title: "After-hours key drop",
+    summary: "Customers who come after closing check the car in on their phone and drop the key; you finish the check-in next morning.", who: "Service advisor",
+    access: ["customers"], open: { label: "Open Key drop", href: "/workshop/keys" }, flows: ["customer-visit"],
+    parts: [
+      { h: "Put the QR code on the key box", steps: [
+        "Open **Front office, Key drop**. On the right is the **QR code for the key box**. Press **Print** and stick it on the box.",
+        "Press **Open the customer form** to see what the customer sees. If a photo of the code was shared, press **Make a new QR code**: the old one stops working.",
+      ] },
+      { h: "What the customer does", steps: [
+        "The customer scans the code with the phone camera. A web page opens; no app is needed.",
+        "They type their name, mobile, plate, odometer and what they need, can add up to 3 photos, tick that they agree, sign with a finger and press **Send and drop my key**.",
+        "They get a number like KD-YAS-0001 and drop the key in the box.",
+      ] },
+      { h: "Check the car in next morning", steps: [
+        "Waiting key drops show in **Key drop** with a count in the menu, and in the bell.",
+        "Open one. Check what the customer wrote, the photos and the signature.",
+        "The customer and car are found by the mobile number and the plate. If they are new, press **Add the customer**, add the car on the customer's page, and come back.",
+        "Press **Complete check-in and start the enquiry**. The enquiry opens with the service, the customer's words, the odometer and valuables filled in. Add the work and send the quotation as usual (see [Quotations](/help/quotation)).",
+        "If the customer collected the key without work, open **Cancel this key drop**, type why and press **Cancel key drop**.",
+      ] },
+    ],
+  },
+
   // ---------------- Workshop ----------------
   {
     slug: "workshop-board", group: "Workshop", title: "Workshop board, assigning work and the wall screen",
@@ -325,6 +415,19 @@ export const FRONT: HelpTopic[] = [
       { h: "Answer part requests", steps: [
         "When a technician presses **Need part**, the request shows under **Part requests** on the job card and in the store queue.",
         "Parts that were not on the quotation must go to the customer first as extra work (see [Working with a job card](/help/job-card)).",
+      ] },
+      { h: "See each technician's day", steps: [
+        "Open **Workshop, Technician time**. Each technician has one line across the working day (07:00 to 20:00, longer if someone clocked earlier or later).",
+        "Solid blocks are clocked work on a job; striped blocks are pauses. Green means within the standard time, amber is close to it, red is over it.",
+        "Point at a block to see the job, the work and the time. Press it to open the job card.",
+        "The boxes at the top show the branch's efficiency, the hours worked and paused, and how many lines ran over. **Pause reasons** below shows where the paused time went.",
+        "Choose another date at the top to look at an earlier day.",
+      ] },
+      { h: "Set up a bay tablet for quick PIN sign-in", steps: [
+        "On the tablet itself, sign in with your own password and open **Workshop, Bay tablets**.",
+        "Type the **Tablet name** (for example Bay 2 tablet) and press **Make this device a bay tablet**. You are signed out and the tablet shows the technicians' names.",
+        "Only technicians who have set a PIN are shown. The PIN works only on tablets added here, and only opens My jobs.",
+        "To stop a tablet working (lost or replaced), press **Remove** next to it. If a technician forgets their PIN, press **Clear PIN** next to their name.",
       ] },
       { h: "Show the board on a TV", steps: [
         "On the board press **Wall screen**, then **Copy** to copy the **Wall-screen link**.",
@@ -356,6 +459,12 @@ export const FRONT: HelpTopic[] = [
         "When the work is done, press **Clock out (work finished)**.",
         "The job goes to the foreman's quality check.",
       ], tips: ["If you forgot to clock out, tell the foreman. They correct the time with a reason."] },
+      { h: "Sign in on the bay tablet with your PIN", steps: [
+        "First set your PIN: sign in with your password, open **My jobs**, press **Set my tablet PIN**, type 4 digits twice and press **Save PIN**. Easy PINs like 1234 are not allowed.",
+        "On the shared tablet in the bay, tap your name and type your PIN. My jobs opens.",
+        "When you finish, press **Lock**. The tablet also locks by itself after 2 minutes without a touch.",
+        "Five wrong PINs lock your account for 15 minutes. If you forget the PIN, ask the foreman to clear it and set a new one.",
+      ] },
       { h: "If no work is shown", steps: [
         "**No work is assigned to you right now** means the foreman has not assigned you yet. Ask the foreman.",
       ] },
@@ -424,23 +533,41 @@ export const FRONT: HelpTopic[] = [
         "Press **Close** when a request is no longer needed.",
       ] },
       { h: "If the part is not in stock", steps: [
-        "See [Planning and back orders](/help/planning) to order it or ask another branch.",
+        "See [Parts planning](/help/planning) to order it or ask another branch.",
       ] },
     ],
   },
   {
-    slug: "planning", group: "Parts", title: "Planning and back orders",
+    slug: "planning", group: "Parts", title: "Parts planning and back orders",
     summary: "Find parts jobs are waiting for and get them from a supplier or another branch.", who: "Stock keeper, purchasing officer",
     access: ["stock"], open: { label: "Open Planning", href: "/stock/planning" }, flows: ["parts-for-job"],
     parts: [
       { h: "See what jobs are waiting for", steps: [
-        "Open **Parts, Planning and back orders**. Each row is a part a job needs: **Required**, **Committed**, **Back-ordered** and **Being sourced**.",
+        "Open **Parts, Parts planning**. Each row is a part a job needs: **Required**, **Committed**, **Back-ordered** and **Being sourced**.",
         "**Other branches (free)** shows how many other branches have free.",
       ] },
       { h: "Get the part", steps: [
         "To buy it, press **Raise PO**. A purchase order is started with the **Preferred supplier**, linked to the job.",
         "To take it from another branch, press **Request**. A transfer order is created (see [Transfer orders](/help/transfers)).",
         "Press **Set date** to record when the part is expected, so the advisor can tell the customer.",
+      ] },
+    ],
+  },
+  {
+    slug: "low-stock", group: "Parts", title: "Low stock and reorder levels",
+    summary: "See parts at or below their reorder level and order them in one click.", who: "Stock keeper, branch manager",
+    access: ["stock"], open: { label: "Open Low stock", href: "/stock/reorder" },
+    parts: [
+      { h: "Order what is low", steps: [
+        "Open **Parts, Low stock**. The red number in the menu is how many parts are at or below their level.",
+        "Each line shows the **Free** stock, the **Reorder level**, what is already **On order**, the **Days of cover** and what other branches have free.",
+        "If another branch has it, choose the branch, check the quantity and press **Ask branch**. A transfer order is made (see [Transfer orders](/help/transfers)).",
+        "Otherwise choose the supplier, check the quantity and press **Raise PO**. A draft purchase order opens. Check the price and submit it.",
+      ] },
+      { h: "Set reorder levels", steps: [
+        "Press **Reorder levels** on the Low stock page.",
+        "For each part, type the **reorder level** (when to order) and the **reorder quantity** (how much to order) and press **Save**.",
+        "To add a part that is not listed, choose it under **Another part**, type both numbers and press **Add**. Levels are per branch.",
       ] },
     ],
   },
@@ -469,10 +596,10 @@ export const FRONT: HelpTopic[] = [
   {
     slug: "counts", group: "Parts", title: "Stock adjustments and stock counts",
     summary: "Correct stock with an approved adjustment, and count the shelves blind.", who: "Stock keeper, branch manager",
-    access: ["stock"], open: { label: "Open Adjustments and counts", href: "/stock/adjustments" },
+    access: ["stock"], open: { label: "Open Stock adjustments", href: "/stock/adjustments" },
     parts: [
       { h: "Make an adjustment", steps: [
-        "Open **Parts, Adjustments and counts** and go to **New stock adjustment**.",
+        "Open **Parts, Stock adjustments** and go to **New stock adjustment**.",
         "Choose the part, the quantity to add or take off, the **Reason** and a **Note** saying what happened.",
         "Press **Send for approval**. The stock changes only after the branch manager approves.",
       ] },

@@ -145,6 +145,22 @@ export async function seed(adminUrl: string, opts: { demoJobs?: boolean; history
   await setAssignments(khalid, l4[0].id, [rameshId, arjunId], bay);
   if (l4[1]) await setAssignments(khalid, l4[1].id, [arjunId], bay);
   if (l4[1]) await clock(await ctxFor("arjun", "YAS"), l4[1].id, "clock_in");
+  // Spread the clock times over the morning so Technician time shows a real day (with a tea break and a wait for parts).
+  const rl = await q(adminUrl, "SELECT DISTINCT job_line_id FROM time_event WHERE technician_id = $1 ORDER BY job_line_id", [rameshId]);
+  const shift = async (line: string, tech: string, kind: string, minsAgo: number) =>
+    q(adminUrl, "UPDATE time_event SET at = now() - make_interval(mins => $4) WHERE job_line_id = $1 AND technician_id = $2 AND kind = $3", [line, tech, kind, minsAgo]);
+  const addEv = async (line: string, tech: string, kind: string, minsAgo: number, reason: string | null) =>
+    q(adminUrl, `INSERT INTO time_event (branch_id, job_card_id, job_line_id, technician_id, kind, reason, at, device)
+      SELECT j.branch_id, j.id, l.id, $2, $3, $4, now() - make_interval(mins => $5), 'seed' FROM job_line l JOIN job_card j ON j.id = l.job_card_id WHERE l.id = $1`, [line, tech, kind, reason, minsAgo]);
+  if (rl[0]) {
+    await shift(rl[0].job_line_id, rameshId, "clock_in", 230); await shift(rl[0].job_line_id, rameshId, "clock_out", 150);
+    await addEv(rl[0].job_line_id, rameshId, "pause", 195, "break"); await addEv(rl[0].job_line_id, rameshId, "resume", 180, null);
+  }
+  if (rl[1]) {
+    await shift(rl[1].job_line_id, rameshId, "clock_in", 145); await shift(rl[1].job_line_id, rameshId, "clock_out", 70);
+    await addEv(rl[1].job_line_id, rameshId, "pause", 120, "parts"); await addEv(rl[1].job_line_id, rameshId, "resume", 105, null);
+  }
+  if (l4[1]) await shift(l4[1].id, arjunId, "clock_in", 55);
 
   // Enquiry 3 (QUS, Al Qusais): fleet 10k service quoted at another branch, used to show branch separation.
   const sara = await ctxFor("sara", "QUS");
@@ -239,6 +255,24 @@ async function seedHr(adminUrl: string) {
   }
   // This month: Ramesh asks for two days' sick leave next week (waiting for Khalid).
   await requestLeave(await ctxFor("ramesh", "YAS"), { leave_type: "sick", from_date: plus(7), to_date: plus(8), reason: "Medical appointment" });
+  // Punching machines: Yas has synced this morning, Al Qusais has been offline for three hours. Two days ago
+  // Arjun punched in but not out (a missing punch for the manager to fix). Khalid's visa expires in 3 weeks.
+  for (const [k, inT, outT] of [["khalid", "07:52", "17:06"], ["arjun", "08:11", "17:15"], ["yousef", "08:40", "18:10"]] as const) {
+    for (const back of [1, 2]) {
+      const dd = plus(-back);
+      if (!(k === "arjun" && back === 2)) await q(adminUrl, "INSERT INTO punch (branch_id, employee_id, at, source, device_ref) SELECT branch_id, id, ($2::timestamp AT TIME ZONE 'Asia/Dubai'), 'device', 'YAS-ZK1' FROM employee WHERE id = $1 ON CONFLICT DO NOTHING", [empIds[k], `${dd} ${outT}`]);
+      await q(adminUrl, "INSERT INTO punch (branch_id, employee_id, at, source, device_ref) SELECT branch_id, id, ($2::timestamp AT TIME ZONE 'Asia/Dubai'), 'device', 'YAS-ZK1' FROM employee WHERE id = $1 ON CONFLICT DO NOTHING", [empIds[k], `${dd} ${inT}`]);
+    }
+  }
+  // After-hours key drop: a customer dropped the key last night (waiting for the advisor's check-in).
+  await q(adminUrl, `INSERT INTO key_drop (branch_id, doc_no, title, name, mobile, registered_in, plate_code, plate_number, make_model, odometer, service_asked, complaints, valuables, key_slot, signature, agreed_at, created_at)
+    SELECT id, 'KD-YAS-0001', 'Mr', 'Hamad Al Ketbi', '+971501112201', 'AUH', '7', '11021', 'Nissan Altima', 84210, 'Brakes', 'Grinding noise from the front when braking', 'None', '7',
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', now() - interval '10 hours', now() - interval '10 hours' FROM branch WHERE code = 'YAS'`);
+  await q(adminUrl, "INSERT INTO punch_device (branch_id, code, name, model) SELECT id, code || '-ZK1', name_en || ' entrance', 'ZKTeco K40' FROM branch WHERE code IN ('YAS','QUS','HQ') ON CONFLICT (code) DO NOTHING");
+  await q(adminUrl, "UPDATE punch_device SET last_sync_at = now() - interval '4 minutes', last_sync_count = 3 WHERE code = 'YAS-ZK1'");
+  await q(adminUrl, "UPDATE punch_device SET last_sync_at = now() - interval '9 minutes', last_sync_count = 2 WHERE code = 'HQ-ZK1'");
+  await q(adminUrl, "UPDATE punch_device SET last_sync_at = now() - interval '3 hours', last_sync_count = 12 WHERE code = 'QUS-ZK1'");
+  await q(adminUrl, `INSERT INTO employee_record (branch_id, employee_id, kind, data, expiry_date) SELECT branch_id, id, 'document', jsonb_build_object('doc_type', 'visa', 'number', '201/2024/7781234', 'expiry_date', $2::text), $2::date FROM employee WHERE id = $1`, [empIds.khalid, plus(21)]);
 }
 
 /**
@@ -269,8 +303,8 @@ async function seedServiceHistory(adminUrl: string) {
       const [make, model] = mm.split("|");
       const b = (await c.query("SELECT id FROM branch WHERE code = $1", [br])).rows[0].id;
       const adv = (await c.query("SELECT id FROM app_user WHERE username = $1", [br === "YAS" ? "priya" : "sara"])).rows[0].id;
-      const cust = (await c.query("INSERT INTO customer (customer_no, customer_type, title, first_name, last_name, country_code, mobile, whatsapp, preferred_branch_id, created_by) VALUES ($1,'individual',$7,$2,$3,'AE',$4,true,$5,$6) RETURNING id",
-        [`H${1000 + n}`, first, last, mobile, b, adv, ['Mariam', 'Sophie'].includes(first) ? 'Ms' : 'Mr'])).rows[0].id;
+      const cust = (await c.query("INSERT INTO customer (customer_no, customer_type, title, first_name, last_name, country_code, mobile, whatsapp, preferred_branch_id, created_by, id_type, id_number) VALUES ($1,'individual',$7,$2,$3,'AE',$4,true,$5,$6,'Emirates ID',$8) RETURNING id",
+        [`H${1000 + n}`, first, last, mobile, b, adv, ['Mariam', 'Sophie'].includes(first) ? 'Ms' : 'Mr', `784-19${70 + (n % 30)}-${String(1234567 + n * 7919).slice(0, 7)}-${n % 10}`])).rows[0].id;
       const veh = (await c.query("INSERT INTO vehicle (registered_in, plate_code, plate_number, make, model, model_year, odometer, owner_customer_id, vin_missing_reason, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Imported from Tally without VIN',$9) RETURNING id",
         [br === "YAS" ? "AUH" : "DXB", pc, plate, make, model, year, kmNow, cust, adv])).rows[0].id;
       await c.query("INSERT INTO vehicle_customer (vehicle_id, customer_id, relation) VALUES ($1,$2,'owner')", [veh, cust]);

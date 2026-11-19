@@ -547,3 +547,38 @@ ON CONFLICT DO NOTHING;
 INSERT INTO message_template (event, language, body) VALUES
  ('service_due','en','Dear {title} {name}, your {plate} is due for its next service around {due_date} (last service {last_date} at {last_km} km). Reply to book a time at Superfix {branch}.'),
  ('service_due','ar','عزيزي {title} {name}، موعد الصيانة القادمة لسيارتك {plate} قريب ({due_date}). آخر صيانة {last_date} عند {last_km} كم. رد على هذه الرسالة لحجز موعد في سوبرفكس {branch}.');
+
+-- Service bundles (019): one tap adds the whole service to a quotation.
+INSERT INTO service_bundle (code, name_en, name_ar, for_vehicles) VALUES
+ ('B-10K-TOY','10,000 km service, Toyota','صيانة 10,000 كم تويوتا','Toyota'),
+ ('B-60K-LC','60,000 km major service, Land Cruiser','صيانة 60,000 كم لاندكروزر','Toyota Land Cruiser'),
+ ('B-BRK-LC','Front brake pads, Land Cruiser','فحمات أمامية لاندكروزر','Toyota Land Cruiser'),
+ ('B-TYR4','Tyres x4 with alignment, 265/65 R17','4 إطارات مع ضبط الزوايا','265/65 R17 SUVs');
+INSERT INTO service_bundle_line (bundle_id, line_no, service_id, item_id, qty)
+SELECT b.id, x.n, s.id, i.id, x.qty FROM (VALUES
+ ('B-10K-TOY',1,'SVC-10K',NULL,1),('B-10K-TOY',2,NULL,'OIL-5W30-L',5),('B-10K-TOY',3,NULL,'FLT-OIL-90915',1),
+ ('B-60K-LC',1,'SVC-60K',NULL,1),('B-60K-LC',2,NULL,'OIL-5W30-L',6),('B-60K-LC',3,NULL,'FLT-OIL-90915',1),('B-60K-LC',4,NULL,'FLT-AIR-17801',1),('B-60K-LC',5,NULL,'CLT-L',2),
+ ('B-BRK-LC',1,'BRK-FR',NULL,1),('B-BRK-LC',2,NULL,'BRK-PAD-FR-LC',1),
+ ('B-TYR4',1,'TYRE-FIT',NULL,4),('B-TYR4',2,'ALIGN',NULL,1),('B-TYR4',3,NULL,'TYR-2656517',4)
+) x(code, n, svc, part, qty)
+JOIN service_bundle b ON b.code = x.code LEFT JOIN service s ON s.code = x.svc LEFT JOIN item i ON i.part_no = x.part;
+
+-- Reorder levels per part and branch (IN-06 low-stock list).
+INSERT INTO item_branch (item_id, branch_id, reorder_level, reorder_qty, default_bin)
+SELECT i.id, b.id, x.lvl, x.qty, x.bin FROM (VALUES
+ ('YAS','BRK-PAD-FR-LC',4,6,'A-11'),('YAS','BAT-70AH',6,10,'E-04'),('YAS','TYR-2656517',20,16,'T-01'),('YAS','FLT-OIL-90915',10,30,'B-13'),('YAS','OIL-5W30-L',60,120,'O-01'),('YAS','WPR-24',8,20,'F-06'),
+ ('QUS','BRK-PAD-FR-LC',4,6,'A-11'),('QUS','FLT-AIR-17801',4,12,'B-10'),('QUS','OIL-5W30-L',60,120,'O-01')
+) x(br, part, lvl, qty, bin) JOIN branch b ON b.code = x.br JOIN item i ON i.part_no = x.part
+ON CONFLICT (item_id, branch_id) DO UPDATE SET reorder_level = EXCLUDED.reorder_level, reorder_qty = EXCLUDED.reorder_qty;
+
+-- Customer complaint list (022): picked at check-in; each can suggest a service for the quotation.
+INSERT INTO customer_complaint (group_name, name_en, name_ar, service_id, sort)
+SELECT x.g, x.n, x.a, s.id, x.o FROM (VALUES
+ ('Service','Periodic service due','موعد الصيانة الدورية','SVC-10K',1),('Service','Oil change due','موعد تغيير الزيت','OIL-QK',2),
+ ('Brakes','Squeaking or grinding noise when braking','صوت عند الفرملة','BRK-FR',3),('Brakes','Brake pedal soft or vibrating','دواسة الفرامل لينة أو تهتز','BRK-FR',4),
+ ('A/C','A/C not cooling','المكيف لا يبرد','AC-REGAS',5),('A/C','Bad smell from the A/C','رائحة من المكيف',NULL,6),
+ ('Engine','Check engine light on','لمبة المحرك مضاءة','DIAG',7),('Engine','Engine overheating','ارتفاع حرارة المحرك','DIAG',8),('Engine','Rough idle or misfire','المحرك غير مستقر','DIAG',9),
+ ('Electrical','Battery weak or car not starting','البطارية ضعيفة','BATT-FIT',10),('Electrical','Lights or electrical fault','عطل كهربائي','DIAG',11),
+ ('Tyres','Tyre puncture or worn tyres','إطار مثقوب أو مستهلك','TYRE-FIT',12),('Tyres','Car pulling to one side','السيارة تنحرف','ALIGN',13),
+ ('Body','Body damage or scratches','أضرار في الهيكل',NULL,14)
+) x(g, n, a, svc, o) LEFT JOIN service s ON s.code = x.svc;

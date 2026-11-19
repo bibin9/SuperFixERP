@@ -12,7 +12,7 @@ export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
 type Meta = { ip?: string; device?: string };
 
 /** Sign-in with user name and password (FSD 2.3). Lock-out after N failures (NFR security). */
-export async function login(username: string, password: string, meta: Meta = {}, viaPin = false): Promise<{ token: string; userId: string }> {
+export async function login(username: string, password: string, meta: Meta = {}, viaPin = false, tablet?: { id: string; branchId: string }): Promise<{ token: string; userId: string }> {
   const uname = String(username || "").trim().toLowerCase();
   // Failures are recorded and committed, then reported after the transaction.
   const out = await withAnonTx(async (c): Promise<{ token: string; userId: string } | { error: string }> => {
@@ -40,8 +40,10 @@ export async function login(username: string, password: string, meta: Meta = {},
     }
     const token = crypto.randomBytes(32).toString("base64url");
     await c.query("UPDATE app_user SET failed_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
-    await c.query("INSERT INTO session (token_hash, user_id, current_branch_id, ip, device) VALUES ($1,$2,$3,$4,$5)", [hashToken(token), user.id, user.default_branch_id, meta.ip, meta.device]);
-    await c.query("INSERT INTO login_event (user_id, username, event, branch_id, ip, device) VALUES ($1,$2,$3,$4,$5,$6)", [user.id, uname, viaPin ? "pin_login" : "login", user.default_branch_id, meta.ip, meta.device]);
+    const branch = tablet ? tablet.branchId : user.default_branch_id;
+    await c.query("INSERT INTO session (token_hash, user_id, current_branch_id, ip, device, pin_only, tablet_id) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+      [hashToken(token), user.id, branch, meta.ip, meta.device, viaPin, tablet?.id ?? null]);
+    await c.query("INSERT INTO login_event (user_id, username, event, branch_id, ip, device) VALUES ($1,$2,$3,$4,$5,$6)", [user.id, uname, viaPin ? "pin_login" : "login", branch, meta.ip, meta.device]);
     return { token, userId: user.id };
   });
   if ("error" in out) throw new AppError("unauthenticated", out.error);
@@ -55,13 +57,24 @@ export async function sessionCtx(token: string | undefined, meta: Meta = {}): Pr
     const s = await c.query("SELECT * FROM session WHERE token_hash = $1 AND revoked_at IS NULL", [hashToken(token)]);
     if (!s.rowCount) return null;
     const sess = s.rows[0];
-    const idle = Number(await getSetting(c, "security.session_idle_minutes", null, 30));
-    if (Date.now() - new Date(sess.last_seen_at).getTime() > idle * 60_000) {
+    // A quick-PIN session on a bay tablet locks after a short idle time (2 minutes by default).
+    const idle = sess.pin_only
+      ? Number(await getSetting(c, "security.tablet_idle_minutes", null, 2))
+      : Number(await getSetting(c, "security.session_idle_minutes", null, 30));
+    const tabletBranch = sess.pin_only ? (await c.query("SELECT tablet_branch($1) b", [sess.tablet_id])).rows[0].b as string | null : null;
+    if (Date.now() - new Date(sess.last_seen_at).getTime() > idle * 60_000 || (sess.pin_only && tabletBranch !== sess.current_branch_id)) {
       await c.query("UPDATE session SET revoked_at = now() WHERE id = $1", [sess.id]);
       return null;
     }
     await c.query("UPDATE session SET last_seen_at = now() WHERE id = $1", [sess.id]);
-    return loadCtx(c, sess.user_id, sess.current_branch_id, { sessionId: sess.id, ip: meta.ip, device: meta.device });
+    const ctx = await loadCtx(c, sess.user_id, sess.current_branch_id, { sessionId: sess.id, ip: meta.ip, device: meta.device });
+    if (!ctx || !sess.pin_only) return ctx;
+    // PIN sign-in opens only the technician screens of the tablet's branch, whatever else the person can do.
+    const grants = ctx.grants.filter((g) => g.branchId === tabletBranch && g.roleCode === "technician");
+    if (!grants.length) { await c.query("UPDATE session SET revoked_at = now() WHERE id = $1", [sess.id]); return null; }
+    const keep = new Set(grants.map((g) => g.roleId));
+    return { ...ctx, grants, allBranches: false, branchIds: [tabletBranch!], currentBranchId: tabletBranch,
+      perms: new Map([...ctx.perms].filter(([k]) => keep.has(k))), fields: new Map([...ctx.fields].filter(([k]) => keep.has(k))), pinOnly: true };
   });
 }
 

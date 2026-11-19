@@ -1,13 +1,15 @@
 import { requireCtx } from "@/lib/session";
 import { getCustomer, listCustomers } from "@/lib/services/customers";
 import { masters } from "@/lib/services/masters";
+import { complaintList } from "@/lib/services/bundles";
+import { ComplaintPicker } from "@/components/ComplaintPicker";
 import { createEnquiryAction } from "@/app/actions";
 import { Flash, Link, PageHead, custName, plate } from "@/components/ui";
 
 export default async function NewEnquiry({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const m = await masters(ctx);
+  const [m, complaints] = await Promise.all([masters(ctx), complaintList(ctx)]);
   const src = m.lookups.filter((l) => l.list === "enquiry_source");
   const details = (
     <>
@@ -57,7 +59,7 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
             <div className="field"><label>Fuel level (0 to 8 eighths)</label><input name="fuel_level" type="number" min={0} max={8} /></div>
           </div>
           <div className="row">
-            <div className="field"><label>Customer complaints</label><textarea name="complaints" /></div>
+            <div className="field"><label>Customer complaints</label><ComplaintPicker list={complaints} /></div>
             <div className="field"><label>Valuables in the car</label><textarea name="valuables" /></div>
           </div>
           <button className="btn">Save enquiry</button>

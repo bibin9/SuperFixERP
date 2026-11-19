@@ -213,6 +213,9 @@ async function issuedCostByLine(c: PoolClient, lineIds: string[]) {
   for (const r of (await c.query(
     `SELECT job_line_id, coalesce(sum(CASE WHEN move_type = 'issue' THEN value ELSE -value END),0) v FROM stock_move
       WHERE job_line_id = ANY($1) AND move_type IN ('issue','return') GROUP BY job_line_id`, [lineIds])).rows) out[r.job_line_id] = D(r.v);
+  // Parts bought for the job (021) are in work in progress at cost too.
+  for (const r of (await c.query("SELECT id, direct_cost FROM job_line WHERE id = ANY($1) AND direct_cost > 0", [lineIds])).rows)
+    out[r.id] = (out[r.id] ?? D(0)).plus(r.direct_cost);
   return out;
 }
 

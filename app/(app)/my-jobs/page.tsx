@@ -3,6 +3,8 @@ import { myJobs, minutesText } from "@/lib/services/workshop";
 import { masters } from "@/lib/services/masters";
 import { clockAction } from "@/app/actions-ops";
 import { Flash, PageHead, Link, Plate, label } from "@/components/ui";
+import { setPinAction, tabletLockAction } from "@/app/actions";
+import { IdleLock } from "@/components/IdleLock";
 
 /** Technician phone screen (WS-04, UX-02): big buttons, one job at a time. */
 export default async function MyJobs({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
@@ -14,7 +16,9 @@ export default async function MyJobs({ searchParams }: { searchParams: Promise<R
   const askSwitch = sp.switch && sp.err && /Switch to this job/.test(sp.err) ? sp.switch : null;
   return (
     <>
-      <PageHead title="My jobs" sub={`${jobs.length} line${jobs.length === 1 ? "" : "s"} assigned to you`} />
+      <PageHead title="My jobs" sub={`${jobs.length} line${jobs.length === 1 ? "" : "s"} assigned to you`}>
+        {ctx.pinOnly && <IdleLock minutes={2} action={tabletLockAction} />}
+      </PageHead>
       <Flash sp={askSwitch ? { ok: sp.ok } : sp} />
       {!jobs.length && <p className="muted">No work is assigned to you right now.</p>}
       {jobs.map((j) => (
@@ -36,6 +40,17 @@ export default async function MyJobs({ searchParams }: { searchParams: Promise<R
           <Link className="btn ghost big" href={`/jobs/${j.job_id}#parts`} style={{ textAlign: "center", lineHeight: "54px", padding: 0 }}>Need part</Link>
         </div>
       ))}
+      {!ctx.pinOnly && (
+        <details className="card" style={{ marginTop: 16 }}>
+          <summary><b>Set my tablet PIN</b> <span className="muted small">for the shared bay tablet</span></summary>
+          <form action={setPinAction} className="row" style={{ alignItems: "flex-end", marginTop: 10 }}>
+            <div className="field" style={{ margin: 0 }}><label htmlFor="pin">New PIN (4 digits)</label><input id="pin" name="pin" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required autoComplete="new-password" /></div>
+            <div className="field" style={{ margin: 0 }}><label htmlFor="pin2">Type it again</label><input id="pin2" name="pin2" type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required autoComplete="new-password" /></div>
+            <button className="btn shrink">Save PIN</button>
+          </form>
+          <p className="small muted">Do not use an easy PIN like 1234 or 0000, and do not tell anyone. Five wrong tries lock the account for 15 minutes.</p>
+        </details>
+      )}
     </>
   );
 }

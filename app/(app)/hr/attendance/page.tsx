@@ -1,8 +1,9 @@
 import { requireCtx } from "@/lib/session";
 import { attendance } from "@/lib/services/hr-time";
+import { missingPunches } from "@/lib/services/punch-devices";
 import { hrLookups, today } from "@/lib/services/hr";
 import { canAnywhere } from "@/lib/access";
-import { manualPunchAction, importPunchesAction } from "@/app/actions-hr";
+import { manualPunchAction, importPunchesAction, fixPunchAction } from "@/app/actions-hr";
 import { Flash, Link, PageHead, Status, d } from "@/components/ui";
 import { HrTabs } from "@/components/HrTabs";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
@@ -14,6 +15,7 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
   const from = sp.from || `${t.slice(0, 7)}-01`, to = sp.to || t;
   const rows = await attendance(ctx, { from, to, branchId: sp.branch, employeeId: sp.employee });
   const l = await hrLookups(ctx);
+  const missing = await missingPunches(ctx);
   const sum = (st: string) => rows.filter((r) => r.status === st).length;
   const edit = canAnywhere(ctx, "hr", "edit") || canAnywhere(ctx, "hr", "approve");
   const qs = new URLSearchParams(Object.entries(sp).filter(([k]) => !["ok", "err", "errf"].includes(k))).toString();
@@ -21,9 +23,24 @@ export default async function Attendance({ searchParams }: { searchParams: Promi
     <>
       <PageHead title="Attendance" sub="From the biometric device, mobile check-in and punches added by hand, against each day's shift">
         {edit && <Link className="btn ghost sm" href="/hr/qr">Branch QR code</Link>}
+        <Link className="btn ghost sm" href="/hr/machines">Punching machines</Link>
       </PageHead>
       <HrTabs group="hr" at="/hr/attendance" />
       <Flash sp={sp} />
+      {missing.length > 0 && (
+        <div className="card" id="missing">
+          <h2>Missing punches to fix ({missing.length})</h2>
+          <p className="small muted">These people punched in but not out in the last 7 days. Ask them what time they left, type it and press <b>Fix</b>. It is saved as a punch added by hand, with your name.</p>
+          <table><thead><tr><th>Day</th><th>Employee</th><th>Branch</th><th>In</th><th>Time out and reason</th></tr></thead><tbody>
+            {missing.map((r) => <tr key={r.employee_id + r.date}><td>{d(r.date)}</td><td>{r.emp_no} {r.full_name}</td><td>{r.branch_code}</td><td>{r.first_in}</td>
+              <td><form action={fixPunchAction} className="row" style={{ margin: 0, gap: 6, flexWrap: "nowrap" }}>
+                <input type="hidden" name="employee_id" value={r.employee_id} /><input type="hidden" name="date" value={r.date} /><input type="hidden" name="$back" value="/hr/attendance#missing" />
+                <input type="time" name="time" required aria-label={`Time out for ${r.full_name}`} style={{ maxWidth: 120 }} />
+                <input name="note" required defaultValue="Forgot to punch out" aria-label="Reason" style={{ maxWidth: 200 }} />
+                <button className="btn sm shrink">Fix</button></form></td></tr>)}
+          </tbody></table>
+        </div>
+      )}
       <form className="card row" style={{ alignItems: "end" }}>
         <div className="field"><label htmlFor="fb">Branch</label><AutoSubmitSelect id="fb" name="branch" defaultValue={sp.branch ?? ""}><option value="">All branches</option>{l.branches.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}</AutoSubmitSelect></div>
         <div className="field"><label htmlFor="fe">Employee</label><AutoSubmitSelect id="fe" name="employee" defaultValue={sp.employee ?? ""}><option value="">Everyone</option>{l.managers.map((m) => <option key={m.id} value={m.id}>{m.emp_no} {m.full_name}</option>)}</AutoSubmitSelect></div>

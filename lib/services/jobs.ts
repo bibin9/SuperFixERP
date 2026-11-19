@@ -47,18 +47,28 @@ export async function setStatus(c: PoolClient, ctx: Ctx | null, job: { id: strin
     [job.id, job.branch_id, job.status, to, reason ?? null, ctx?.userId ?? null]);
 }
 
-export async function listJobs(ctx: Ctx, status = "") {
+export async function listJobs(ctx: Ctx, status = "", q = "") {
   if (!can(ctx, "jobs", "view") && !can(ctx, "workshop", "view")) throw forbidden();
   const ownOnly = !can(ctx, "jobs", "view");
+  const late = status === "late";
+  const term = q.trim().slice(0, 80);
   return withTx(ctx, async (c) => (await c.query(
-    `SELECT j.id, j.doc_no, j.status, j.job_type, j.promised_at, j.created_at, b.code branch_code, v.make, v.model, v.registered_in, v.plate_code, v.plate_number,
-            c.customer_type, c.title, c.first_name, c.last_name, c.company_name,
-            (j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled')) late
-       FROM job_card j JOIN branch b ON b.id = j.branch_id JOIN vehicle v ON v.id = j.vehicle_id JOIN customer c ON c.id = j.customer_id
-      WHERE ($1 = '' OR j.status = $1)
+    `SELECT j.id, j.doc_no, j.status, j.job_type, j.promised_at, j.created_at, b.code branch_code, b.name_en branch_name, v.make, v.model, v.model_year, v.registered_in, v.plate_code, v.plate_number,
+            c.customer_type, c.title, c.first_name, c.last_name, c.company_name, u.full_name advisor_name,
+            (SELECT string_agg(x.description, ' + ' ORDER BY x.line_no) FROM (SELECT l.description, l.line_no FROM job_line l WHERE l.job_card_id = j.id AND l.line_type IN ('labour','part') ORDER BY l.line_no LIMIT 2) x) summary,
+            (j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled')) late,
+            j.branch_id,
+            (SELECT string_agg(DISTINCT tu.full_name, ', ') FROM job_line l JOIN job_assignment a ON a.job_line_id = l.id JOIN app_user tu ON tu.id = a.technician_id WHERE l.job_card_id = j.id AND NOT l.removed) techs,
+            (SELECT coalesce(sum(l.standard_hours), 0) FROM job_line l WHERE l.job_card_id = j.id AND l.line_type = 'labour' AND l.approval_status = 'approved' AND NOT l.removed) std_h,
+            (SELECT coalesce(sum(extract(epoch FROM coalesce(t.nx, now()) - t.at)), 0) / 3600 FROM (SELECT e.kind, e.at, lead(e.at) OVER (PARTITION BY e.technician_id, e.job_line_id ORDER BY e.at) nx FROM time_event e WHERE e.job_card_id = j.id) t WHERE t.kind IN ('clock_in','resume')) actual_h,
+            (SELECT coalesce(sum(round(l.qty * l.unit_price, 2) - l.discount_amount), 0) FROM job_line l WHERE l.job_card_id = j.id AND l.approval_status = 'approved' AND NOT l.removed) value
+       FROM job_card j JOIN branch b ON b.id = j.branch_id JOIN vehicle v ON v.id = j.vehicle_id JOIN customer c ON c.id = j.customer_id LEFT JOIN app_user u ON u.id = j.advisor_id
+      WHERE ($1 = '' OR $1 = 'late' OR j.status = $1)
+        AND (NOT $4 OR (j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled')))
+        AND ($5 = '' OR concat_ws(' ', j.doc_no, v.plate_code, v.plate_number, v.make, v.model, v.vin, c.first_name, c.last_name, c.company_name, c.mobile) ILIKE '%' || $5 || '%')
         AND (NOT $2 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND (l.technician_id = $3 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $3))))
-      ORDER BY j.created_at DESC LIMIT 200`, [status, ownOnly, ctx.userId],
-  )).rows);
+      ORDER BY j.created_at DESC LIMIT 200`, [status, ownOnly, ctx.userId, late, term],
+  )).rows.map((r) => (canSee(ctx, "selling_price", r.branch_id) ? r : { ...r, value: null })));
 }
 
 export const LINE_FIELDS = { unit_price: "selling_price", discount_amount: "discount", avg_cost: "purchase_cost", margin_pct: "purchase_cost" };
@@ -136,7 +146,7 @@ async function isBelowMargin(c: PoolClient, branchId: string, itemId: string | n
 }
 
 export const ENQUIRY_QUOTABLE = ["open", "booked", "quoted", "approved"];
-type Owner = { kind: "job" | "enquiry"; id: string };
+export type Owner = { kind: "job" | "enquiry"; id: string };
 
 /**
  * Locks whatever owns the work lines. Before the job card exists that is the enquiry (the quotation
@@ -159,7 +169,12 @@ async function lockOwner(c: PoolClient, ctx: Ctx, owner: Owner) {
 }
 
 async function addLine(ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
-  return withTx(ctx, async (c) => {
+  return withTx(ctx, (c) => addLineIn(c, ctx, owner, f));
+}
+
+/** Adds one work line inside the caller's transaction (also used to add a whole service bundle). */
+export async function addLineIn(c: PoolClient, ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
+  {
     const o = await lockOwner(c, ctx, owner);
     const type = required(f.line_type, "Line type");
     let description = optStr(f.description);
@@ -210,8 +225,8 @@ async function addLine(ctx: Ctx, owner: Owner, f: Record<string, unknown>) {
         o.jobId ? optStr(f.technician_id) : null, o.extra, below, ctx.userId],
     );
     await audit(c, ctx, "job_line", r.rows[0].id, "create", { ref: o.ref, description, qty: q.toFixed(3), unit_price: unitPrice, discount: discount.toFixed(2), below_margin: below, extra_work: o.extra }, o.branchId);
-    return { id: r.rows[0].id, belowMargin: below };
-  });
+    return { id: r.rows[0].id as string, belowMargin: below };
+  }
 }
 
 /** A work line on the enquiry, priced for the quotation. */
@@ -252,7 +267,7 @@ export async function changeStatus(ctx: Ctx, jobId: string, to: string, f: { rea
     if (late && !job.delay_reason && to !== "cancelled") throw invalid("This job is late. Enter a delay reason before moving it on.");
     if (to === "cancelled") {
       // JC rule 7: only with no clocked time, no issued parts and no posted invoice.
-      const issued = await c.query("SELECT 1 FROM job_line WHERE job_card_id = $1 AND issued_qty > 0", [jobId]);
+      const issued = await c.query("SELECT 1 FROM job_line WHERE job_card_id = $1 AND (issued_qty > 0 OR direct_cost > 0)", [jobId]);
       const inv = await c.query("SELECT 1 FROM sales_invoice WHERE job_card_id = $1", [jobId]);
       if (issued.rowCount || inv.rowCount) throw invalid("A job with issued parts or an invoice cannot be cancelled.");
       if (!str(f.reason)) throw invalid("Give a reason for cancelling.");
@@ -292,10 +307,86 @@ export async function jobCounts(ctx: Ctx): Promise<Record<string, number>> {
   if (!can(ctx, "jobs", "view") && !can(ctx, "workshop", "view")) return {};
   const ownOnly = !can(ctx, "jobs", "view");
   const rows = await withTx(ctx, async (c) => (await c.query(
-    `SELECT j.status, count(*)::int n FROM job_card j
+    `SELECT j.status, count(*)::int n, count(*) FILTER (WHERE j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled'))::int late FROM job_card j
       WHERE (NOT $1 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND (l.technician_id = $2 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $2))))
       GROUP BY j.status`, [ownOnly, ctx.userId])).rows);
-  const out: Record<string, number> = { "": 0 };
-  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; }
+  const out: Record<string, number> = { "": 0, late: 0 };
+  for (const r of rows) { out[r.status] = r.n; out[""] += r.n; out.late += r.late; }
   return out;
+}
+
+/**
+ * "Send new time": a late (or soon late) job gets a new promised time and a delay reason. The customer
+ * message is prepared afterwards from the "new_time" template. Returns the new time as the customer reads it.
+ */
+export async function setNewTime(ctx: Ctx, jobId: string, f: { promised_at?: string; delay_reason?: string; delay_note?: string }) {
+  return withTx(ctx, async (c) => {
+    const job = await lockJob(c, ctx, jobId, "edit");
+    if (["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status)) throw invalid("This job is already finished.");
+    const at = required(f.promised_at, "New promised time");
+    const reason = required(f.delay_reason, "Delay reason");
+    const r = await c.query(
+      `UPDATE job_card SET promised_at = $2::timestamptz, delay_reason = $3, delay_note = $4, updated_at = now(), updated_by = $5, version = version + 1
+        WHERE id = $1 AND $2::timestamptz > now()
+        RETURNING to_char(promised_at AT TIME ZONE 'Asia/Dubai', 'Dy DD Mon, HH24:MI') label`,
+      [jobId, at, reason, optStr(f.delay_note), ctx.userId]);
+    if (!r.rowCount) throw invalid("The new promised time must be later than now.", { field: "promised_at" });
+    await audit(c, ctx, "job_card", jobId, "new_time", { promised_at: { old: job.promised_at, new: at }, delay_reason: reason }, job.branch_id);
+    return { label: String(r.rows[0].label), reason };
+  });
+}
+
+// ---------- check-in record: damage diagram, photos, customer's signature ----------
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Saves the damage marks and, when given, the customer's signature. A signature, once taken, is not replaced. */
+export async function saveCheckin(ctx: Ctx, jobId: string, f: { damage?: string; signature?: string; signed_name?: string }) {
+  const { ZONES, KINDS } = await import("../checkin");
+  let marks: { z: string; k: string }[] = [];
+  try { marks = JSON.parse(f.damage || "[]"); } catch { throw invalid("The damage marks could not be read. Mark them again."); }
+  if (!Array.isArray(marks) || marks.length > ZONES.length) throw invalid("The damage marks could not be read. Mark them again.");
+  marks = marks.map((m) => {
+    if (!ZONES.some(([z]) => z === m?.z) || !KINDS.some(([k]) => k === m?.k)) throw invalid("Unknown part of the car or kind of damage.");
+    return { z: m.z, k: m.k };
+  });
+  const sig = str(f.signature);
+  if (sig) {
+    const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(sig);
+    if (!m || sig.length > 400000 || !Buffer.from(m[1].slice(0, 16), "base64").subarray(0, 8).equals(PNG_SIG)) throw invalid("The signature could not be read. Ask the customer to sign again.");
+  }
+  return withTx(ctx, async (c) => {
+    const job = await lockJob(c, ctx, jobId, "edit");
+    if (["closed", "cancelled"].includes(job.status)) throw invalid("This job is closed.");
+    if (sig && job.checkin_signature) throw invalid("The customer has signed the check-in already.");
+    await c.query(
+      `UPDATE job_card SET damage_marks = $2::jsonb,
+              checkin_signature = coalesce(checkin_signature, $3), checkin_signed_name = CASE WHEN checkin_signature IS NULL AND $3::text IS NOT NULL THEN $4 ELSE checkin_signed_name END,
+              checkin_signed_at = CASE WHEN checkin_signature IS NULL AND $3::text IS NOT NULL THEN now() ELSE checkin_signed_at END,
+              updated_at = now(), updated_by = $5, version = version + 1 WHERE id = $1`,
+      [jobId, JSON.stringify(marks), sig || null, optStr(f.signed_name), ctx.userId]);
+    await audit(c, ctx, "job_card", jobId, "checkin", { damage: marks, signed: !!sig }, job.branch_id);
+  });
+}
+
+/** Adds one labelled check-in photo to the job card. */
+export async function addCheckinPhoto(ctx: Ctx, jobId: string, label: string, file: { name: string; type: string; bytes: Buffer } | undefined) {
+  const { PHOTO_LABELS } = await import("../checkin");
+  if (!file) throw invalid("Take or choose the photo.");
+  const l = PHOTO_LABELS.includes(label) ? label : "Other";
+  const { saveAttachment } = await import("./purchasing");
+  return withTx(ctx, async (c) => {
+    const job = await lockJob(c, ctx, jobId, "edit");
+    if (["closed", "cancelled"].includes(job.status)) throw invalid("This job is closed.");
+    const n = (await c.query("SELECT count(*)::int n FROM attachment WHERE entity = 'job_checkin' AND entity_id = $1", [jobId])).rows[0].n;
+    if (n >= 12) throw invalid("A job card keeps at most 12 check-in photos.");
+    const ext = (file.name.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? "").toLowerCase();
+    const id = await saveAttachment(c, ctx, job.branch_id, "job_checkin", jobId, { ...file, name: `${l}${ext}` });
+    await audit(c, ctx, "job_card", jobId, "checkin_photo", { label: l }, job.branch_id);
+    return id;
+  });
+}
+
+export async function checkinPhotos(ctx: Ctx, jobId: string) {
+  return withTx(ctx, async (c) => (await c.query(
+    "SELECT a.id, a.file_name, a.mime, a.uploaded_at, u.full_name FROM attachment a LEFT JOIN app_user u ON u.id = a.uploaded_by WHERE a.entity = 'job_checkin' AND a.entity_id = $1 ORDER BY a.uploaded_at", [jobId])).rows);
 }

@@ -71,6 +71,7 @@ await tc("TC-CV02-01", async (sp) => { sp(priya); await priya.goto(B + "/custome
   const t = await text(priya); must(/Rashid/.test(t), "name not shown"); return "Saved: " + custUrl.replace(B, ""); });
 await tc("TC-CV08-01", async (sp) => { sp(priya); await priya.goto(B + "/customers/new");
   await priya.selectOption("select[name=title]", { index: 1 }); await priya.fill("input[name=first_name]", "Dup"); await priya.fill("input[name=last_name]", "QA"); await priya.fill("input[name=mobile]", "0" + mob);
+  await priya.selectOption("select[name=id_type]", "Emirates ID"); await priya.fill("input[name=id_number]", "784-1985-7654321-2");
   await priya.click("button:has-text('Save customer')"); await priya.waitForLoadState("networkidle"); const t = await text(priya);
   must(await priya.locator("input[name=duplicate_reason]").count(), "no duplicate warning for same mobile");
   return "Same mobile: duplicate list shown and a reason is required before saving as new"; });
@@ -144,9 +145,9 @@ await tc("TC-QT03-01", async (sp) => { sp(priya); await priya.goto(enqUrl); cons
 let jobUrl;
 await tc("TC-JC02-01", async (sp) => { sp(priya); await priya.goto(enqUrl);
   if (await priya.locator("input[name=odometer_in]").first().count()) { await priya.locator("input[name=odometer_in]").first().fill("45000"); }
-  if (await priya.locator("input[name=complaints], textarea[name=complaints]").count()) await priya.locator("input[name=complaints], textarea[name=complaints]").first().fill("Squeal when braking");
+  await priya.locator("textarea[aria-label=\"Extra notes in the customer's words\"]").first().fill("Squeal when braking");
   await act(priya, ".card:has(h2:has-text('check-in')) button:has-text('Save')");
-  const t = await text(priya); must(/45000|45,000/.test(await priya.locator("input[name=odometer_in]").first().inputValue()) && /Squeal when braking/.test(t) || (await priya.locator("textarea[name=complaints]").inputValue().catch(() => "")).includes("Squeal"), "complaints not saved"); return "Odometer and complaints saved on the enquiry"; });
+  const t = await text(priya); must(/45000|45,000/.test(await priya.locator("input[name=odometer_in]").first().inputValue()) && /Squeal when braking/.test(t) || (await priya.locator("input[name=complaints]").inputValue().catch(() => "")).includes("Squeal"), "complaints not saved"); return "Odometer and complaints saved on the enquiry"; });
 await tc("TC-JC08-01", async (sp) => { sp(priya); await priya.goto(enqUrl); await priya.selectOption("select[name=job_type]", { label: "Warranty comeback" });
   await priya.locator("input[name=odometer_in]").last().fill("45000").catch(() => {}); await priya.click("button:has-text('Create job card')"); await priya.waitForLoadState("networkidle");
   const f = await flash(priya); must(/original/i.test(f), "warranty without original job accepted: " + f); return `Refused: "${f}"`; });
@@ -224,14 +225,13 @@ await tc("TC-NF05-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/b
 
 // ---------- Design / navigation ----------
 await tc("TC-UX-NAV-01", async (sp) => { sp(admin); await admin.goto(B + "/admin/users"); await admin.waitForTimeout(500);
-  must(!(await admin.locator("nav a", { hasText: "Stock on hand" }).count()), "other module groups start open");
-  must(await admin.locator("nav a.active", { hasText: "Users" }).count(), "current page's group not open or not highlighted");
-  await admin.locator("button.grp", { hasText: "Parts" }).click();
-  must(await admin.locator("nav a", { hasText: "Stock on hand" }).count(), "group did not open");
-  must(!(await admin.locator("nav a", { hasText: "Users & access" }).count()), "opening one group did not close the other");
-  await admin.locator("button.grp", { hasText: "Parts" }).click(); must(!(await admin.locator("nav a", { hasText: "Stock on hand" }).count()), "group did not close");
-  const heads = await admin.locator("button.grp").allInnerTexts();
-  return "One group per module (" + heads.map((h) => h.replace(/[›\d\s]+$/, "")).join(", ") + "); only the current page's group opens; opening one closes the others"; });
+  must(await admin.locator("nav a.on", { hasText: "Users" }).count(), "current page not highlighted");
+  must((await admin.locator("nav a.on").count()) === 1, "more than one item highlighted");
+  const heads = await admin.locator("nav .grp").allInnerTexts();
+  must(heads.length >= 8, "section headings " + heads.length);
+  must((await admin.locator("nav a svg").count()) === (await admin.locator("nav a").count()), "a menu line has no icon");
+  await admin.goto(B + "/stock/transfers"); must(await admin.locator("nav a.on", { hasText: "Transfer orders" }).count() && !(await admin.locator("nav a.on", { hasText: "Stock on hand" }).count()), "most specific page not chosen");
+  return "Flat menu like the demo: section headings (" + heads.join(", ") + "), an icon on every line, only the current page marked"; });
 await tc("TC-UX01-01", async (sp) => { const c = await browser.newContext({ viewport: { width: 390, height: 844 } }); const p = await c.newPage(); sp(p);
   await p.goto(`${B}/login`); await p.fill("input[name=username]", "priya"); await p.fill("input[name=password]", PW); await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]);
   must(!(await p.locator("nav a", { hasText: "Enquiries" }).isVisible()), "menu covers the page on a phone"); await p.click("label.menubtn"); must(await p.locator("nav a", { hasText: "Enquiries" }).isVisible(), "menu does not open");

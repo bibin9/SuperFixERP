@@ -169,6 +169,23 @@ export async function raisePoForBackOrder(ctx: Ctx, commitmentId: string, suppli
   });
 }
 
+/** Low-stock list: one purchase order (draft) for the suggested quantity, at the last average cost. */
+export async function raiseReorderPo(ctx: Ctx, itemId: string, qty: unknown, supplierId?: string) {
+  const b = here(ctx);
+  assertCan(ctx, "purchasing", "create", b);
+  const q = parseDec(qty, "Quantity", { min: "0.001", dp: 3 });
+  return withTx(ctx, async (c) => {
+    const it = (await c.query("SELECT id, preferred_supplier_id FROM item WHERE id = $1 AND active", [itemId])).rows[0];
+    if (!it) throw invalid("Part not found.");
+    const sup = supplierId || it.preferred_supplier_id;
+    if (!sup) throw invalid("This part has no preferred supplier. Choose one.");
+    const po = await newPo(c, ctx, b, sup, { note: "Reorder: stock at or below the reorder level" });
+    const cost = (await c.query("SELECT avg_cost FROM stock_balance WHERE item_id = $1 AND branch_id = $2", [itemId, b])).rows[0]?.avg_cost ?? 0;
+    await insertPoLine(c, { id: po.id, branch_id: b }, { item_id: itemId, qty: q.toFixed(3), unit_price: D(cost).toFixed(4) });
+    return po;
+  });
+}
+
 export async function listPos(ctx: Ctx, status = "") {
   assertCan(ctx, "purchasing", "view");
   return withTx(ctx, async (c) => {
@@ -426,6 +443,8 @@ export async function getAttachment(ctx: Ctx, id: string) {
     if (!a) throw notFound("Attachment");
     let ok = false;
     if (a.entity === "petty_cash_entry") ok = can(ctx, "purchasing", "view", a.branch_id);
+    else if (a.entity === "job_checkin") ok = can(ctx, "jobs", "view", a.branch_id) || can(ctx, "workshop", "view", a.branch_id);
+    else if (a.entity === "key_drop") ok = can(ctx, "customers", "view", a.branch_id);
     else if (String(a.entity).startsWith("employee_")) {
       const custom = a.entity === "employee_custom";
       const emp = (await c.query(
@@ -507,4 +526,69 @@ export async function pettyCash(ctx: Ctx) {
 
 export async function suppliers(ctx: Ctx) {
   return withTx(ctx, async (c) => (await c.query("SELECT id, code, name_en, payment_terms_days FROM supplier WHERE active ORDER BY name_en")).rows);
+}
+
+/**
+ * Buy a part for one job (PU-03): paid from petty cash with the receipt photo, never in stock.
+ * Either attaches the cost to an existing line of the job, or adds a new outside line at the selling
+ * price (extra work, so the customer approves it first). Dr work in progress + input VAT, Cr petty cash.
+ */
+export async function directPurchase(ctx: Ctx, f: Record<string, unknown>, photo: Upload | null) {
+  const b = here(ctx);
+  assertCan(ctx, "purchasing", "create", b);
+  const net = parseDec(f.net_amount, "Cost before VAT", { min: "0.01", dp: 2 });
+  const vat = str(f.vat_amount) ? parseDec(f.vat_amount, "VAT", { min: 0, dp: 2 }) : D(0);
+  const trn = normaliseTrn(f.supplier_trn);
+  if (vat.gt(0) && !trn) throw invalid("VAT can be claimed only with the shop's TRN from the tax invoice. Enter the TRN or set VAT to 0.");
+  if (vat.gt(r2(net.mul("0.05")).plus("0.01"))) throw invalid("VAT is more than 5% of the cost.");
+  const what = required(f.description, "Part bought");
+  const shop = required(f.supplier_name, "Shop or supplier");
+  if (!photo || !photo.bytes.length) throw invalid("A photo of the receipt is required.");
+  const { addLineIn } = await import("./jobs");
+  return withTx(ctx, async (c) => {
+    const j = (await c.query("SELECT id, doc_no, branch_id, status FROM job_card WHERE id = $1 FOR UPDATE", [required(f.job_id, "Job card")])).rows[0];
+    if (!j || j.branch_id !== b) throw invalid("Choose an open job card at this branch.");
+    if (["invoiced", "closed", "cancelled", "delivered"].includes(j.status)) throw invalid(`Job ${j.doc_no} is ${j.status}; parts can no longer be added to it.`);
+    let lineId = str(f.job_line_id);
+    if (lineId === "new") {
+      if (!can(ctx, "jobs", "edit", b)) throw invalid("Only the service advisor or the manager can add a new line to the job. Ask them to add it, or choose the line this part is for.");
+      const price = str(f.unit_price) ? str(f.unit_price) : net.toFixed(2);
+      lineId = (await addLineIn(c, ctx, { kind: "job", id: j.id }, { line_type: "outside", description: what, unit_price: price, qty: "1" })).id;
+    } else {
+      const l = (await c.query("SELECT id FROM job_line WHERE id = $1 AND job_card_id = $2 AND NOT removed FOR UPDATE", [lineId, j.id])).rows[0];
+      if (!l) throw invalid("Choose the job line this part is for, or add it as a new line.");
+      if ((await c.query("SELECT 1 FROM sales_invoice_line WHERE job_line_id = $1", [lineId])).rowCount) throw invalid("That line is invoiced already. Add the part as a new line.");
+    }
+    const bal = await pettyBalance(c, b);
+    if (bal.lt(net.plus(vat))) throw invalid(`Not enough in petty cash (AED ${bal.toFixed(2)}).`);
+    const docNo = await nextDocNo(c, b, "petty_cash");
+    const e = (await c.query(
+      `INSERT INTO petty_cash_entry (branch_id, doc_no, kind, supplier_name, supplier_trn, expense_type, description, net_amount, vat_amount, created_by, job_card_id, job_line_id)
+       VALUES ($1,$2,'spend',$3,$4,'part_for_job',$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [b, docNo, shop, trn, what, net.toFixed(2), vat.toFixed(2), ctx.userId, j.id, lineId])).rows[0];
+    const att = await saveAttachment(c, ctx, b, "petty_cash_entry", e.id, photo);
+    await c.query("UPDATE petty_cash_entry SET attachment_id = $2 WHERE id = $1", [e.id, att]);
+    await c.query("UPDATE job_line SET direct_cost = direct_cost + $2, version = version + 1 WHERE id = $1", [lineId, net.toFixed(2)]);
+    await postJournal(c, ctx, { branchId: b, date: today(), sourceType: "petty_cash", sourceId: e.id, narration: `${docNo}: ${what} bought for ${j.doc_no}`,
+      lines: [{ event: "work_in_progress", debit: net }, { event: "vat_input", debit: vat }, { event: "petty_cash", credit: net.plus(vat) }] });
+    await audit(c, ctx, "petty_cash_entry", e.id, "direct_purchase", { job: j.doc_no, amount: net.plus(vat).toFixed(2), what }, b);
+    return { docNo, job: j.doc_no as string };
+  });
+}
+
+export async function directPurchases(ctx: Ctx) {
+  const b = here(ctx);
+  assertCan(ctx, "purchasing", "view", b);
+  return withTx(ctx, async (c) => {
+    const list = (await c.query(
+      `SELECT p.id, p.doc_no, p.entry_date, p.supplier_name, p.description, p.net_amount, p.vat_amount, p.attachment_id, j.id job_id, j.doc_no job_no, l.line_no, u.full_name
+         FROM petty_cash_entry p JOIN job_card j ON j.id = p.job_card_id LEFT JOIN job_line l ON l.id = p.job_line_id LEFT JOIN app_user u ON u.id = p.created_by
+        WHERE p.branch_id = $1 ORDER BY p.created_at DESC LIMIT 100`, [b])).rows;
+    const jobs = (await c.query(
+      `SELECT j.id, j.doc_no, v.make, v.model, coalesce(json_agg(json_build_object('id', l.id, 'no', l.line_no, 'd', l.description) ORDER BY l.line_no) FILTER (WHERE l.id IS NOT NULL), '[]') lines
+         FROM job_card j JOIN vehicle v ON v.id = j.vehicle_id
+         LEFT JOIN job_line l ON l.job_card_id = j.id AND NOT l.removed AND l.approval_status <> 'declined' AND NOT EXISTS (SELECT 1 FROM sales_invoice_line s WHERE s.job_line_id = l.id)
+        WHERE j.branch_id = $1 AND j.status NOT IN ('invoiced','closed','cancelled','delivered') GROUP BY j.id, v.make, v.model ORDER BY j.doc_no DESC`, [b])).rows;
+    return { list, jobs, balance: (await pettyBalance(c, b)).toFixed(2) };
+  });
 }

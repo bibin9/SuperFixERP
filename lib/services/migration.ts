@@ -66,7 +66,8 @@ export async function importMasters(ctx: Ctx, kind: ImportKind, text: string) {
         form.country_code = form.country_code ?? "AE";
         const t = str(form.customer_type).toLowerCase();
         form.customer_type = t === "company" ? "corporate" : t || "individual";
-        const res = await createCustomer(ctx, form);
+        // Masters brought over from Tally rarely carry the ID; staff complete it on the first edit.
+        const res = await createCustomer(ctx, { ...form, imported: true });
         if (res.duplicates?.length) { skipped++; continue; }
         created++;
       } else {

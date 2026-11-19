@@ -69,7 +69,7 @@ await step("deliver with signature", async () => {
   await priya.goto(jobUrl);
   for (const c of await priya.locator("form input[name^='chk_']").all()) await c.check();
   await priya.selectOption("select[name=old_parts]", "returned"); await priya.fill("input[name=odometer_out]", "120415"); await priya.fill("input[name=received_by_name]", "Noura Al Hammadi");
-  const box = await priya.locator("canvas.sigpad").boundingBox();
+  const box = await priya.locator("form:has(input[name^='chk_']) .sigpad canvas").boundingBox();
   await priya.mouse.move(box.x + 20, box.y + 90); await priya.mouse.down(); for (let i = 0; i < 12; i++) await priya.mouse.move(box.x + 30 + i * 25, box.y + 40 + (i % 2) * 50); await priya.mouse.up();
   await priya.screenshot({ path: `${EV}/flow-deliver-form.png`, fullPage: true });
   await priya.click("button:has-text('Deliver the car')"); await settle(priya);

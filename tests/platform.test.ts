@@ -143,10 +143,10 @@ test("permission matrix changes are logged with old and new values (FP-06)", asy
 
 test("customer duplicate checks: duplicate VIN is blocked; mobile match needs a reason (CV-08)", async () => {
   const priya = await ctxFor("priya", "YAS");
-  const r1 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Copy", last_name: "Test", country_code: "SA", mobile: "+966558321109" });
+  const r1 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Copy", last_name: "Test", id_type: "National ID", id_number: "1087345522", country_code: "SA", mobile: "+966558321109" });
   assert.equal(r1.id, undefined);
   assert.equal(r1.duplicates?.[0].kind, "mobile");
-  const r2 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Brother", last_name: "Test", country_code: "SA", mobile: "+966558321109", duplicate_reason: "Family phone" });
+  const r2 = await createCustomer(priya, { customer_type: "individual", title: "Mr", first_name: "Brother", last_name: "Test", id_type: "National ID", id_number: "1087345523", country_code: "SA", mobile: "+966558321109", duplicate_reason: "Family phone" });
   assert.ok(r2.id);
   const v = await createVehicle(priya, { owner_customer_id: r2.id, registered_in: "DXB", plate_code: "A", plate_number: "1", vin: "JTMHV05J904123456", make: "Toyota", model: "LC", duplicate_reason: "anything" });
   assert.equal(v.id, undefined);

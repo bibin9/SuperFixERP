@@ -442,3 +442,51 @@ export async function stockItemLedger(ctx: Ctx, itemId: string, branchId: string
     return { item, rows: redact(ctx, rows, { unit_cost: "purchase_cost", value: "purchase_cost", balance_avg_cost: "purchase_cost" }, (r) => r.branch_id as string) };
   });
 }
+
+/**
+ * Low-stock list (IN-06): parts at this branch whose free quantity is at or below the reorder level,
+ * with what is already on order, the days of cover from the last 30 days' use, and what other branches have.
+ */
+export async function reorderList(ctx: Ctx, all = false) {
+  const b = here(ctx);
+  assertCan(ctx, "stock", "view", b);
+  return withTx(ctx, async (c) => {
+    const rows = (await c.query(
+      `SELECT i.id item_id, i.part_no, i.description, i.preferred_supplier_id, sp.name_en supplier, ib.reorder_level, ib.reorder_qty, ib.default_bin,
+              coalesce(sb.on_hand - sb.committed - sb.reserved, 0) free,
+              coalesce((SELECT sum(pl.qty - pl.received_qty) FROM po_line pl JOIN purchase_order p ON p.id = pl.po_id
+                         WHERE pl.item_id = i.id AND p.branch_id = $1 AND p.status IN ('draft','pending_approval','approved','partly_received')), 0) on_po,
+              coalesce((SELECT sum(tl.qty) FROM transfer_line tl JOIN transfer t ON t.id = tl.transfer_id
+                         WHERE tl.item_id = i.id AND t.to_branch_id = $1 AND t.status IN ('requested','approved','dispatched')), 0) on_transfer,
+              coalesce((SELECT sum(m.qty_out) FROM stock_move m WHERE m.item_id = i.id AND m.branch_id = $1 AND m.move_type = 'issue' AND m.at > now() - interval '30 days'), 0) / 30.0 daily_use,
+              coalesce((SELECT json_agg(json_build_object('id', ob.id, 'code', ob.code, 'free', o.on_hand - o.committed - o.reserved) ORDER BY o.on_hand - o.committed - o.reserved DESC)
+                          FROM stock_balance o JOIN branch ob ON ob.id = o.branch_id WHERE o.item_id = i.id AND o.branch_id <> $1 AND o.on_hand - o.committed - o.reserved > 0), '[]') elsewhere
+         FROM item_branch ib JOIN item i ON i.id = ib.item_id AND i.active LEFT JOIN supplier sp ON sp.id = i.preferred_supplier_id
+         LEFT JOIN stock_balance sb ON sb.item_id = i.id AND sb.branch_id = ib.branch_id
+        WHERE ib.branch_id = $1 AND ($2 OR (ib.reorder_level > 0 AND coalesce(sb.on_hand - sb.committed - sb.reserved, 0) <= ib.reorder_level))
+        ORDER BY i.part_no`, [b, all])).rows;
+    return rows.map((r) => {
+      const free = D(r.free), use = D(r.daily_use);
+      return { ...r, low: free.lte(r.reorder_level) && D(r.reorder_level).gt(0), onOrder: D(r.on_po).plus(r.on_transfer).toString(),
+        cover: use.gt(0) ? Math.floor(free.div(use).toNumber()) : null,
+        suggest: Decimal.max(D(r.reorder_qty).gt(0) ? D(r.reorder_qty) : D(r.reorder_level).minus(free), 1).toString() };
+    });
+  });
+}
+
+/** Sets the reorder level and quantity of a part at this branch. */
+export async function setReorder(ctx: Ctx, itemId: string, level: unknown, qty: unknown) {
+  const b = here(ctx);
+  assertCan(ctx, "stock", "edit", b);
+  const l = qtyOrZero(level, "Reorder level"), q = qtyOrZero(qty, "Reorder quantity");
+  return withTx(ctx, async (c) => {
+    if (!(await c.query("SELECT 1 FROM item WHERE id = $1 AND active", [itemId])).rowCount) throw invalid("Part not found.");
+    await c.query(`INSERT INTO item_branch (item_id, branch_id, reorder_level, reorder_qty) VALUES ($1,$2,$3,$4)
+                   ON CONFLICT (item_id, branch_id) DO UPDATE SET reorder_level = $3, reorder_qty = $4`, [itemId, b, l, q]);
+    await audit(c, ctx, "item_branch", itemId, "reorder", { level: l, qty: q }, b);
+  });
+}
+
+function qtyOrZero(v: unknown, field: string) {
+  return str(v) ? parseDec(v, field, { min: 0, dp: 3 }).toFixed(3) : "0.000";
+}

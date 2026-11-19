@@ -5,6 +5,8 @@ import type { Upload } from "@/lib/services/purchasing";
 import * as hr from "@/lib/services/hr";
 import * as tm from "@/lib/services/hr-time";
 import * as pay from "@/lib/services/payroll";
+import * as pd from "@/lib/services/punch-devices";
+import { AppError } from "@/lib/errors";
 
 /** Server actions for Phase 5: HR (employee file, time, leave, letters, recruitment), self-service and payroll. */
 
@@ -193,4 +195,35 @@ export async function settlementAction(fd: FormData) {
     const r = await pay.createSettlement(ctx, f);
     return withQ(`/payroll/settlements/${r.id}`, "ok", r.status === "approved" ? "Final settlement approved" : "Final settlement sent to the owner for approval");
   });
+}
+
+export async function startRenewalAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run(back(fd, "/hr"), () => hr.startRenewal(ctx, s(fd, "record_id"), s(fd, "note")), "Renewal started");
+}
+
+export async function renewedAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run(back(fd, "/hr"), () => hr.markRenewed(ctx, s(fd, "record_id"), s(fd, "new_expiry")), "Renewal recorded");
+}
+
+// ---------- punching machines (biometric sync) ----------
+
+export async function addDeviceAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run("/hr/machines", () => pd.addDevice(ctx, obj(fd) as never).then(() => undefined), "Machine added. Press New key and enter the key in the machine's sync settings.");
+}
+export async function deviceActiveAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run("/hr/machines", () => pd.setDeviceActive(ctx, s(fd, "device_id"), s(fd, "active") === "1"), "Saved");
+}
+/** Returns the new key to the page (shown once, never put in the address bar). */
+export async function deviceKeyAction(_prev: { key?: string; err?: string; id?: string }, fd: FormData): Promise<{ key?: string; err?: string; id?: string }> {
+  const ctx = await requireCtx();
+  try { return { key: await pd.newDeviceKey(ctx, s(fd, "device_id")), id: s(fd, "device_id") }; }
+  catch (e) { if (e instanceof AppError) return { err: e.message, id: s(fd, "device_id") }; throw e; }
+}
+export async function fixPunchAction(fd: FormData) {
+  const ctx = await requireCtx();
+  await run(back(fd, "/hr/attendance"), () => tm.manualPunch(ctx, { employee_id: s(fd, "employee_id"), date: s(fd, "date"), time: s(fd, "time"), note: s(fd, "note") || "Missing punch fixed by the manager" }), "Missing punch fixed");
 }
