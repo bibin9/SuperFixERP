@@ -1,3 +1,4 @@
+import { getSetting } from "@/lib/services/settings";
 import { Ctx, canAnywhere } from "../access";
 import { withTx } from "../db";
 import { missingPunches, listDevices } from "./punch-devices";
@@ -19,7 +20,9 @@ export async function shellData(ctx: Ctx) {
     const lateJobs = b && (canAnywhere(ctx, "workshop", "view") || canAnywhere(ctx, "jobs", "view")) ? Number((await c.query(
       `SELECT count(*) n FROM job_card WHERE branch_id = $1 AND promised_at < now() AND status NOT IN ('ready','delivered','invoiced','closed','cancelled')`, [b])).rows[0].n) : 0;
     const keyDrops = b && canAnywhere(ctx, "customers", "view") ? Number((await c.query("SELECT count(*) n FROM key_drop WHERE branch_id = $1 AND status = 'waiting'", [b])).rows[0].n) : 0;
-    return { branches, pending, lowStock, lateJobs, keyDrops };
+    const ps = Number(await getSetting(c, "lists.page_size", b ?? null, 25));
+    const pageSize = [10, 25, 50, 100, 200].includes(ps) ? ps : 25;
+    return { branches, pending, lowStock, lateJobs, keyDrops, pageSize };
   });
 }
 

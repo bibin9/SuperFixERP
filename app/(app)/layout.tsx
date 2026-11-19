@@ -12,6 +12,8 @@ import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
+import { ListPager } from "@/components/ListPager";
+import { RecentSearch } from "@/components/RecentSearch";
 import { FileSizeGuard } from "@/components/FileSizeGuard";
 import { HelpTour } from "@/components/HelpTour";
 import { Icon } from "@/components/Icon";
@@ -24,7 +26,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireCtx();
-  const { branches, pending, lowStock, lateJobs, keyDrops } = await shellData(ctx);
+  const { branches, pending, lowStock, lateJobs, keyDrops, pageSize } = await shellData(ctx);
   const role = roleAt(ctx, ctx.currentBranchId);
   const can = (s: Parameters<typeof canAnywhere>[1], a: Parameters<typeof canAnywhere>[2] = "view") => canAnywhere(ctx, s, a);
   const seesReports = visibleReports(ctx).length > 0;
@@ -171,7 +173,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main className="main">{children}</main>
         {/* Labels the phone card lists before first paint, so nothing shifts when the page hydrates. */}
-        <script dangerouslySetInnerHTML={{ __html: PHONE_TABLES_INLINE }} /><PhoneTables /><AutoLabels /><FileSizeGuard /><Suspense fallback={null}><FormErrors /></Suspense>
+        <script dangerouslySetInnerHTML={{ __html: PHONE_TABLES_INLINE }} /><PhoneTables /><ListPager user={ctx.userId} defaultSize={pageSize} /><RecentSearch user={ctx.userId} /><AutoLabels /><FileSizeGuard /><Suspense fallback={null}><FormErrors /></Suspense>
       </div>
     </div>
   );
