@@ -49,3 +49,7 @@ test("the Help button finds a guide for every screen in the app", () => {
   assert.equal(topicForPath("/jobs/abc"), "job-card");
   assert.equal(topicForPath("/stock/queue"), "store-queue");
 });
+
+test("every guide topic has a screenshot for the help panel", () => {
+  for (const t of TOPICS) assert.ok(fs.existsSync(path.join(process.cwd(), "public", "help", "shots", `${t.slug}.jpg`)), `${t.slug}.jpg`);
+});

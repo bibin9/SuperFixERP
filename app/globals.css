@@ -526,3 +526,33 @@ th{font-size:11.5px;letter-spacing:.6px}
 .nav .navsec>.grp .dot{width:7px;height:7px;border-radius:50%;background:var(--red)}
 .nav .navsec .navitems{margin:0 0 6px}
 .nav .navitems[hidden]{display:none}
+
+/* Help tour: a panel over the current screen (like Zoho's help panel) and a pointer on the page */
+.htour{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:#fff;z-index:60;box-shadow:-8px 0 30px rgba(15,23,42,.18);display:flex;flex-direction:column}
+.htour-h{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px 10px;background:var(--navy);color:#fff}
+.htour-h small{display:block;color:#9fb1c9;font-size:11px;text-transform:uppercase;letter-spacing:1px}.htour-h b{display:block;font-size:17px}.htour-h .muted{color:#b8c6d9}
+.htour-x{background:none;border:0;color:#fff;font-size:26px;line-height:1;cursor:pointer;padding:0 4px}
+.htour-pick{padding:10px 18px;border-bottom:1px solid var(--line)}.htour-pick select{width:100%;height:36px;border:1px solid var(--line);border-radius:9px;padding:0 8px;font:inherit}
+.htour-tabs{display:flex;gap:4px;padding:8px 18px 0;border-bottom:1px solid var(--line)}
+.htour-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 10px;font:inherit;font-weight:600;color:var(--muted);cursor:pointer}.htour-tabs button.on{color:var(--blue);border-color:var(--blue)}
+.htour-b{padding:14px 18px;overflow:auto;flex:1}
+.htour-shot{width:100%;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;display:block}
+.htour-parts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.htour-parts button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink2)}.htour-parts button.on{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
+.htour-step{background:#f6f8fb;border-radius:12px;padding:12px 14px;min-height:120px}
+.htour-step p{margin:6px 0}
+.htour-n{font-size:12px;font-weight:600;color:var(--blue)}
+.htour-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.htour-dots{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;flex:1}.htour-dots span{width:7px;height:7px;border-radius:50%;background:#d6dde7}.htour-dots span.done{background:#9fb8e6}.htour-dots span.on{background:var(--blue)}
+.htour-flow{margin-bottom:18px}.htour-flow ol{list-style:none;padding:0;margin:8px 0 0;counter-reset:f}
+.htour-flow li{position:relative;padding:8px 10px 8px 38px;border:1px solid var(--line);border-radius:10px;margin-bottom:14px;display:flex;flex-direction:column;gap:2px;counter-increment:f}
+.htour-flow li::before{content:counter(f);position:absolute;left:10px;top:9px;width:20px;height:20px;border-radius:50%;background:var(--blue-soft);color:var(--blue);font-size:11px;font-weight:700;display:grid;place-items:center}
+.htour-flow li:not(:last-child)::after{content:"";position:absolute;left:19px;bottom:-15px;width:2px;height:14px;background:#c7d0dc}
+.htour-flow li.here{border-color:var(--violet);background:var(--violet-soft)}
+.htour-flow .who{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.htour-flow .pill{align-self:flex-start}
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--blue);text-align:left;cursor:pointer}.linkish:hover{text-decoration:underline}
+.htour-spot{position:fixed;inset:0;z-index:59;pointer-events:none}
+.htour-spot .ring{position:fixed;border-radius:10px;box-shadow:0 0 0 3px var(--red),0 0 0 9999px rgba(13,27,46,.35);transition:all .2s}
+.htour-spot .tip{position:fixed;width:320px;background:#fff;border-radius:12px;box-shadow:var(--sh),0 10px 30px rgba(15,23,42,.25);padding:12px 14px;pointer-events:auto}
+@media (max-width:600px){.htour{width:100vw}}

@@ -29,7 +29,10 @@ export const FRONT: HelpTopic[] = [
         "Press a result to open it.",
       ] },
       { h: "Get help on the screen you are on", steps: [
-        "Press **Help** at the top of any page. It opens the guide for that screen.",
+        "Press **? Help** at the top of any page (or the F1 key). A help panel opens on the right, over the screen you are on, with the guide for that screen.",
+        "Go through it with **Next** and **Back**. Where a step names a button that is on the screen, press **Show me on this page** and it is outlined in red.",
+        "Open the **Process flow** tab to see where this screen sits in the whole process, from enquiry to closed job. Press a step to go to its screen.",
+        "Pick any other topic from the list at the top of the panel, or press **Open the full guide page**.",
         "Or open **Help, User guide** in the menu to see every guide for your role.",
       ] },
       { h: "Sign out", steps: [

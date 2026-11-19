@@ -13,7 +13,7 @@ import { AutoSubmitSelect } from "@/components/AutoSubmit";
 import { SideNav, type NavGroup } from "@/components/SideNav";
 import { PhoneTables } from "@/components/PhoneTables";
 import { FileSizeGuard } from "@/components/FileSizeGuard";
-import { HelpLink } from "@/components/HelpLink";
+import { HelpTour } from "@/components/HelpTour";
 import { Icon } from "@/components/Icon";
 import { PHONE_TABLES_INLINE } from "@/lib/phone-tables";
 import { FormErrors } from "@/components/FormErrors";
@@ -164,7 +164,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="pill">{branches[0]?.code} · {branches[0]?.name_en}</span>
           )}
           {!ctx.pinOnly && <><FindFeature items={features} />
-          <HelpLink />
+          <HelpTour allowed={TOPICS.filter(sees).map((t) => t.slug)} />
           <Bell alerts={alerts} /></>}
           <div className="clock" title="Today"><Icon name="clock" size={16} className="cicon" />{new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Dubai" }).format(new Date())}</div>
           <div className="who"><span className="avatar" aria-hidden>{ctx.fullName.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span><span><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</span></div>
