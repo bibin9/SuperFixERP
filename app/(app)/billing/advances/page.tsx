@@ -3,7 +3,7 @@ import { requireCtx } from "@/lib/session";
 import { listAdvances } from "@/lib/services/billing";
 import { listCustomers } from "@/lib/services/customers";
 import { masters } from "@/lib/services/masters";
-import { advanceAction } from "@/app/actions-billing";
+import { advanceAction, refundAction } from "@/app/actions-billing";
 import { Flash, Link, Money, PageHead, custName, dt, label } from "@/components/ui";
 import { BillingTabs } from "@/components/BillingTabs";
 import { withTx } from "@/lib/db";
@@ -24,6 +24,7 @@ export default async function Advances({ searchParams }: { searchParams: Promise
   const rows = await listAdvances(ctx, customerId ?? undefined);
   const m = await masters(ctx);
   const who = job ?? customer;
+  const canRefund = !!ctx.currentBranchId && can(ctx, "invoices", "approve", ctx.currentBranchId);
   const back = jobId ? `/billing/advances?job=${jobId}` : customerId ? `/billing/advances?customer=${customerId}` : "/billing/advances";
   return (
     <>
@@ -58,9 +59,21 @@ export default async function Advances({ searchParams }: { searchParams: Promise
       )}
       <div className="card"><h2>{customerId ? "This customer's money held" : "Money held for customers"}</h2>
         <table>
-          <thead><tr><th>Reference</th><th>Customer</th><th>Branch</th><th>Job</th><th>From</th><th className="num">Amount</th><th className="num">VAT in it</th><th className="num">Left</th><th>Taken</th></tr></thead>
+          <thead><tr><th>Reference</th><th>Customer</th><th>Branch</th><th>Job</th><th>From</th><th className="num">Amount</th><th className="num">VAT in it</th><th className="num">Left</th><th>Taken</th>{canRefund && <th>Pay back</th>}</tr></thead>
           <tbody>{rows.map((a) => <tr key={a.id}><td>{a.source_no}</td><td>{a.customer_name}</td><td>{a.branch_code}</td><td>{a.job_no ?? ""}</td><td>{label(a.source)}</td>
-            <td className="num"><Money v={a.amount} /></td><td className="num"><Money v={a.vat_amount} /></td><td className="num">{D(a.open).gt(0) ? <Money v={a.open} /> : <span className="muted">used</span>}</td><td className="small">{dt(a.created_at)}</td></tr>)}</tbody>
+            <td className="num"><Money v={a.amount} /></td><td className="num"><Money v={a.vat_amount} /></td><td className="num">{D(a.open).gt(0) ? <Money v={a.open} /> : <span className="muted">used</span>}</td><td className="small">{dt(a.created_at)}</td>
+            {canRefund && <td>{D(a.open).gt(0) && a.branch_id === ctx.currentBranchId && (
+              <details className="refund"><summary className="small">Refund</summary>
+                <form action={refundAction} className="stack">
+                  <input type="hidden" name="advance_id" value={a.id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} /><input type="hidden" name="$back" value={back} />
+                  <div className="field"><label>Amount (AED)</label><input name="amount" inputMode="decimal" defaultValue={a.open} required /></div>
+                  <div className="field"><label>Paid by</label><select name="method">{m.paymentMethods.filter((pm) => !/cheque|pdc/i.test(pm.code)).map((pm) => <option key={pm.code} value={pm.code}>{pm.name}</option>)}</select></div>
+                  <div className="field"><label>Reference</label><input name="reference" placeholder="Card slip or transfer no." /></div>
+                  <div className="field"><label>Why</label><input name="reason" required placeholder="e.g. Job cancelled, customer asked for the money" /></div>
+                  <button className="btn red sm">Pay back</button>
+                </form>
+              </details>)}</td>}
+          </tr>)}</tbody>
         </table>
         {!rows.length && <p className="muted">Nothing held.</p>}
       </div>

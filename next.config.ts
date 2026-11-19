@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
         { key: "X-Frame-Options", value: "DENY" },
         { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
         { key: "Referrer-Policy", value: "same-origin" },
+        // HSTS: browsers stay on HTTPS for a year. Ignored on plain-HTTP localhost.
+        { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
       ],
     }];
   },

@@ -646,3 +646,54 @@ export async function customerBalance(ctx: Ctx, customerId: string) {
     return { open: inv, advances: String(adv) };
   });
 }
+
+/**
+ * Pays back money held for a customer (a deposit, an overpayment or credit from a return) in cash, card
+ * or transfer. Only a manager (invoices approve) at the branch that holds the money can do it. The VAT
+ * part follows the amount, as when an advance is applied. Idempotent like receipts.
+ */
+export async function refundAdvance(ctx: Ctx, f: { advance_id: string; amount: unknown; method: string; reference?: string; reason: string; idempotency_key: string }) {
+  const amount = parseDec(f.amount, "Amount", { min: "0.01", dp: 2 });
+  if (!f.idempotency_key || f.idempotency_key.length < 16) throw invalid("Missing idempotency key.");
+  if (!str(f.reason)) throw invalid("Write why the money is paid back.", { field: "reason" });
+  const hash = crypto.createHash("sha256").update(JSON.stringify(["refund", f.advance_id, f.method, amount.toFixed(2), str(f.reference)])).digest("hex");
+  type Out = { id: string; docNo: string; duplicate: boolean; vat: string };
+  return withTx(ctx, async (c) => {
+    const replay = await claimRequest<Out>(c, ctx, f.idempotency_key, "refund", hash);
+    if (replay) return replay;
+    const prior = await c.query("SELECT id, doc_no, request_hash FROM customer_refund WHERE idempotency_key = $1", [f.idempotency_key]);
+    if (prior.rowCount) {
+      if (prior.rows[0].request_hash !== hash) throw conflict("This request key was already used for a different refund.");
+      return finishRequest<Out>(c, f.idempotency_key, { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, vat: "0.00" });
+    }
+    const a = (await c.query("SELECT * FROM customer_advance WHERE id = $1 FOR UPDATE", [f.advance_id])).rows[0];
+    if (!a) throw notFound("Money held");
+    if (!can(ctx, "invoices", "approve", a.branch_id)) throw forbidden("Only a manager can pay money back to a customer.");
+    if (ctx.currentBranchId !== a.branch_id) throw invalid("This money is held at another branch. Switch to that branch to pay it back.");
+    const left = D(a.amount).minus(a.used_amount);
+    if (amount.gt(left)) throw invalid(`You can pay back up to AED ${left.toFixed(2)}.`, { field: "amount" });
+    const { pm, isCheque } = await paymentMethod(c, { ...f, idempotency_key: f.idempotency_key });
+    if (isCheque) throw invalid("Pay a refund in cash, by card or by transfer, not by cheque.", { field: "method" });
+    await lockSeries(c, a.branch_id, ["refund", "journal"]);
+    await assertCashOpen(c, ctx, a.branch_id, pm);
+    const used = D((await c.query(
+      `SELECT coalesce((SELECT sum(vat_amount) FROM advance_application WHERE advance_id = $1), 0) + coalesce((SELECT sum(vat_amount) FROM customer_refund WHERE advance_id = $1), 0) v`, [a.id])).rows[0].v);
+    const vat = amount.eq(left) ? D(a.vat_amount).minus(used) : r2(D(a.vat_amount).mul(amount).div(a.amount));
+    const docNo = await nextDocNo(c, a.branch_id, "refund");
+    const jr = await postJournal(c, ctx, {
+      branchId: a.branch_id, date: today(), sourceType: "refund", sourceId: a.id, narration: `Refund ${docNo} of ${a.source_no}`,
+      lines: [
+        { event: "customer_advances", debit: amount.minus(vat), customerId: a.customer_id },
+        { event: "vat_output", debit: vat },
+        { event: pm.posting_event, credit: amount },
+      ],
+    });
+    const r = await c.query(
+      `INSERT INTO customer_refund (branch_id, doc_no, doc_date, customer_id, advance_id, method, amount, vat_amount, reference, reason, idempotency_key, request_hash, journal_id, paid_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      [a.branch_id, docNo, today(), a.customer_id, a.id, f.method, amount.toFixed(2), vat.toFixed(2), optStr(f.reference), str(f.reason), f.idempotency_key, hash, jr!.id, ctx.userId]);
+    await c.query("UPDATE customer_advance SET used_amount = used_amount + $2 WHERE id = $1", [a.id, amount.toFixed(2)]);
+    await audit(c, ctx, "customer_refund", r.rows[0].id, "refund", { doc_no: docNo, advance: a.source_no, amount: amount.toFixed(2), vat: vat.toFixed(2), method: f.method, reason: str(f.reason) }, a.branch_id);
+    return finishRequest<Out>(c, f.idempotency_key, { id: r.rows[0].id as string, docNo, duplicate: false, vat: vat.toFixed(2) });
+  });
+}

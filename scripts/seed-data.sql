@@ -521,7 +521,7 @@ FROM (VALUES
 ) s(doc, seq, name, role, mn, mx, scope) JOIN workflow w ON w.doc_type = s.doc;
 INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
 SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
-CROSS JOIN (VALUES ('leave_request','-LV-'),('hr_letter','-HRL-'),('loan','-LN-'),('salary_revision','-SR-'),('final_settlement','-FS-')) t(doc_type, suffix)
+CROSS JOIN (VALUES ('refund','-RF-'),('leave_request','-LV-'),('hr_letter','-HRL-'),('loan','-LN-'),('salary_revision','-SR-'),('final_settlement','-FS-')) t(doc_type, suffix)
 ON CONFLICT (branch_id, doc_type) DO NOTHING;
 -- Foremen approve their team's leave and overtime as line managers; branch managers and the owner see HR for their branches.
 INSERT INTO permission (role_id, screen, action)

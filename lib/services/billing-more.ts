@@ -177,7 +177,11 @@ async function dayTotals(c: PoolClient, branchId: string, cashierId: string, dat
     `SELECT coalesce(sum(r.amount) FILTER (WHERE pm.posting_event = 'cash_drawer'),0) cash, coalesce(sum(r.amount) FILTER (WHERE pm.posting_event = 'card_clearing'),0) card,
             count(*) FILTER (WHERE pm.posting_event = 'cash_drawer') cash_n, count(*) FILTER (WHERE pm.posting_event = 'card_clearing') card_n
        FROM receipt r JOIN payment_method pm ON pm.code = r.method WHERE r.branch_id = $1 AND r.posted_by = $2 AND r.doc_date = $3`, [branchId, cashierId, date])).rows[0];
-  return { cash: D(r.cash), card: D(r.card), cashCount: Number(r.cash_n), cardCount: Number(r.card_n) };
+  // Cash and card paid back to customers by this cashier today come off the drawer and the batch.
+  const f = (await c.query(
+    `SELECT coalesce(sum(x.amount) FILTER (WHERE pm.posting_event = 'cash_drawer'),0) cash, coalesce(sum(x.amount) FILTER (WHERE pm.posting_event = 'card_clearing'),0) card
+       FROM customer_refund x JOIN payment_method pm ON pm.code = x.method WHERE x.branch_id = $1 AND x.paid_by = $2 AND x.doc_date = $3`, [branchId, cashierId, date])).rows[0];
+  return { cash: D(r.cash).minus(f.cash), card: D(r.card).minus(f.card), cashCount: Number(r.cash_n), cardCount: Number(r.card_n), refundCash: D(f.cash) };
 }
 
 export async function cashToday(ctx: Ctx) {

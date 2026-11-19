@@ -15,3 +15,4 @@ REVOKE DELETE ON voucher, voucher_line, supplier_payment, supplier_payment_alloc
 REVOKE UPDATE ON voucher_line, depreciation_line FROM superfix_app;
 -- Posting request claims are kept as evidence of what each key meant (017).
 REVOKE DELETE ON post_request FROM superfix_app;
+REVOKE UPDATE, DELETE ON customer_refund FROM superfix_app;

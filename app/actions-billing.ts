@@ -70,6 +70,15 @@ export async function advanceAction(fd: FormData) {
   });
 }
 
+export async function refundAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const f = obj(fd);
+  await run(back(fd, "/billing/advances"), async () => {
+    const r = await bl.refundAdvance(ctx, { advance_id: f.advance_id, amount: f.amount, method: f.method, reference: f.reference, reason: f.reason, idempotency_key: f.idempotency_key });
+    return withQ(back(fd, "/billing/advances"), "ok", `Refund ${r.docNo} paid${Number(r.vat) > 0 ? ` (VAT AED ${r.vat} reversed)` : ""}`);
+  });
+}
+
 // ---------- cheques ----------
 export async function chequeAction(fd: FormData) {
   const ctx = await requireCtx();

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p ${PORT:-3000}",
+    "start": "next start -p ${PORT:-3000} --keepAliveTimeout 75000",
     "db:setup": "tsx scripts/db-setup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",

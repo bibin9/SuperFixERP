@@ -11,7 +11,10 @@ const g = globalThis as unknown as { __sfPool?: Pool };
 
 export function pool(): Pool {
   if (!g.__sfPool) {
-    g.__sfPool = new Pool({ connectionString: process.env.APP_DATABASE_URL || dbConfig().appUrl, max: 10 });
+    // Pool size from DB_POOL_MAX (default 20). Under a burst, requests wait for a free connection for up to
+    // 15 s instead of piling up without limit; idle connections are closed after 30 s.
+    g.__sfPool = new Pool({ connectionString: process.env.APP_DATABASE_URL || dbConfig().appUrl, max: Number(process.env.DB_POOL_MAX) || 20,
+      connectionTimeoutMillis: 15_000, idleTimeoutMillis: 30_000, keepAlive: true });
     // An idle connection dropped by the server (restart, db:reset) must not crash the app.
     g.__sfPool.on("error", (e) => console.error("database pool:", e.message));
   }
