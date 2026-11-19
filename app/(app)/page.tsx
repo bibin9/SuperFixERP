@@ -6,10 +6,14 @@ import { whatsappAction } from "@/app/actions";
 import { canSee, roleAt, can } from "@/lib/access";
 import { Link, Money, Status, dt, PageHead } from "@/components/ui";
 import { STATUS_LABEL } from "@/lib/services/jobs";
+import { canOpenReport } from "@/lib/services/reports";
+import { redirect } from "next/navigation";
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
+  // Owner and branch manager start on the owner dashboard; Home stays one click away (?home=1).
+  if (!sp.home && !sp.scope && roleAt(ctx, null)?.homeScreen === "dashboard" && canOpenReport(ctx, { module: "jobs" })) redirect("/owner");
   const scope = ctx.allBranches && sp.scope !== "current" ? "all" : "current";
   const [d, m] = await Promise.all([dashboard(ctx, scope), myDay(ctx, scope)]);
   const front = can(ctx, "customers", "view") || can(ctx, "jobs", "view");
@@ -21,7 +25,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   return (
     <>
       <PageHead title={`${hello}, ${ctx.fullName.split(" ")[0]}`} sub={front ? `${scope === "all" ? "All branches" : "Your branch"} · ${things} thing${things === 1 ? "" : "s"} need you today. Start from the top.` : `${role?.roleName} · ${scope === "all" ? "all branches" : "current branch"}`}>
-        {ctx.allBranches && <Link className="btn ghost sm" href={scope === "all" ? "/?scope=current" : "/"}>{scope === "all" ? "Current branch only" : "All branches"}</Link>}
+        {ctx.allBranches && <Link className="btn ghost sm" href={scope === "all" ? "/?scope=current" : "/?scope=all"}>{scope === "all" ? "Current branch only" : "All branches"}</Link>}
         {can(ctx, "customers", "create") && <Link className="btn" href="/enquiries/new">New enquiry</Link>}
       </PageHead>
       {front && <>

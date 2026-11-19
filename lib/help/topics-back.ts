@@ -533,6 +533,30 @@ export const BACK: HelpTopic[] = [
 
   // ---------------- Reports ----------------
   {
+    slug: "owner-dashboard", group: "Reports", title: "Owner dashboard",
+    summary: "Sales, cars in and out, on-time delivery, late jobs, cash, enquiries and branch figures for every branch, live.", who: "Owner, branch manager",
+    access: ["reports"], open: { label: "Open the owner dashboard", href: "/owner" },
+    parts: [
+      { h: "Read the overview", steps: [
+        "The owner and branch managers land on **Owner dashboard** when they sign in. **Home** in the menu still opens your day list.",
+        "Pick **Today**, **Last 7 days** or **Last 30 days** at the top. Pick one branch or **All branches** and press **Show**. A branch manager sees only their own branch.",
+        "The five tiles show sales against the same days last week, cars in and out with how many are still on site, on-time delivery against the target, jobs late right now with how many still need a delay reason, and cash collected split by payment method.",
+        "Click a bar in **Sales by branch** to open that branch. Your current branch is the red bar.",
+        "Below are cars on site by status, delays by reason for the last 7 days, the six branches with the lowest on-time delivery, the late jobs (click a number to open the job card), the enquiry-to-invoice funnel, stock running low and a table by emirate.",
+      ] },
+      { h: "Enquiries by branch", steps: [
+        "Open the **Enquiries by branch** tab. The tiles show enquiries, how many became jobs against the conversion target, lost, the average time to the first reply and how many are still open.",
+        "Grey bars are all enquiries and green is the part that became a job. Sort the table by **Most enquiries**, **Best conversion**, **Most lost** or **Fastest reply**.",
+        "Pick one branch to see its open enquiries, with a button to the Enquiries screen.",
+      ] },
+      { h: "Branch details", steps: [
+        "Open the **Branch details** tab for bays, technicians, sales, cars in, on time, bay use, active, new and returning customers and average spend per invoice.",
+        "Bay use is the hours technicians clocked on jobs against the bay hours in the period.",
+        "Sales, cash and average spend are hidden for roles that cannot see selling prices.",
+      ] },
+    ],
+  },
+  {
     slug: "reports", group: "Reports", title: "Reports, exports and the report inbox",
     summary: "The dashboard, 35 standard reports, filters, Excel, copies, pins and schedules.", who: "Managers, accountant, HR",
     access: ["reports"], open: { label: "Open Reports dashboard", href: "/reports" },

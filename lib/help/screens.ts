@@ -13,7 +13,7 @@ export const SCREEN_TOPIC: [string, string][] = [
   ["/me", "my-hr"], ["/hr/employees", "employees"], ["/hr/attendance", "attendance"], ["/hr/roster", "attendance"], ["/hr/qr", "attendance"], ["/hr/leave", "leave"], ["/hr/overtime", "leave"],
   ["/hr/letters", "letters"], ["/hr/recruitment", "recruitment"], ["/hr/transfers", "employees"], ["/hr", "employees"],
   ["/payroll/revisions", "salary-loans"], ["/payroll/loans", "salary-loans"], ["/payroll/settlements", "settlements"], ["/payroll", "payroll"],
-  ["/reports/builder", "report-builder"], ["/reports/archive", "archive"], ["/reports", "reports"],
+  ["/owner", "owner-dashboard"], ["/reports/builder", "report-builder"], ["/reports/archive", "archive"], ["/reports", "reports"],
   ["/admin/users", "users"], ["/admin/roles", "roles-admin"], ["/admin/audit", "audit"], ["/admin", "setup"],
 ];
 export function topicForPath(path: string): string | null {

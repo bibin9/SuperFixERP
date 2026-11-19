@@ -114,11 +114,11 @@ await step("TC-RP06-01", "TR-06 insurance register: Ramesh's policy in the 60-da
   await go(fatima, "/reports/run/insurance_register?within=30"); rs = await rowsText(fatima); must(/Nothing/.test(rs[0]), "30-day: " + rs[0]);
   return "Daman DM-77-1203 in 60 days band";
 });
-await step("TC-RP06-02", "Document expiries: 30 days lists only Ramesh's passport; 60 days adds the two visas", async () => {
+await step("TC-RP06-02", "Document expiries: 30 days lists Ramesh's passport and Khalid's visa (seeded for the renewal demo); 60 days adds the two other visas", async () => {
   await go(fatima, "/reports/run/document_expiries?within=30"); let rs = await rowsText(fatima);
-  must(rs.length === 1 && /Ramesh/.test(rs[0]) && /Passport/i.test(rs[0]), "30: " + rs.join(" / "));
+  must(rs.length === 2 && rs.some((r) => /Ramesh/.test(r) && /Passport/i.test(r)) && rs.some((r) => /Khalid/.test(r) && /Visa/i.test(r)), "30: " + rs.join(" / "));
   await go(fatima, "/reports/run/document_expiries?within=60"); rs = await rowsText(fatima);
-  must(rs.filter((r) => /Visa/i.test(r)).length === 2 && rs.some((r) => /Passport/i.test(r)), "60: " + rs.join(" / ")); return rs.map((r) => r.slice(0, 50)).join(" / ");
+  must(rs.filter((r) => /Visa/i.test(r)).length === 3 && rs.some((r) => /Passport/i.test(r)), "60: " + rs.join(" / ")); return rs.map((r) => r.slice(0, 50)).join(" / ");
 });
 
 // ---------------------------------------------------------------- access: branch scope and hidden fields (RB-11)

@@ -6,7 +6,7 @@ import { Bell } from "@/components/Bell";
 import { FindFeature, type Feature } from "@/components/FindFeature";
 import { TOPICS, accessChecker, topicText } from "@/lib/help";
 import { seesPayroll } from "@/lib/services/payroll";
-import { visibleReports } from "@/lib/services/reports";
+import { visibleReports, canOpenReport } from "@/lib/services/reports";
 import { menuReports, unreadInbox } from "@/lib/services/report-saved";
 import { logoutAction, switchBranchAction } from "@/app/actions";
 import { AutoSubmitSelect } from "@/components/AutoSubmit";
@@ -28,11 +28,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const role = roleAt(ctx, ctx.currentBranchId);
   const can = (s: Parameters<typeof canAnywhere>[1], a: Parameters<typeof canAnywhere>[2] = "view") => canAnywhere(ctx, s, a);
   const seesReports = visibleReports(ctx).length > 0;
+  const seesOwner = canOpenReport(ctx, { module: "jobs" });
+  const ownerHome = seesOwner && role?.homeScreen === "dashboard";
   const savedMenu = seesReports ? await menuReports(ctx) : [];
   const unread = seesReports ? await unreadInbox(ctx) : 0;
   const menu: [string, [string, string, boolean, number?, string?][]][] = [
     ["Front office", [
-      ["/", "Home", true],
+      ["/owner", "Owner dashboard", seesOwner],
+      [ownerHome ? "/?home=1" : "/", "Home", true],
       ["/enquiries", "Enquiries", can("customers")],
       ["/bookings", "Booking calendar", can("customers")],
       ["/workshop/keys", "Key drop", !!ctx.currentBranchId && can("customers"), keyDrops || undefined],

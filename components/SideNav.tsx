@@ -13,7 +13,7 @@ export type NavGroup = { key: string; label: string; items: NavItem[] };
  */
 export function SideNav({ groups }: { groups: NavGroup[] }) {
   const path = usePathname();
-  const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(href.split("#")[0] + "/") || path === href.split("#")[0]);
+  const isActive = (h: string) => { const href = h.split("?")[0]; return (href === "/" ? path === "/" : path === href || path.startsWith(href.split("#")[0] + "/") || path === href.split("#")[0]); };
   // The most specific match wins, so /stock/transfers marks Transfer orders, not Stock on hand.
   const best = groups.flatMap((g) => g.items.filter((i) => isActive(i.href) && !i.href.includes("#")).map((i) => ({ href: i.href, len: i.href.length }))).sort((a, b) => b.len - a.len)[0];
   useEffect(() => {
