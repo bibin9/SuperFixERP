@@ -52,6 +52,14 @@ export async function invoiceKindFor(c: PoolClient, cust: Row, total: Decimal, b
 
 const BILLABLE_STATUS = ["ready", "delivered", "invoiced"];
 
+/** SQL: invoice alias `a` is for job `p`, on its own or as part of a combined invoice (028). */
+export const invOfJob = (a: string, p: string) => `(${a}.job_card_id = ${p} OR EXISTS (SELECT 1 FROM sales_invoice_job x WHERE x.invoice_id = ${a}.id AND x.job_card_id = ${p}))`;
+/** The job cards an invoice is for: its own job, or every job on a combined invoice. */
+export async function jobsOfInvoice(c: PoolClient, inv: { id: string; job_card_id: string | null }): Promise<string[]> {
+  if (inv.job_card_id) return [inv.job_card_id];
+  return (await c.query("SELECT job_card_id FROM sales_invoice_job WHERE invoice_id = $1 ORDER BY job_card_id", [inv.id])).rows.map((r) => r.job_card_id as string);
+}
+
 async function invoiceBasis(c: PoolClient, jobId: string, lineIds?: string[] | null) {
   const j = await c.query("SELECT * FROM job_card WHERE id = $1", [jobId]);
   if (!j.rowCount) throw notFound("Job card");
@@ -70,7 +78,7 @@ async function invoiceBasis(c: PoolClient, jobId: string, lineIds?: string[] | n
   if (lineIds && lineIds.length && lines.length !== new Set(lineIds).size) throw invalid("A chosen line is already billed or not approved.");
   const latestApproved = (await c.query(
     "SELECT * FROM quotation WHERE job_card_id = $1 AND status IN ('approved','partly_approved') ORDER BY revision DESC LIMIT 1", [jobId])).rows[0];
-  const invoicedBefore = D((await c.query("SELECT coalesce(sum(grand_total),0) t FROM sales_invoice WHERE job_card_id = $1", [jobId])).rows[0].t);
+  const invoicedBefore = D((await c.query("SELECT coalesce(sum(sil.line_total),0) t FROM sales_invoice_line sil JOIN job_line l ON l.id = sil.job_line_id WHERE l.job_card_id = $1", [jobId])).rows[0].t);
   const taxable = lines.reduce((s, l) => s.plus(l.taxable_amount), D(0));
   const vat = lines.reduce((s, l) => s.plus(l.vat_amount), D(0));
   const total = taxable.plus(vat);
@@ -256,7 +264,7 @@ export async function maybeCloseJob(c: PoolClient, ctx: Ctx, jobId: string) {
   if (!job || job.status !== "invoiced" || !job.delivered_at) return false;
   const rest = await invoiceBasis(c, jobId);
   if (rest.allLines.length) return false;
-  const open = (await c.query("SELECT count(*) n FROM sales_invoice WHERE job_card_id = $1 AND paid_amount + credited_amount < grand_total", [jobId])).rows[0].n;
+  const open = (await c.query(`SELECT count(*) n FROM sales_invoice i WHERE ${invOfJob("i", "$1")} AND i.paid_amount + i.credited_amount < i.grand_total`, [jobId])).rows[0].n;
   if (Number(open)) return false;
   await setStatus(c, ctx, job, "closed", "Paid and delivered");
   return true;
@@ -277,7 +285,10 @@ export async function getInvoice(ctx: Ctx, id: string) {
          LEFT JOIN app_user u ON u.id = i.posted_by WHERE i.id = $1`, [id]);
     if (!r.rowCount) throw notFound("Invoice");
     assertCan(ctx, "invoices", "view", r.rows[0].branch_id);
-    return { ...(await invoiceParts(c, r.rows[0])), advances: await openAdvances(c, r.rows[0].customer_id, r.rows[0].branch_id, r.rows[0].job_card_id) };
+    const jobs = r.rows[0].job_card_id ? [] : (await c.query(
+      `SELECT x.job_card_id id, j.doc_no, v.plate_code, v.plate_number, v.make, v.model, x.taxable_total, x.vat_total, x.grand_total
+         FROM sales_invoice_job x JOIN job_card j ON j.id = x.job_card_id JOIN vehicle v ON v.id = j.vehicle_id WHERE x.invoice_id = $1 ORDER BY j.doc_no`, [id])).rows;
+    return { ...(await invoiceParts(c, r.rows[0])), jobs, advances: await openAdvances(c, r.rows[0].customer_id, r.rows[0].branch_id, r.rows[0].job_card_id) };
   });
 }
 
@@ -369,7 +380,9 @@ export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id
   }
   const { pm, isCheque } = await paymentMethod(c, f);
   // Same lock order as invoicing: job card, then invoice, then number series (CONC-02).
-  await lockJobFirst(c, (await c.query("SELECT job_card_id FROM sales_invoice WHERE id = $1", [f.invoice_id])).rows[0]?.job_card_id);
+  const head = (await c.query("SELECT id, job_card_id FROM sales_invoice WHERE id = $1", [f.invoice_id])).rows[0];
+  const invJobs = head ? await jobsOfInvoice(c, head) : [];
+  for (const j of invJobs) await lockJobFirst(c, j);
   const inv = await c.query("SELECT * FROM sales_invoice WHERE id = $1 FOR UPDATE", [f.invoice_id]);
   if (!inv.rowCount) throw notFound("Invoice");
   const invoice = inv.rows[0];
@@ -404,7 +417,7 @@ export async function receiptTx(c: PoolClient, ctx: Ctx, f: PayIn & { invoice_id
     await c.query("INSERT INTO customer_advance (branch_id, customer_id, job_card_id, source, source_id, source_no, amount) VALUES ($1,$2,$3,'overpayment',$4,$5,$6)",
       [invoice.branch_id, invoice.customer_id, invoice.job_card_id, rid, docNo, onAccount.toFixed(2)]);
   }
-  if (invoice.job_card_id) await maybeCloseJob(c, ctx, invoice.job_card_id);
+  for (const j of invJobs) await maybeCloseJob(c, ctx, j);
   await audit(c, ctx, "receipt", rid, "post", { doc_no: docNo, amount: amount.toFixed(2), allocated: alloc.toFixed(2), on_account: onAccount.toFixed(2), method: f.method }, invoice.branch_id);
   return finishRequest<Out>(c, f.idempotency_key, { id: rid, docNo, duplicate: false, onAccount: onAccount.toFixed(2) });
 }
@@ -498,13 +511,14 @@ export async function applyAdvance(ctx: Ctx, invoiceId: string, advanceId: strin
     const inv = (await c.query("SELECT * FROM sales_invoice WHERE id = $1", [invoiceId])).rows[0];
     if (!inv) throw notFound("Invoice");
     assertCan(ctx, "invoices", "create", inv.branch_id);
-    await lockJobFirst(c, inv.job_card_id);
+    const invJobs = await jobsOfInvoice(c, inv);
+    for (const j of invJobs) await lockJobFirst(c, j);
     const a = (await c.query("SELECT * FROM customer_advance WHERE id = $1", [advanceId])).rows[0];
     if (!a) throw notFound("Advance");
     const open = D(inv.grand_total).minus(inv.paid_amount).minus(inv.credited_amount);
     const amt = str(amount) ? parseDec(amount, "Amount", { min: "0.01", dp: 2 }) : Decimal.min(open, D(a.amount).minus(a.used_amount));
     await applyAdvanceTx(c, ctx, advanceId, invoiceId, amt);
-    if (inv.job_card_id) await maybeCloseJob(c, ctx, inv.job_card_id);
+    for (const j of invJobs) await maybeCloseJob(c, ctx, j);
   });
 }
 
@@ -571,9 +585,9 @@ export async function bounceCheque(ctx: Ctx, receiptId: string, note: string) {
     for (const a of allocs) {
       await c.query("UPDATE receipt_allocation SET reversed = true WHERE id = $1", [a.id]);
       await c.query("UPDATE sales_invoice SET paid_amount = paid_amount - $2 WHERE id = $1", [a.invoice_id, a.amount]);
-      const inv = (await c.query("SELECT job_card_id FROM sales_invoice WHERE id = $1", [a.invoice_id])).rows[0];
-      if (inv?.job_card_id) {
-        const job = (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [inv.job_card_id])).rows[0];
+      const inv = (await c.query("SELECT id, job_card_id FROM sales_invoice WHERE id = $1", [a.invoice_id])).rows[0];
+      for (const jid of inv ? await jobsOfInvoice(c, inv) : []) {
+        const job = (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [jid])).rows[0];
         if (job.status === "closed") await setStatus(c, ctx, job, "invoiced", `Cheque ${r.cheque_no} returned`);
       }
     }
@@ -595,7 +609,7 @@ export async function bounceCheque(ctx: Ctx, receiptId: string, note: string) {
 export async function releaseStatus(c: PoolClient, jobId: string) {
   const b = await invoiceBasis(c, jobId);
   const unbilled = b.allLines.reduce((s, l) => s.plus(l.line_total), D(0));
-  const openInv = D((await c.query("SELECT coalesce(sum(grand_total - paid_amount - credited_amount),0) v FROM sales_invoice WHERE job_card_id = $1", [jobId])).rows[0].v);
+  const openInv = D((await c.query(`SELECT coalesce(sum(i.grand_total - i.paid_amount - i.credited_amount),0) v FROM sales_invoice i WHERE ${invOfJob("i", "$1")}`, [jobId])).rows[0].v);
   const held = D((await c.query("SELECT coalesce(sum(amount - used_amount),0) v FROM customer_advance WHERE job_card_id = $1", [jobId])).rows[0].v);
   const balance = Decimal.max(unbilled.plus(openInv).minus(held), 0);
   const cust = (await c.query("SELECT * FROM customer WHERE id = $1", [b.job.customer_id])).rows[0];
@@ -695,5 +709,121 @@ export async function refundAdvance(ctx: Ctx, f: { advance_id: string; amount: u
     await c.query("UPDATE customer_advance SET used_amount = used_amount + $2 WHERE id = $1", [a.id, amount.toFixed(2)]);
     await audit(c, ctx, "customer_refund", r.rows[0].id, "refund", { doc_no: docNo, advance: a.source_no, amount: amount.toFixed(2), vat: vat.toFixed(2), method: f.method, reason: str(f.reason) }, a.branch_id);
     return finishRequest<Out>(c, f.idempotency_key, { id: r.rows[0].id as string, docNo, duplicate: false, vat: vat.toFixed(2) });
+  });
+}
+
+// =====================================================================================
+// Combined invoice: several finished job cards of one customer on one tax invoice (028)
+// =====================================================================================
+
+/** Finished job cards of a customer at this branch with approved work not yet invoiced, for the combined invoice. */
+export async function combinableJobs(ctx: Ctx, customerId: string) {
+  const b = ctx.currentBranchId;
+  if (!b) throw invalid("Choose a branch first.");
+  assertCan(ctx, "invoices", "create", b);
+  if (!canSee(ctx, "selling_price", b)) throw invalid("You cannot see prices.");
+  return withTx(ctx, async (c) => {
+    const cust = (await c.query("SELECT * FROM customer WHERE id = $1", [customerId])).rows[0];
+    if (!cust) throw notFound("Customer");
+    const jobs = (await c.query(
+      `SELECT j.id, j.doc_no, j.status, j.lpo_no, to_char(j.ready_at AT TIME ZONE 'Asia/Dubai', 'DD/MM/YYYY') ready_on, v.plate_code, v.plate_number, v.make, v.model
+         FROM job_card j JOIN vehicle v ON v.id = j.vehicle_id
+        WHERE j.branch_id = $1 AND j.customer_id = $2 AND j.status = ANY($3) ORDER BY j.doc_no`, [b, customerId, BILLABLE_STATUS])).rows;
+    const out = [];
+    for (const j of jobs) {
+      const basis = await invoiceBasis(c, j.id);
+      if (!basis.lines.length) continue;
+      out.push({ ...j, taxable: basis.taxable.toFixed(2), vat: basis.vat.toFixed(2), total: basis.total.toFixed(2), problems: basis.checks.filter((x) => !x.ok).map((x) => x.text) });
+    }
+    return { customer: cust, billTo: billToName(cust), jobs: out };
+  });
+}
+
+/**
+ * Posts one tax invoice for several job cards of the same customer at one branch. Each job must pass
+ * the same checks as its own invoice; every unbilled approved line of each job goes on it, grouped by job.
+ * Every job is marked invoiced with this number and closes when the invoice is paid and the car delivered.
+ */
+export async function postCombinedInvoice(ctx: Ctx, customerId: string, jobIds: string[], idempotencyKey: string, notes?: string | null) {
+  if (!idempotencyKey || idempotencyKey.length < 16) throw invalid("Missing idempotency key.");
+  const ids = [...new Set(jobIds)].sort();
+  if (ids.length < 2) throw invalid("Tick at least two job cards for a combined invoice.");
+  type Out = { id: string; docNo: string; duplicate: boolean; kind: "invoice" };
+  return withTx(ctx, async (c) => {
+    const replay = await claimRequest<Out>(c, ctx, idempotencyKey, "combined_invoice", { customerId, jobs: ids, notes: optStr(notes) ?? null });
+    if (replay) return replay;
+    const prior = await c.query("SELECT id, doc_no, customer_id FROM sales_invoice WHERE idempotency_key = $1", [idempotencyKey]);
+    if (prior.rowCount) {
+      if (prior.rows[0].customer_id !== customerId) throw conflict("This request key was already used for another invoice.");
+      return finishRequest<Out>(c, idempotencyKey, { id: prior.rows[0].id as string, docNo: prior.rows[0].doc_no as string, duplicate: true, kind: "invoice" as const });
+    }
+    // Lock order as everywhere: job cards (sorted), then invoice, then number series (CONC-02).
+    const jobs = [];
+    for (const id of ids) {
+      const j = (await c.query("SELECT * FROM job_card WHERE id = $1 FOR UPDATE", [id])).rows[0];
+      if (!j) throw notFound("Job card");
+      jobs.push(j);
+    }
+    const branchId = jobs[0].branch_id;
+    if (jobs.some((j) => j.branch_id !== branchId)) throw invalid("All job cards on one invoice must be from the same branch.");
+    if (jobs.some((j) => j.customer_id !== customerId)) throw invalid("All job cards on one invoice must be for the same customer.");
+    assertCan(ctx, "invoices", "create", branchId);
+    await lockSeries(c, branchId, ["invoice", "journal"]);
+    const bases = [];
+    for (const j of jobs) {
+      const b = await invoiceBasis(c, j.id);
+      const failed = b.checks.filter((x) => !x.ok);
+      if (failed.length) throw invalid(`${j.doc_no}: ${failed.map((x) => x.text).join("; ")}.`);
+      bases.push(b);
+    }
+    const cust = (await c.query("SELECT * FROM customer WHERE id = $1", [customerId])).rows[0];
+    const lpos = [...new Set(jobs.map((j) => j.lpo_no).filter(Boolean))];
+    if (cust.lpo_required && jobs.some((j) => !j.lpo_no)) throw invalid(`${billToName(cust)} needs an LPO number on every job card before invoicing.`);
+    const taxable = bases.reduce((s, b) => s.plus(b.taxable), D(0)), vat = bases.reduce((s, b) => s.plus(b.vat), D(0)), total = taxable.plus(vat);
+    const lines = bases.flatMap((b) => b.lines);
+    const docNo = await nextDocNo(c, branchId, "invoice");
+    const date = today();
+    const kind = await invoiceKindFor(c, cust, total, branchId);
+    if (kind === "tax") await assertBuyerEinvoiceDetails(c, cust, branchId);
+    const labour = lines.filter((l) => l.line_type === "labour" || l.line_type === "outside").reduce((s, l) => s.plus(l.taxable_amount), D(0));
+    const costs = await issuedCostByLine(c, lines.map((l) => l.job_line_id));
+    const issuedCost = Object.values(costs).reduce((s, v) => s.plus(v), D(0));
+    const jr = await postJournal(c, ctx, {
+      branchId, date, sourceType: "sales_invoice", sourceId: customerId, narration: `Combined tax invoice ${docNo} for ${jobs.map((j) => j.doc_no).join(", ")}`,
+      lines: [
+        { event: "trade_receivable", debit: total, customerId: cust.id },
+        { event: "sales_labour", credit: labour },
+        { event: "sales_parts", credit: taxable.minus(labour) },
+        { event: "vat_output", credit: vat },
+        { event: "cost_of_sales", debit: issuedCost },
+        { event: "work_in_progress", credit: issuedCost },
+      ],
+    });
+    if (!jr) throw invalid("Nothing to invoice.");
+    const inv = await c.query(
+      `INSERT INTO sales_invoice (branch_id, doc_no, doc_date, job_card_id, quotation_id, customer_id, bill_to_name, customer_trn, lpo_no, taxable_total, vat_total, grand_total,
+                                  due_date, idempotency_key, journal_id, posted_by, invoice_kind, source, bill_to_type, bill_to_address, notes)
+       VALUES ($1,$2,$3,NULL,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'combined','customer',$16,$17) RETURNING id`,
+      [branchId, docNo, date, cust.id, billToName(cust), cust.trn, lpos.join(", ") || null, taxable.toFixed(2), vat.toFixed(2), total.toFixed(2),
+        addDaysLocal(Number(cust.payment_terms_days)), idempotencyKey, jr.id, ctx.userId, kind, optStr(cust.address), optStr(notes)]);
+    const invId = inv.rows[0].id as string;
+    let n = 0;
+    for (const [k, j] of jobs.entries()) {
+      const b = bases[k];
+      await c.query("INSERT INTO sales_invoice_job (invoice_id, job_card_id, branch_id, taxable_total, vat_total, grand_total) VALUES ($1,$2,$3,$4,$5,$6)",
+        [invId, j.id, branchId, b.taxable.toFixed(2), b.vat.toFixed(2), b.total.toFixed(2)]);
+      for (const l of b.lines) {
+        await c.query(
+          `INSERT INTO sales_invoice_line (invoice_id, branch_id, job_line_id, line_no, line_type, description, qty, unit_price, discount_amount, taxable_amount, vat_code, vat_rate, vat_amount, line_total, item_id, cost_value)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+          [invId, branchId, l.job_line_id, ++n, l.line_type, `${j.doc_no}: ${l.description}`, l.qty, l.unit_price, D(l.line_discount).plus(l.doc_discount_share).toFixed(2),
+            l.taxable_amount, l.vat_code, l.vat_rate, l.vat_amount, l.line_total, l.item_id, (costs[l.job_line_id] ?? D(0)).toFixed(2)]);
+      }
+      const fresh = (await c.query("SELECT * FROM job_card WHERE id = $1", [j.id])).rows[0];
+      if (fresh.status !== "invoiced") await setStatus(c, ctx, fresh, "invoiced", `Combined invoice ${docNo}`);
+    }
+    await audit(c, ctx, "sales_invoice", invId, "post", { doc_no: docNo, total: total.toFixed(2), vat: vat.toFixed(2), combined: jobs.map((j) => j.doc_no), kind }, branchId);
+    for (const j of jobs) await maybeCloseJob(c, ctx, j.id);
+    return finishRequest<Out>(c, idempotencyKey, { id: invId, docNo, duplicate: false, kind: "invoice" as const });
   });
 }

@@ -2,7 +2,7 @@ import { requireCtx } from "@/lib/session";
 import { listInvoices } from "@/lib/services/billing";
 import { Link, Money, PageHead, Status, d } from "@/components/ui";
 import { BillingTabs } from "@/components/BillingTabs";
-import { canAnywhere } from "@/lib/access";
+import { can, canAnywhere } from "@/lib/access";
 import { forbidden } from "@/lib/errors";
 
 const ymd = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? ""));
@@ -17,7 +17,9 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
   return (
     <>
-      <PageHead title="Invoices" sub="Posted invoices in your branches. Posted invoices are never edited or deleted." />
+      <PageHead title="Invoices" sub="Posted invoices in your branches. Posted invoices are never edited or deleted.">
+        {ctx.currentBranchId && can(ctx, "invoices", "create", ctx.currentBranchId) && <Link className="btn ghost sm" href="/invoices/combined">Combined invoice</Link>}
+      </PageHead>
       <BillingTabs at="/invoices" />
       <div className="card">
         <form className="row" style={{ marginBottom: 10 }}>

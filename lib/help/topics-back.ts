@@ -89,6 +89,13 @@ export const BACK: HelpTopic[] = [
     summary: "Bill the work on a job card to the customer, a company, or a warranty claim.", who: "Service advisor, cashier",
     access: ["invoices"], open: { label: "Open Invoices", href: "/invoices" }, flows: ["customer-visit"],
     parts: [
+      { h: "One invoice for several cars (combined invoice)", steps: [
+        "Open **Invoices** and press **Combined invoice**. Customers with two or more finished cars waiting are listed; or search for the company.",
+        "Pick the customer. Every finished job card with work still to bill is listed with its car, LPO and total. Jobs with a problem (for example parts not issued) cannot be ticked and say why.",
+        "Untick any job that should not be on this invoice, add a note such as the month, and press **Post combined tax invoice**.",
+        "The invoice lists every line with its job card number, and a table shows each car's subtotal. Every job is marked invoiced with the same number.",
+        "One payment for the whole invoice closes every job whose car has been delivered.",
+      ] },
       { h: "Prepare the invoice", steps: [
         "When the job is **Ready**, open the job card and press **Prepare invoice**.",
         "Tick the lines to bill now. Normally that is all of them.",

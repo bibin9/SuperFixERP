@@ -103,8 +103,9 @@ export async function getJob(ctx: Ctx, id: string) {
     const latest = quotations[0];
     const qlines = latest ? (await c.query("SELECT * FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [latest.id])).rows : [];
     const statusHistory = (await c.query("SELECT h.*, u.full_name FROM job_status_history h LEFT JOIN app_user u ON u.id = h.user_id WHERE job_card_id = $1 ORDER BY at", [id])).rows;
-    const invoices = (await c.query("SELECT id, doc_no, doc_date, grand_total, paid_amount, credited_amount, invoice_kind, bill_to_name FROM sales_invoice WHERE job_card_id = $1 ORDER BY doc_no", [id])).rows;
-    const invoicedLineIds = (await c.query("SELECT sil.job_line_id FROM sales_invoice_line sil JOIN sales_invoice i ON i.id = sil.invoice_id WHERE i.job_card_id = $1 AND sil.job_line_id IS NOT NULL", [id])).rows.map((r) => r.job_line_id as string);
+    const invoices = (await c.query(`SELECT i.id, i.doc_no, i.doc_date, i.grand_total, i.paid_amount, i.credited_amount, i.invoice_kind, i.bill_to_name, i.source FROM sales_invoice i
+       WHERE i.job_card_id = $1 OR EXISTS (SELECT 1 FROM sales_invoice_job x WHERE x.invoice_id = i.id AND x.job_card_id = $1) ORDER BY i.doc_no`, [id])).rows;
+    const invoicedLineIds = (await c.query("SELECT sil.job_line_id FROM sales_invoice_line sil JOIN job_line l ON l.id = sil.job_line_id WHERE l.job_card_id = $1", [id])).rows.map((r) => r.job_line_id as string);
     const warranty = (await c.query("SELECT id, doc_no, claim_ref FROM warranty_claim WHERE job_card_id = $1 ORDER BY doc_no", [id])).rows;
     const approvals = latest ? await approvalHistory(c, "discount", latest.id) : [];
     const b = job.branch_id;
@@ -268,7 +269,7 @@ export async function changeStatus(ctx: Ctx, jobId: string, to: string, f: { rea
     if (to === "cancelled") {
       // JC rule 7: only with no clocked time, no issued parts and no posted invoice.
       const issued = await c.query("SELECT 1 FROM job_line WHERE job_card_id = $1 AND (issued_qty > 0 OR direct_cost > 0)", [jobId]);
-      const inv = await c.query("SELECT 1 FROM sales_invoice WHERE job_card_id = $1", [jobId]);
+      const inv = await c.query("SELECT 1 FROM sales_invoice WHERE job_card_id = $1 UNION ALL SELECT 1 FROM sales_invoice_job WHERE job_card_id = $1", [jobId]);
       if (issued.rowCount || inv.rowCount) throw invalid("A job with issued parts or an invoice cannot be cancelled.");
       if (!str(f.reason)) throw invalid("Give a reason for cancelling.");
       for (const l of (await c.query("SELECT id FROM job_line WHERE job_card_id = $1", [jobId])).rows) await releaseCommitment(c, l.id);

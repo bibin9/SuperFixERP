@@ -278,3 +278,40 @@ test("daily cash closing: the count is checked against cash taken, a difference 
   await rejects(bm.postCounterSale(priya, { lines: [{ item_id: items["OIL-5W30-L"], qty: "1" }], payment: { method: "cash", amount: "33.60", idempotency_key: "" }, idempotency_key: key() }), "validation");
   await balancedEverywhere();
 });
+
+test("combined invoice: two finished jobs of one customer on one tax invoice; paying it closes both delivered jobs", async () => {
+  const priya = await ctxFor("priya", "YAS");
+  const a = await readyJob([["FLT-OIL-90915", "1"]]);
+  const b = await readyJob([]);
+  const list = await bl.combinableJobs(priya, cust);
+  assert.ok(list.jobs.some((j) => j.id === a.jobId) && list.jobs.some((j) => j.id === b.jobId));
+  const share = Object.fromEntries(list.jobs.map((j) => [j.id, Number(j.total)]));
+  await rejects(bl.postCombinedInvoice(priya, cust, [a.jobId], key()), "validation", /at least two/);
+  const k = key();
+  const inv = await bl.postCombinedInvoice(priya, cust, [a.jobId, b.jobId], k, "November services");
+  const again = await bl.postCombinedInvoice(priya, cust, [b.jobId, a.jobId], k, "November services");
+  assert.equal(again.id, inv.id, "same key, same jobs: the first invoice comes back");
+  const i = await one("SELECT job_card_id, source, grand_total FROM sales_invoice WHERE id = $1", [inv.id]);
+  assert.equal(i.job_card_id, null);
+  assert.equal(i.source, "combined");
+  assert.equal(Number(i.grand_total), Math.round((share[a.jobId] + share[b.jobId]) * 100) / 100);
+  assert.equal((await adminQuery("SELECT 1 FROM sales_invoice_job WHERE invoice_id = $1", [inv.id])).length, 2);
+  assert.equal(await status(a.jobId), "invoiced");
+  assert.equal(await status(b.jobId), "invoiced");
+  // Nothing is left to bill on either job, so it cannot be invoiced again.
+  await rejects(bl.postInvoice(priya, a.jobId, key()), "validation");
+  await rejects(bl.postCombinedInvoice(priya, cust, [a.jobId, b.jobId], key()), "validation");
+  // Both cars delivered, then one payment for the whole invoice closes both jobs.
+  for (const j of [a.jobId, b.jobId]) {
+    await bl.recordCreditRelease(await ctxFor("yousef", "YAS"), j, "Fleet pays at month end");
+    await ws.deliver(priya, j, await deliveryForm(j));
+  }
+  assert.equal(await status(a.jobId), "invoiced");
+  await bl.recordReceipt(priya, { invoice_id: inv.id, method: "card", amount: i.grand_total, reference: "BATCH-77", idempotency_key: key() });
+  assert.equal(await status(a.jobId), "closed");
+  assert.equal(await status(b.jobId), "closed");
+  // The job page lists the combined invoice.
+  const jp = await one("SELECT count(*)::int n FROM sales_invoice si WHERE si.id = $1 AND EXISTS (SELECT 1 FROM sales_invoice_job x WHERE x.invoice_id = si.id AND x.job_card_id = $2)", [inv.id, a.jobId]);
+  assert.equal(jp.n, 1);
+  await balancedEverywhere();
+});

@@ -52,11 +52,21 @@ export async function invoiceWhatsappAction(fd: FormData) {
   const id = String(fd.get("invoice_id"));
   await run(`/invoices/${id}`, async () => {
     const { invoice: i } = await bl.getInvoice(ctx, id);
-    if (!i.job_card_id) throw notFound("Job card for this invoice");
+    if (!i.job_card_id) throw notFound("A single job card for this invoice (combined invoices are sent from the customer's page)");
     const msg = await prepareMessage(ctx, { jobId: i.job_card_id }, "invoice", {
       doc_no: i.doc_no, amount: Number(i.grand_total).toFixed(2), open: Number(i.open_amount).toFixed(2), link: `${await origin()}/i/${i.share_token}`,
     });
     return withQ(`/invoices/${id}`, "msg", msg.id);
+  });
+}
+
+export async function combinedInvoiceAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const f = obj(fd);
+  const jobs = fd.getAll("job").map(String);
+  await run(back(fd, "/invoices/combined"), async () => {
+    const r = await bl.postCombinedInvoice(ctx, f.customer_id, jobs, f.idempotency_key, f.notes);
+    return withQ(`/invoices/${r.id}`, "ok", `Combined invoice ${r.docNo} posted for ${jobs.length} job cards`);
   });
 }
 

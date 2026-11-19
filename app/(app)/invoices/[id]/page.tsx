@@ -19,7 +19,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
   const ctx = await requireCtx();
   const { id } = await params;
   const sp = await searchParams;
-  const { invoice: i, lines, receipts, applied, credits, advances } = await getInvoice(ctx, id);
+  const { invoice: i, lines, receipts, applied, credits, advances, jobs } = await getInvoice(ctx, id);
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") === "https" ? "https" : "http"}://${h.get("host") ?? "localhost:3000"}`;
   const open = D(i.open_amount);
@@ -39,6 +39,13 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
         {i.job_card_id && <Link className="btn ghost shrink" href={`/jobs/${i.job_card_id}`}>Back to job</Link>}
       </div>
       <InvoiceDoc i={i} lines={lines} link={`${origin}/i/${i.share_token}`} />
+      {jobs.length > 0 && (
+        <div className="card" data-testid="combined-jobs"><h2>Job cards on this combined invoice</h2>
+          <table><thead><tr><th>Job card</th><th>Car</th><th className="num">Before VAT</th><th className="num">VAT</th><th className="num">Total</th></tr></thead>
+            <tbody>{jobs.map((j) => <tr key={j.id}><td><Link href={`/jobs/${j.id}`}>{j.doc_no}</Link></td><td>{[j.plate_code, j.plate_number].filter(Boolean).join(" ")} {j.make} {j.model}</td>
+              <td className="num"><Money v={j.taxable_total} /></td><td className="num"><Money v={j.vat_total} /></td><td className="num"><Money v={j.grand_total} /></td></tr>)}</tbody></table>
+        </div>
+      )}
 
       <div className="grid2 no-print">
         <div className="card">

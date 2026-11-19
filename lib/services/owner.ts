@@ -55,7 +55,7 @@ export async function ownerOverview(ctx: Ctx, range: Range, branchSel?: string |
            count(*) FILTER (WHERE EXISTS (SELECT 1 FROM quotation q WHERE q.enquiry_id = e.id AND q.status NOT IN ('draft','ready_to_send','pending_internal_approval')))::int quoted,
            count(*) FILTER (WHERE e.status IN ('approved','converted'))::int approved,
            count(*) FILTER (WHERE e.converted_job_id IS NOT NULL)::int job_cards,
-           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = e.converted_job_id))::int invoiced
+           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = e.converted_job_id UNION ALL SELECT 1 FROM sales_invoice_job x WHERE x.job_card_id = e.converted_job_id))::int invoiced
          FROM enquiry e WHERE e.branch_id = ANY($1) AND e.doc_date BETWEEN $2 AND $3`, [ids, f, t]),
     ]);
     const sum = (rows: Record<string, unknown>[], k: string) => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
@@ -120,7 +120,7 @@ export async function ownerEnquiries(ctx: Ctx, range: Range, branchSel?: string 
        FROM branch b
        LEFT JOIN enquiry e ON e.branch_id = b.id AND e.doc_date BETWEEN $2 AND $3
        LEFT JOIN LATERAL (SELECT min(m.at) first_at FROM message_log m WHERE m.enquiry_id = e.id) r ON true
-       LEFT JOIN LATERAL (SELECT sum(i.taxable_total) value FROM sales_invoice i WHERE e.converted_job_id IS NOT NULL AND i.job_card_id = e.converted_job_id) v ON true
+       LEFT JOIN LATERAL (SELECT sum(sil.taxable_amount) value FROM sales_invoice_line sil JOIN job_line jl ON jl.id = sil.job_line_id WHERE e.converted_job_id IS NOT NULL AND jl.job_card_id = e.converted_job_id) v ON true
        WHERE b.id = ANY($1) GROUP BY b.id ORDER BY b.branch_type <> 'head_office', b.code`, [ids, f, t])).rows
       .map((r) => ({ ...r, job_value: showMoney ? Number(r.job_value) : null, conversion: r.enquiries ? Math.round((100 * r.converted) / r.enquiries) : null }));
     const asked = (await c.query(`SELECT coalesce(nullif(trim(service_asked), ''), 'Not said') what, count(*)::int n FROM enquiry WHERE branch_id = ANY($1) AND doc_date BETWEEN $2 AND $3 GROUP BY 1 ORDER BY 2 DESC LIMIT 6`, [ids, f, t])).rows;

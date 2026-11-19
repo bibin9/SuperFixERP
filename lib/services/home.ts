@@ -71,7 +71,7 @@ export async function myDay(ctx: Ctx, scope: "current" | "all") {
         WHERE ($1::uuid IS NULL OR e.branch_id = $1) AND e.status = 'approved' ORDER BY e.updated_at LIMIT 8`, [b])).rows : [];
     const ready = seesJobs ? (await c.query(
       `SELECT j.id, j.doc_no, j.ready_at, v.make, v.model, v.model_year, ${who},
-              EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = j.id AND i.status <> 'cancelled') invoiced
+              (EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = j.id AND i.status <> 'cancelled') OR EXISTS (SELECT 1 FROM sales_invoice_job x WHERE x.job_card_id = j.id)) invoiced
          FROM job_card j JOIN customer c ON c.id = j.customer_id JOIN vehicle v ON v.id = j.vehicle_id
         WHERE ($1::uuid IS NULL OR j.branch_id = $1) AND j.status IN ('ready','invoiced') AND j.delivered_at IS NULL ORDER BY j.ready_at NULLS LAST LIMIT 8`, [b])).rows : [];
     const late = seesJobs ? (await c.query(

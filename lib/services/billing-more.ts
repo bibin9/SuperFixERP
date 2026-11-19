@@ -11,7 +11,7 @@ import { registerHandler, submitForApproval } from "./workflow";
 import { stockIn, stockOut, today } from "./stock";
 import { D, Decimal, parseDec, r2 } from "../money";
 import { optStr, str } from "../validate";
-import { assertBuyerEinvoiceDetails, billToName, invoiceKindFor, maybeCloseJob, receiptTx, type PayIn } from "./billing";
+import { assertBuyerEinvoiceDetails, billToName, invoiceKindFor, jobsOfInvoice, maybeCloseJob, receiptTx, type PayIn } from "./billing";
 import { claimRequest, finishRequest, lockJobFirst } from "./requests";
 import { lockSeries } from "./numbering";
 import { setStatus } from "./jobs";
@@ -92,7 +92,9 @@ export async function createCreditNote(ctx: Ctx, invoiceId: string, f: { reason:
  */
 async function postCreditNote(c: PoolClient, ctx: Ctx, id: string) {
   // Same lock order as invoicing and payments: job card, then invoice, then number series (CONC-02).
-  await lockJobFirst(c, (await c.query("SELECT i.job_card_id FROM credit_note n JOIN sales_invoice i ON i.id = n.invoice_id WHERE n.id = $1", [id])).rows[0]?.job_card_id);
+  const head = (await c.query("SELECT i.id, i.job_card_id FROM credit_note n JOIN sales_invoice i ON i.id = n.invoice_id WHERE n.id = $1", [id])).rows[0];
+  const invJobs = head ? await jobsOfInvoice(c, head) : [];
+  for (const j of invJobs) await lockJobFirst(c, j);
   const cn = (await c.query("SELECT * FROM credit_note WHERE id = $1 FOR UPDATE", [id])).rows[0];
   if (!cn || cn.status !== "pending_approval") return;
   await lockSeries(c, cn.branch_id, ["credit_note", "journal"]);
@@ -136,7 +138,7 @@ async function postCreditNote(c: PoolClient, ctx: Ctx, id: string) {
   }
   await c.query("UPDATE credit_note SET status = 'posted', doc_no = $2, doc_date = $3, journal_id = $4, posted_at = now() WHERE id = $1", [id, docNo, date, jr?.id ?? null]);
   await audit(c, ctx, "credit_note", id, "posted", { doc_no: docNo, total: total.toFixed(2), to_customer_account: toAdvance.toFixed(2) }, cn.branch_id);
-  if (inv.job_card_id) await maybeCloseJob(c, ctx, inv.job_card_id);
+  for (const j of invJobs) await maybeCloseJob(c, ctx, j);
 }
 
 registerHandler("credit_note", {

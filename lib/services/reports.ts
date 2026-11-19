@@ -787,7 +787,7 @@ export async function ownerDashboard(ctx: Ctx, q: RunInput) {
          count(*) FILTER (WHERE EXISTS (SELECT 1 FROM quotation q WHERE q.enquiry_id = e.id AND q.status NOT IN ('draft','ready_to_send','pending_internal_approval')))::int quoted,
          count(*) FILTER (WHERE e.status IN ('approved','converted'))::int approved,
          count(*) FILTER (WHERE e.converted_job_id IS NOT NULL)::int job_cards,
-         count(*) FILTER (WHERE EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = e.converted_job_id))::int invoiced,
+         count(*) FILTER (WHERE EXISTS (SELECT 1 FROM sales_invoice i WHERE i.job_card_id = e.converted_job_id UNION ALL SELECT 1 FROM sales_invoice_job x WHERE x.job_card_id = e.converted_job_id))::int invoiced,
          count(*) FILTER (WHERE e.status = 'lost')::int lost
        FROM enquiry e JOIN branch b ON b.id = e.branch_id WHERE e.branch_id = ANY($1) AND e.doc_date BETWEEN $2 AND $3 GROUP BY b.code ORDER BY b.code`, [ids, from, to])).rows;
     const sum = (k: string) => per.reduce((s, r) => s + Number(r[k] ?? 0), 0);
