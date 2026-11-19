@@ -17,6 +17,7 @@ export const SCREEN_TOPIC: [string, string][] = [
   ["/admin/users", "users"], ["/admin/roles", "roles-admin"], ["/admin/audit", "audit"], ["/admin", "setup"],
 ];
 export function topicForPath(path: string): string | null {
+  if (path === "/" || path === "/search") return "my-day";
   if (/^\/jobs\/[^/]+\/invoice$/.test(path)) return "invoicing";
   if (/\/credit-note$/.test(path)) return "credit-notes";
   const hit = SCREEN_TOPIC.filter(([p]) => path === p || path.startsWith(p.endsWith("/") ? p : p + "/")).sort((a, b) => b[0].length - a[0].length)[0];

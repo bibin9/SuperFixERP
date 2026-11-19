@@ -65,17 +65,17 @@ h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}h3{font-size:
   .grid2,.grid3{grid-template-columns:1fr}.grid4{grid-template-columns:1fr 1fr;gap:10px}
   .app .card{overflow-x:auto}
   .app>div,.main,.grid2>*,.grid3>*,.grid4>*{min-width:0}
-  .app .card table:has(thead th:nth-child(5)):has(tbody :is(input,select,textarea)){min-width:620px}
+  .app .card table:has(thead th:nth-child(5)):has(tbody :is(input:not([type=hidden]),select,textarea)){min-width:620px}
   /* Lists on phones: one card per row, each value with its column name. Chosen by CSS alone (a header row of
      five or more columns and no form fields), so the server HTML is already in card layout before any script. */
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) thead{display:none}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))),.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) tbody,.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) tr,.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td{display:block;width:100%}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) tr{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:#fff}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td{border:0;padding:3px 0;display:flex;gap:10px;justify-content:space-between;text-align:right}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td::before{content:attr(data-label);color:var(--muted);font-size:12px;text-align:left;flex:none;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td:first-child{font-weight:600;font-size:15px;text-align:left}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td:first-child::before{content:none}
-  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input,select,textarea))) td:empty{display:none}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) thead{display:none}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))),.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) tbody,.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) tr,.main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td{display:block;width:100%}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) tr{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:#fff}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td{border:0;padding:3px 0;display:flex;gap:10px;justify-content:space-between;text-align:right}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td::before{content:attr(data-label);color:var(--muted);font-size:12px;text-align:left;flex:none;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td:first-child{font-weight:600;font-size:15px;text-align:left}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td:first-child::before{content:none}
+  .main table:has(thead th:nth-child(5)):not(:has(tbody :is(input:not([type=hidden]),select,textarea))) td:empty{display:none}
 }
 .kpi{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px}
 .kpi .v{font-size:26px;font-weight:700}.kpi .l{color:var(--muted);font-size:12.5px}
@@ -556,3 +556,47 @@ th{font-size:11.5px;letter-spacing:.6px}
 .htour-spot .ring{position:fixed;border-radius:10px;box-shadow:0 0 0 3px var(--red),0 0 0 9999px rgba(13,27,46,.35);transition:all .2s}
 .htour-spot .tip{position:fixed;width:320px;background:#fff;border-radius:12px;box-shadow:var(--sh),0 10px 30px rgba(15,23,42,.25);padding:12px 14px;pointer-events:auto}
 @media (max-width:600px){.htour{width:100vw}}
+/* Phone layout pass */
+.ph-actions:empty{display:none}
+@media(max-width:900px){
+  /* the dark header must not stretch on short pages */
+  .app{grid-template-rows:auto 1fr;align-content:start}
+  /* iPhone zooms into any field under 16px when tapped and stays zoomed: keep fields at 16px on phones */
+  input:not([type=checkbox]):not([type=radio]),select,textarea,.top input[type=search],
+  tr:has(td :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select)) td :is(input:not([type=checkbox]):not([type=radio]),select){font-size:16px}
+  /* iPhone date and time boxes: same height and left text as other fields */
+  input:is([type=date],[type=time],[type=datetime-local],[type=month]){-webkit-appearance:none;appearance:none;min-height:42px;display:block;text-align:left;background:#fff}
+  input::-webkit-date-and-time-value{text-align:left}
+  /* same select look on iPhone and Android */
+  select{-webkit-appearance:none;appearance:none;padding-right:30px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23334155' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;color:var(--ink)}
+  input,select,textarea,.btn{min-height:42px}
+  /* rows of fields and buttons: buttons keep their size and line up */
+  .row>.btn,.row>button,.row>.shrink{flex:0 0 auto}
+  .row>form:has(>.btn:only-of-type){flex:0 0 auto}
+  .row>.ph-actions{flex:1 1 100%;min-width:0}
+}
+@media(max-width:640px){
+  .main h1{font-size:20px;overflow-wrap:anywhere}
+  .row>.shrink:has(input:not([type=hidden]):not([type=checkbox])){flex:1 1 100%;max-width:100%}
+  .row.shrink{flex-wrap:nowrap}.row>input,.row>select{min-width:0}
+  .main .card,.main details.card{max-width:100%}
+  .main .sub{margin-bottom:12px}
+  .grid4{grid-template-columns:1fr 1fr}
+  /* tables of form fields: one small form per row instead of a wide table to scroll sideways */
+  .app .card table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid){min-width:0}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) thead{display:none}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid),
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) :is(tbody,tfoot,tr){display:block;width:100%}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) tbody tr{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:#fff}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) :is(tbody,tfoot) td{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr);gap:10px;align-items:center;border:0;padding:4px 0;text-align:left;width:100%}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) :is(tbody,tfoot) td::before{content:attr(data-label);color:var(--muted);font-size:12.5px;font-weight:600}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) :is(tbody,tfoot) td:not([data-label]){grid-template-columns:minmax(0,1fr)}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) :is(tbody,tfoot) td:not([data-label])::before{content:none}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) td:empty,
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) td:has(>input[type=hidden]:only-child){display:none}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) td>*{min-width:0;max-width:100%}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) td :is(input:not([type=checkbox]):not([type=radio]),select,textarea){width:100%!important}
+  .main table:has(tbody :is(input:not([type=hidden]),select,textarea)):not(.keep-grid) td input[type=checkbox]{justify-self:start}
+  /* top bar: branch picker and buttons share one line */
+  .top>select,.top .branchpick select{min-width:0;max-width:46vw}
+}
