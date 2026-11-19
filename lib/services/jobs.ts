@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, can, canSee, roleAt, redact, fieldLevel } from "../access";
 import { withTx } from "../db";
@@ -47,12 +48,12 @@ export async function setStatus(c: PoolClient, ctx: Ctx | null, job: { id: strin
     [job.id, job.branch_id, job.status, to, reason ?? null, ctx?.userId ?? null]);
 }
 
-export async function listJobs(ctx: Ctx, status = "", q = "") {
+export async function listJobs(ctx: Ctx, status = "", q = "", offset = 0) {
   if (!can(ctx, "jobs", "view") && !can(ctx, "workshop", "view")) throw forbidden();
   const ownOnly = !can(ctx, "jobs", "view");
   const late = status === "late";
   const term = q.trim().slice(0, 80);
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT j.id, j.doc_no, j.status, j.job_type, j.promised_at, j.created_at, b.code branch_code, b.name_en branch_name, v.make, v.model, v.model_year, v.registered_in, v.plate_code, v.plate_number,
             c.customer_type, c.title, c.first_name, c.last_name, c.company_name, u.full_name advisor_name,
             (SELECT string_agg(x.description, ' + ' ORDER BY x.line_no) FROM (SELECT l.description, l.line_no FROM job_line l WHERE l.job_card_id = j.id AND l.line_type IN ('labour','part') ORDER BY l.line_no LIMIT 2) x) summary,
@@ -67,8 +68,8 @@ export async function listJobs(ctx: Ctx, status = "", q = "") {
         AND (NOT $4 OR (j.promised_at < now() AND j.status NOT IN ('ready','delivered','invoiced','closed','cancelled')))
         AND ($5 = '' OR concat_ws(' ', j.doc_no, v.plate_code, v.plate_number, v.make, v.model, v.vin, c.first_name, c.last_name, c.company_name, c.mobile) ILIKE '%' || $5 || '%')
         AND (NOT $2 OR EXISTS (SELECT 1 FROM job_line l WHERE l.job_card_id = j.id AND (l.technician_id = $3 OR EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id AND a.technician_id = $3))))
-      ORDER BY j.created_at DESC LIMIT 200`, [status, ownOnly, ctx.userId, late, term],
-  )).rows.map((r) => (canSee(ctx, "selling_price", r.branch_id) ? r : { ...r, value: null })));
+      ORDER BY j.created_at DESC ${blockSql(offset)}`, [status, ownOnly, ctx.userId, late, term],
+  )).rows.map((r) => (canSee(ctx, "selling_price", r.branch_id) ? r : { ...r, value: null }))), offset);
 }
 
 export const LINE_FIELDS = { unit_price: "selling_price", discount_amount: "discount", avg_cost: "purchase_cost", margin_pct: "purchase_cost" };

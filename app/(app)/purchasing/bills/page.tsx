@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listBills } from "@/lib/services/purchasing";
 import { masters } from "@/lib/services/masters";
@@ -8,7 +10,7 @@ import { PurchTabs } from "@/components/PurchTabs";
 export default async function Bills({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const [rows, m] = await Promise.all([listBills(ctx), masters(ctx)]);
+  const [rows, m] = await Promise.all([listBills(ctx, offsetOf(sp)), masters(ctx)]);
   const here = ctx.currentBranchId;
   const canEnter = !!here && (can(ctx, "purchasing", "edit", here) || can(ctx, "accounting", "create", here));
   return (
@@ -30,6 +32,7 @@ export default async function Bills({ searchParams }: { searchParams: Promise<Re
           ))}{!rows.length && <tr><td colSpan={7} className="muted">No supplier bills yet.</td></tr>}</tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/purchasing/bills" sp={sp} />
     </>
   );
 }

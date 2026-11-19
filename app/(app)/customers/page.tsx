@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listCustomers } from "@/lib/services/customers";
 import { can } from "@/lib/access";
@@ -6,7 +8,7 @@ import { Flash, Link, PageHead, custName } from "@/components/ui";
 export default async function Customers({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const rows = await listCustomers(ctx, sp.q ?? "");
+  const rows = await listCustomers(ctx, sp.q ?? "", offsetOf(sp));
   return (
     <>
       <PageHead title="Customers" sub="One customer database shared by every branch.">
@@ -22,6 +24,7 @@ export default async function Customers({ searchParams }: { searchParams: Promis
           ))}</tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/customers" sp={sp} />
     </>
   );
 }

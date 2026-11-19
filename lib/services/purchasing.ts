@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, can, canSee, redact } from "../access";
 import { withTx } from "../db";
@@ -186,16 +187,16 @@ export async function raiseReorderPo(ctx: Ctx, itemId: string, qty: unknown, sup
   });
 }
 
-export async function listPos(ctx: Ctx, status = "") {
+export async function listPos(ctx: Ctx, status = "", offset = 0) {
   assertCan(ctx, "purchasing", "view");
-  return withTx(ctx, async (c) => {
+  return toChunk(await withTx(ctx, async (c) => {
     const rows = (await c.query(
       `SELECT p.*, s.name_en supplier_name, b.code branch_code,
               (SELECT coalesce(sum(qty),0) FROM po_line WHERE po_id = p.id) ordered, (SELECT coalesce(sum(received_qty),0) FROM po_line WHERE po_id = p.id) received
          FROM purchase_order p JOIN supplier s ON s.id = p.supplier_id JOIN branch b ON b.id = p.branch_id
-        WHERE ($1 = '' OR p.status = $1) ORDER BY p.created_at DESC LIMIT 200`, [status])).rows;
+        WHERE ($1 = '' OR p.status = $1) ORDER BY p.created_at DESC ${blockSql(offset)}`, [status])).rows;
     return redact(ctx, rows, PO_COST, (r) => r.branch_id as string);
-  });
+  }), offset);
 }
 
 export async function getPo(ctx: Ctx, id: string) {
@@ -382,14 +383,14 @@ export async function unbilledLines(ctx: Ctx, supplierId: string) {
   });
 }
 
-export async function listBills(ctx: Ctx) {
+export async function listBills(ctx: Ctx, offset = 0) {
   assertCan(ctx, "purchasing", "view");
-  return withTx(ctx, async (c) => {
+  return toChunk(await withTx(ctx, async (c) => {
     const rows = (await c.query(
       `SELECT sb.*, s.name_en supplier_name, b.code branch_code FROM supplier_bill sb JOIN supplier s ON s.id = sb.supplier_id JOIN branch b ON b.id = sb.branch_id
-        ORDER BY sb.created_at DESC LIMIT 200`)).rows;
+        ORDER BY sb.created_at DESC ${blockSql(offset)}`)).rows;
     return redact(ctx, rows, PO_COST, (r) => r.branch_id as string);
-  });
+  }), offset);
 }
 
 export async function getBill(ctx: Ctx, id: string) {

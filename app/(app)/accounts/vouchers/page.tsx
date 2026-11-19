@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listVouchers, VOUCHER_TYPES } from "@/lib/services/accounting";
 import { canAnywhere } from "@/lib/access";
@@ -7,7 +9,7 @@ import { AccountsTabs } from "@/components/AccountsTabs";
 export default async function Vouchers({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const rows = await listVouchers(ctx);
+  const rows = await listVouchers(ctx, offsetOf(sp));
   return (
     <>
       <PageHead title="Vouchers" sub="Manual journal, payment, receipt, contra, debit and credit note vouchers. Each goes to the owner for approval and gets its number when posted.">
@@ -25,6 +27,7 @@ export default async function Vouchers({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/accounts/vouchers" sp={sp} />
     </>
   );
 }

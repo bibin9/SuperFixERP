@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import { Ctx, assertCan, can, canSee, redact } from "../access";
 import { withTx } from "../db";
 import { forbidden, invalid, notFound } from "../errors";
@@ -88,9 +89,9 @@ export async function updateEnquiry(ctx: Ctx, id: string, f: Record<string, unkn
   });
 }
 
-export async function listEnquiries(ctx: Ctx, status = "", q = "") {
+export async function listEnquiries(ctx: Ctx, status = "", q = "", offset = 0) {
   if (!can(ctx, "customers", "view")) throw forbidden();
-  return withTx(ctx, async (c) => { await expireQuotations(c); return (await c.query(
+  return toChunk(await withTx(ctx, async (c) => { await expireQuotations(c); return (await c.query(
     `SELECT e.*, b.code branch_code, c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.mobile, u.full_name assigned_name,
             v.registered_in, v.plate_code, v.plate_number, v.make, v.model, j.doc_no job_no,
             (e.follow_up_at < now() AND e.status IN ('open','booked','quoted')) overdue
@@ -98,8 +99,8 @@ export async function listEnquiries(ctx: Ctx, status = "", q = "") {
        LEFT JOIN vehicle v ON v.id = e.vehicle_id LEFT JOIN job_card j ON j.id = e.converted_job_id
       WHERE ($1 = '' OR e.status = $1 OR ($1 = 'due' AND e.follow_up_at < now() AND e.status IN ('open','booked','quoted'))) AND e.doc_no NOT LIKE 'LEGACY-%'
         AND ($2 = '' OR concat_ws(' ', e.doc_no, e.contact_name, e.contact_mobile, e.service_asked, c.first_name, c.last_name, c.company_name, c.mobile, v.plate_code, v.plate_number, v.make, v.model) ILIKE '%' || $2 || '%')
-      ORDER BY e.created_at DESC LIMIT 200`, [status, q.trim().slice(0, 80)],
-  )).rows; });
+      ORDER BY e.created_at DESC ${blockSql(offset)}`, [status, q.trim().slice(0, 80)],
+  )).rows; }), offset);
 }
 
 export async function markEnquiryLost(ctx: Ctx, id: string, reason: string) {

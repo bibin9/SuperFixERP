@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, can } from "../access";
@@ -119,11 +120,11 @@ registerHandler("voucher", {
   onRejected: async (c, _ctx, req, comment) => { await c.query("UPDATE voucher SET status = 'rejected', reject_reason = $2 WHERE id = $1 AND status = 'pending_approval'", [req.doc_id, comment]); },
 });
 
-export async function listVouchers(ctx: Ctx) {
+export async function listVouchers(ctx: Ctx, offset = 0) {
   assertCan(ctx, "accounting", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT v.*, b.code branch_code, u.full_name created_by_name FROM voucher v JOIN branch b ON b.id = v.branch_id LEFT JOIN app_user u ON u.id = v.created_by
-      ORDER BY v.created_at DESC LIMIT 300`)).rows);
+      ORDER BY v.created_at DESC ${blockSql(offset)}`)).rows), offset);
 }
 export async function getVoucher(ctx: Ctx, id: string) {
   return withTx(ctx, async (c) => {
@@ -241,12 +242,12 @@ export async function paySupplier(ctx: Ctx, f: SupplierPayIn) {
   });
 }
 
-export async function listSupplierPayments(ctx: Ctx, filter: { cheques?: string } = {}) {
+export async function listSupplierPayments(ctx: Ctx, filter: { cheques?: string } = {}, offset = 0) {
   assertCan(ctx, "accounting", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT p.*, s.name_en supplier_name, b.code branch_code, ba.name bank_name FROM supplier_payment p JOIN supplier s ON s.id = p.supplier_id JOIN branch b ON b.id = p.branch_id
        LEFT JOIN bank_account ba ON ba.id = p.bank_account_id
-      WHERE ($1 = '' OR p.cheque_status = $1) ORDER BY p.posted_at DESC LIMIT 300`, [filter.cheques ?? ""])).rows);
+      WHERE ($1 = '' OR p.cheque_status = $1) ORDER BY p.posted_at DESC ${blockSql(offset)}`, [filter.cheques ?? ""])).rows), offset);
 }
 
 /** The bank has paid our cheque: Dr cheques issued, Cr the bank. Not before the cheque date. */

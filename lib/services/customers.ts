@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, canSee } from "../access";
 import { withTx } from "../db";
@@ -15,14 +16,14 @@ async function country(c: PoolClient, code: string) {
   return r.rows[0];
 }
 
-export async function listCustomers(ctx: Ctx, q = "") {
+export async function listCustomers(ctx: Ctx, q = "", offset = 0) {
   assertCan(ctx, "customers", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `WITH page AS (
        SELECT id, customer_no, customer_type, is_walk_in, title, first_name, last_name, company_name, mobile, email, created_at
          FROM customer WHERE active AND ($1 = '' OR customer_no ILIKE '%'||$1||'%' OR first_name ILIKE '%'||$1||'%' OR last_name ILIKE '%'||$1||'%'
              OR company_name ILIKE '%'||$1||'%' OR (regexp_replace($1,'\\D','','g') <> '' AND mobile LIKE '%'||regexp_replace($1,'\\D','','g')||'%'))
-        ORDER BY created_at DESC LIMIT 100)
+        ORDER BY created_at DESC ${blockSql(offset)})
      -- Vehicles are counted for the 100 customers on the page only, in one pass (PERF-SQL-01).
      SELECT p.id, p.customer_no, p.customer_type, p.is_walk_in, p.title, p.first_name, p.last_name, p.company_name, p.mobile, p.email,
             coalesce(n.vehicles, 0) vehicles
@@ -30,7 +31,7 @@ export async function listCustomers(ctx: Ctx, q = "") {
        LEFT JOIN (SELECT owner_customer_id, count(*) vehicles FROM vehicle WHERE owner_customer_id IN (SELECT id FROM page) GROUP BY 1) n
          ON n.owner_customer_id = p.id
       ORDER BY p.created_at DESC`, [q.trim()],
-  )).rows);
+  )).rows), offset);
 }
 
 export const displayName = (r: { customer_type: string; title?: string | null; first_name?: string | null; last_name?: string | null; company_name?: string | null }) =>

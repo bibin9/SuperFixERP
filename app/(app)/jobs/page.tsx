@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listJobs, jobCounts, STATUS_LABEL } from "@/lib/services/jobs";
 import { can } from "@/lib/access";
@@ -10,7 +12,7 @@ const initials = (n?: string | null) => (n ?? "").split(/\s+/).filter(Boolean).m
 export default async function Jobs({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const [rows, counts] = await Promise.all([listJobs(ctx, sp.status ?? "", sp.q ?? ""), jobCounts(ctx)]);
+  const [rows, counts] = await Promise.all([listJobs(ctx, sp.status ?? "", sp.q ?? "", offsetOf(sp)), jobCounts(ctx)]);
   const tech = !can(ctx, "jobs", "view");
   const cards = sp.view === "cards";
   return (
@@ -50,6 +52,7 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Rec
         </div>
       )}
       {!rows.length && <p className="muted">No jobs{sp.q ? ` match “${sp.q}”` : ""}.</p>}
+      <OlderRows rows={rows} base="/jobs" sp={sp} />
     </>
   );
 }

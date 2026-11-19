@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listPos } from "@/lib/services/purchasing";
 import { masters } from "@/lib/services/masters";
@@ -12,7 +14,7 @@ const STATES = ["", "draft", "pending_approval", "approved", "partly_received", 
 export default async function Pos({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const [rows, m] = await Promise.all([listPos(ctx, sp.status ?? ""), masters(ctx)]);
+  const [rows, m] = await Promise.all([listPos(ctx, sp.status ?? "", offsetOf(sp)), masters(ctx)]);
   const here = ctx.currentBranchId;
   return (
     <>
@@ -40,6 +42,7 @@ export default async function Pos({ searchParams }: { searchParams: Promise<Reco
           ))}{!rows.length && <tr><td colSpan={7} className="muted">No purchase orders.</td></tr>}</tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/purchasing" sp={sp} />
     </>
   );
 }

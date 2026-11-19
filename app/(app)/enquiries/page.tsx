@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listEnquiries, enquiryCounts } from "@/lib/services/enquiries";
 import { can } from "@/lib/access";
@@ -9,7 +11,7 @@ const TABS: [string, string][] = [["", "All"], ["open", "Open"], ["booked", "Boo
 export default async function Enquiries({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const [rows, counts] = await Promise.all([listEnquiries(ctx, sp.status ?? "", sp.q ?? ""), enquiryCounts(ctx)]);
+  const [rows, counts] = await Promise.all([listEnquiries(ctx, sp.status ?? "", sp.q ?? "", offsetOf(sp)), enquiryCounts(ctx)]);
   return (
     <>
       <PageHead title="Enquiries" sub="Every job starts here: enquiry, then quotation, then the customer's approval, then the job card.">
@@ -53,6 +55,7 @@ export default async function Enquiries({ searchParams }: { searchParams: Promis
         </table>
       </div>
       )}
+      <OlderRows rows={rows} base="/enquiries" sp={sp} />
     </>
   );
 }

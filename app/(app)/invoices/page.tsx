@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listInvoices } from "@/lib/services/billing";
 import { Link, Money, PageHead, Status, d } from "@/components/ui";
@@ -13,7 +15,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
   if (!canAnywhere(ctx, "invoices", "view")) throw forbidden();
   const sp = await searchParams;
   const status = FILTERS.some(([k]) => k === sp.status) ? sp.status ?? "" : "";
-  const rows = await listInvoices(ctx, { status, q: sp.q ?? "" });
+  const rows = await listInvoices(ctx, { status, q: sp.q ?? "" }, offsetOf(sp));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
   return (
     <>
@@ -41,6 +43,7 @@ export default async function Invoices({ searchParams }: { searchParams: Promise
         </table>
         {!rows.length && <p className="muted">No invoices match.</p>}
       </div>
+      <OlderRows rows={rows} base="/invoices" sp={sp} />
     </>
   );
 }

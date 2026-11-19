@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listSupplierPayments } from "@/lib/services/accounting";
 import { issuedChequeAction } from "@/app/actions-accounting";
@@ -9,7 +11,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 export default async function Payments({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const rows = await listSupplierPayments(ctx, { cheques: ["issued", "cleared", "cancelled"].includes(sp.cheques) ? sp.cheques : "" });
+  const rows = await listSupplierPayments(ctx, { cheques: ["issued", "cleared", "cancelled"].includes(sp.cheques) ? sp.cheques : "" }, offsetOf(sp));
   const out = rows.filter((r) => r.cheque_status === "issued").reduce((s, r) => s + Number(r.amount), 0);
   return (
     <>
@@ -37,6 +39,7 @@ export default async function Payments({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/accounts/payables/payments" sp={sp} />
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, can, canSee } from "../access";
@@ -320,16 +321,16 @@ export async function publicInvoice(token: string) {
   });
 }
 
-export async function listInvoices(ctx: Ctx, filter: { status?: string; q?: string } = {}) {
+export async function listInvoices(ctx: Ctx, filter: { status?: string; q?: string } = {}, offset = 0) {
   assertCan(ctx, "invoices", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT i.id, i.doc_no, i.doc_date, i.bill_to_name, i.grand_total, i.paid_amount, i.credited_amount, i.invoice_kind, i.source, i.bill_to_type,
             i.grand_total - i.paid_amount - i.credited_amount open_amount, i.due_date, b.code branch_code, j.doc_no job_no
        FROM sales_invoice i JOIN branch b ON b.id = i.branch_id LEFT JOIN job_card j ON j.id = i.job_card_id
       WHERE ($1 = '' OR ($1 = 'open' AND i.paid_amount + i.credited_amount < i.grand_total) OR ($1 = 'settled' AND i.paid_amount + i.credited_amount >= i.grand_total)
              OR ($1 = 'overdue' AND i.paid_amount + i.credited_amount < i.grand_total AND i.due_date < (now() AT TIME ZONE 'Asia/Dubai')::date))
         AND ($2 = '' OR i.doc_no ILIKE '%' || $2 || '%' OR i.bill_to_name ILIKE '%' || $2 || '%' OR j.doc_no ILIKE '%' || $2 || '%')
-      ORDER BY i.posted_at DESC LIMIT 300`, [filter.status ?? "", str(filter.q)])).rows);
+      ORDER BY i.posted_at DESC ${blockSql(offset)}`, [filter.status ?? "", str(filter.q)])).rows), offset);
 }
 
 // =====================================================================================
@@ -522,13 +523,13 @@ export async function applyAdvance(ctx: Ctx, invoiceId: string, advanceId: strin
   });
 }
 
-export async function listAdvances(ctx: Ctx, customerId?: string) {
+export async function listAdvances(ctx: Ctx, customerId?: string, offset = 0) {
   assertCan(ctx, "invoices", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT a.*, a.amount - a.used_amount open, b.code branch_code, j.doc_no job_no,
             CASE WHEN cu.customer_type = 'individual' THEN concat_ws(' ', cu.title, cu.first_name, cu.last_name) ELSE 'M/s. ' || cu.company_name END customer_name
        FROM customer_advance a JOIN branch b ON b.id = a.branch_id JOIN customer cu ON cu.id = a.customer_id LEFT JOIN job_card j ON j.id = a.job_card_id
-      WHERE ($1::uuid IS NULL OR a.customer_id = $1) ORDER BY (a.used_amount < a.amount) DESC, a.created_at DESC LIMIT 300`, [customerId ?? null])).rows);
+      WHERE ($1::uuid IS NULL OR a.customer_id = $1) ORDER BY (a.used_amount < a.amount) DESC, a.created_at DESC ${blockSql(offset)}`, [customerId ?? null])).rows), offset);
 }
 
 // ---------- post-dated cheque register (AC-17) ----------

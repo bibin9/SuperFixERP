@@ -1,3 +1,4 @@
+import { CHUNK } from "../paging";
 import { Ctx, assertCan, ACTIONS, SCREENS } from "../access";
 import { withTx } from "../db";
 import { invalid, notFound, conflict } from "../errors";
@@ -228,7 +229,7 @@ export type AuditFilter = { entity?: string; user?: string; action?: string; rec
  * Audit log (FSD 3.6, 3.12): search by user, record, date and action. Its own permission (Audit log)
  * in the role matrix; users who do not have all branches see their branches' entries only.
  */
-export async function auditLog(ctx: Ctx, f: AuditFilter, limit = 300) {
+export async function auditLog(ctx: Ctx, f: AuditFilter, limit = CHUNK + 1, offset = 0) {
   assertCan(ctx, "audit", "view");
   const from = /^\d{4}-\d{2}-\d{2}$/.test(str(f.from)) ? str(f.from) : "", to = /^\d{4}-\d{2}-\d{2}$/.test(str(f.to)) ? str(f.to) : "";
   return withTx(ctx, async (c) => (await c.query(
@@ -239,7 +240,7 @@ export async function auditLog(ctx: Ctx, f: AuditFilter, limit = 300) {
         AND ($4 = '' OR a.entity_id::text = $4 OR a.changes::text ILIKE '%' || $4 || '%')
         AND ($5 = '' OR (a.at AT TIME ZONE 'Asia/Dubai')::date >= $5::date) AND ($6 = '' OR (a.at AT TIME ZONE 'Asia/Dubai')::date <= $6::date)
         AND ($7 OR a.branch_id IS NULL OR a.branch_id = ANY($8::uuid[]))
-      ORDER BY a.id DESC LIMIT ${Math.min(limit, 50000)}`,
+      ORDER BY a.id DESC LIMIT ${Math.min(limit, 50000)} OFFSET ${Math.max(0, Math.floor(offset))}`,
     [str(f.entity), str(f.user), str(f.action), str(f.record), from, to, ctx.allBranches, ctx.branchIds])).rows);
 }
 

@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { CHUNK, offsetOf, toChunk } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { auditLog, auditUsers, loginEvents } from "@/lib/services/admin";
 import { PageHead, dt, label } from "@/components/ui";
@@ -6,7 +8,8 @@ import { can } from "@/lib/access";
 export default async function Audit({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const [rows, logins, users] = await Promise.all([auditLog(ctx, sp), loginEvents(ctx), auditUsers(ctx)]);
+  const [all, logins, users] = await Promise.all([auditLog(ctx, sp, CHUNK + 1, offsetOf(sp)), loginEvents(ctx), auditUsers(ctx)]);
+  const rows = toChunk(all, offsetOf(sp));
   return (
     <>
       <PageHead title="Audit log" sub="Append-only: no user, including the admin, can change or delete entries. Who can see and export it is set under Roles & permissions (Audit log)." />
@@ -27,6 +30,7 @@ export default async function Audit({ searchParams }: { searchParams: Promise<Re
             <td className="small" style={{ maxWidth: 420, wordBreak: "break-word" }}><Changes c={r.changes} /></td></tr>)}</tbody>
         </table>
       </div>
+      <OlderRows rows={rows} base="/admin/audit" sp={sp} />
       <div className="card"><h2>Sign-ins and branch switches</h2>
         <table><tbody>{logins.map((e) => <tr key={e.id}><td className="small">{dt(e.at)}</td><td>{e.username}</td><td>{label(e.event)}</td><td>{e.branch_code}</td><td className="small muted">{e.ip}</td></tr>)}</tbody></table>
       </div>

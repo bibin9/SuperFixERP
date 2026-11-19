@@ -761,26 +761,39 @@ export async function ownerDashboard(ctx: Ctx, q: RunInput) {
     if (from > to) throw invalid("The start date is after the end date.", { field: "to" });
     const ids = br.chosen.map((b) => b.id);
     const showMoney = ids.every((b) => canSee(ctx, "selling_price", b));
+    // One pass per table grouped by branch (not one sub-query per branch and figure), so the dashboard stays quick with many branches.
     const per = (await c.query(
-      `WITH s AS (SELECT coalesce((SELECT value #>> '{}' FROM setting WHERE key = 'ontime.measured_at' AND branch_id IS NULL), 'ready') m)
+      `WITH s AS (SELECT coalesce((SELECT value #>> '{}' FROM setting WHERE key = 'ontime.measured_at' AND branch_id IS NULL), 'ready') m),
+       inv AS (SELECT branch_id,
+                 coalesce(sum(taxable_total) FILTER (WHERE doc_date = $2), 0) sales_today,
+                 coalesce(sum(taxable_total) FILTER (WHERE doc_date BETWEEN $3 AND $4), 0) sales_period,
+                 coalesce(sum(grand_total - paid_amount - credited_amount), 0) receivables
+               FROM sales_invoice WHERE branch_id = ANY($1) GROUP BY branch_id),
+       jc AS (SELECT j.branch_id,
+                 count(*) FILTER (WHERE j.created_at::date = $2)::int cars_in_today,
+                 count(*) FILTER (WHERE j.created_at::date BETWEEN $3 AND $4)::int cars_in_period,
+                 count(*) FILTER (WHERE j.delivered_at::date = $2)::int cars_out_today,
+                 count(*) FILTER (WHERE j.delivered_at::date BETWEEN $3 AND $4)::int cars_out_period,
+                 count(*) FILTER (WHERE j.status IN ('approved','awaiting_parts','in_progress','quality_check','ready'))::int on_site,
+                 count(*) FILTER (WHERE j.promised_at < now() AND j.status IN ('approved','awaiting_parts','in_progress','quality_check'))::int late,
+                 round(100.0 * count(*) FILTER (WHERE x.ok) / nullif(count(*) FILTER (WHERE x.ok IS NOT NULL), 0), 1) on_time_pct
+               FROM job_card j CROSS JOIN s
+               CROSS JOIN LATERAL (SELECT CASE WHEN j.promised_at IS NULL OR j.doc_date NOT BETWEEN $3 AND $4 THEN NULL
+                                               ELSE (CASE WHEN s.m = 'delivered' THEN j.delivered_at ELSE coalesce(j.ready_at, j.delivered_at) END) <= j.promised_at END ok) x
+               WHERE j.branch_id = ANY($1) GROUP BY j.branch_id),
+       rc AS (SELECT branch_id, coalesce(sum(amount) FILTER (WHERE doc_date = $2), 0) cash_today, coalesce(sum(amount) FILTER (WHERE doc_date BETWEEN $3 AND $4), 0) cash_period
+               FROM receipt WHERE branch_id = ANY($1) GROUP BY branch_id),
+       en AS (SELECT branch_id, count(*) FILTER (WHERE doc_date = $2)::int enquiries_today, count(*) FILTER (WHERE doc_date BETWEEN $3 AND $4)::int enquiries_period
+               FROM enquiry WHERE branch_id = ANY($1) GROUP BY branch_id)
        SELECT b.id, b.code, b.name_en,
-         (SELECT coalesce(sum(taxable_total), 0) FROM sales_invoice i WHERE i.branch_id = b.id AND i.doc_date = $2) sales_today,
-         (SELECT coalesce(sum(taxable_total), 0) FROM sales_invoice i WHERE i.branch_id = b.id AND i.doc_date BETWEEN $3 AND $4) sales_period,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.created_at::date = $2)::int cars_in_today,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.created_at::date BETWEEN $3 AND $4)::int cars_in_period,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.delivered_at::date = $2)::int cars_out_today,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.delivered_at::date BETWEEN $3 AND $4)::int cars_out_period,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.status IN ('approved','awaiting_parts','in_progress','quality_check','ready'))::int on_site,
-         (SELECT count(*) FROM job_card j WHERE j.branch_id = b.id AND j.promised_at < now() AND j.status IN ('approved','awaiting_parts','in_progress','quality_check'))::int late,
-         (SELECT coalesce(sum(amount), 0) FROM receipt r WHERE r.branch_id = b.id AND r.doc_date = $2) cash_today,
-         (SELECT coalesce(sum(amount), 0) FROM receipt r WHERE r.branch_id = b.id AND r.doc_date BETWEEN $3 AND $4) cash_period,
-         (SELECT coalesce(sum(grand_total - paid_amount - credited_amount), 0) FROM sales_invoice i WHERE i.branch_id = b.id) receivables,
-         (SELECT count(*) FROM enquiry e WHERE e.branch_id = b.id AND e.doc_date = $2)::int enquiries_today,
-         (SELECT count(*) FROM enquiry e WHERE e.branch_id = b.id AND e.doc_date BETWEEN $3 AND $4)::int enquiries_period,
-         (SELECT round(100.0 * count(*) FILTER (WHERE x.done <= x.promised_at) / nullif(count(*), 0), 1)
-            FROM (SELECT j.promised_at, CASE WHEN s.m = 'delivered' THEN j.delivered_at ELSE coalesce(j.ready_at, j.delivered_at) END done FROM job_card j, s
-                   WHERE j.branch_id = b.id AND j.promised_at IS NOT NULL AND j.doc_date BETWEEN $3 AND $4) x WHERE x.done IS NOT NULL) on_time_pct
-       FROM branch b WHERE b.id = ANY($1) ORDER BY b.branch_type <> 'head_office', b.code`, [ids, t, from, to])).rows;
+         coalesce(inv.sales_today, 0) sales_today, coalesce(inv.sales_period, 0) sales_period,
+         coalesce(jc.cars_in_today, 0) cars_in_today, coalesce(jc.cars_in_period, 0) cars_in_period,
+         coalesce(jc.cars_out_today, 0) cars_out_today, coalesce(jc.cars_out_period, 0) cars_out_period,
+         coalesce(jc.on_site, 0) on_site, coalesce(jc.late, 0) late,
+         coalesce(rc.cash_today, 0) cash_today, coalesce(rc.cash_period, 0) cash_period, coalesce(inv.receivables, 0) receivables,
+         coalesce(en.enquiries_today, 0) enquiries_today, coalesce(en.enquiries_period, 0) enquiries_period, jc.on_time_pct
+       FROM branch b LEFT JOIN inv ON inv.branch_id = b.id LEFT JOIN jc ON jc.branch_id = b.id LEFT JOIN rc ON rc.branch_id = b.id LEFT JOIN en ON en.branch_id = b.id
+       WHERE b.id = ANY($1) ORDER BY b.branch_type <> 'head_office', b.code`, [ids, t, from, to])).rows;
     const funnel = (await c.query(
       `SELECT b.code,
          count(*)::int enquiries,

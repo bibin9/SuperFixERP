@@ -1,3 +1,4 @@
+import { blockSql, toChunk } from "../paging";
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
 import { Ctx, assertCan, can, roleAt } from "../access";
@@ -148,11 +149,11 @@ registerHandler("credit_note", {
   },
 });
 
-export async function listCreditNotes(ctx: Ctx) {
+export async function listCreditNotes(ctx: Ctx, offset = 0) {
   assertCan(ctx, "invoices", "view");
-  return withTx(ctx, async (c) => (await c.query(
+  return toChunk(await withTx(ctx, async (c) => (await c.query(
     `SELECT cn.*, i.doc_no invoice_no, i.bill_to_name, b.code branch_code, lv.name_en reason_name FROM credit_note cn JOIN sales_invoice i ON i.id = cn.invoice_id
-       JOIN branch b ON b.id = cn.branch_id LEFT JOIN lookup_value lv ON lv.list = 'credit_note_reason' AND lv.code = cn.reason ORDER BY cn.created_at DESC LIMIT 300`)).rows);
+       JOIN branch b ON b.id = cn.branch_id LEFT JOIN lookup_value lv ON lv.list = 'credit_note_reason' AND lv.code = cn.reason ORDER BY cn.created_at DESC ${blockSql(offset)}`)).rows), offset);
 }
 
 export async function getCreditNote(ctx: Ctx, id: string) {

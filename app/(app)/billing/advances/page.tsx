@@ -1,3 +1,5 @@
+import { OlderRows } from "@/components/OlderRows";
+import { offsetOf } from "@/lib/paging";
 import crypto from "node:crypto";
 import { requireCtx } from "@/lib/session";
 import { listAdvances } from "@/lib/services/billing";
@@ -21,7 +23,7 @@ export default async function Advances({ searchParams }: { searchParams: Promise
   const customerId = job?.customer_id ?? uuid(sp.customer);
   const customer = customerId && !job ? await withTx(ctx, async (c) => (await c.query("SELECT id, customer_type, title, first_name, last_name, company_name FROM customer WHERE id = $1 AND NOT is_walk_in", [customerId])).rows[0]) : null;
   const found = sp.q && sp.q.trim().length >= 2 ? (await listCustomers(ctx, sp.q)).filter((c) => !c.is_walk_in).slice(0, 8) : [];
-  const rows = await listAdvances(ctx, customerId ?? undefined);
+  const rows = await listAdvances(ctx, customerId ?? undefined, offsetOf(sp));
   const m = await masters(ctx);
   const who = job ?? customer;
   const canRefund = !!ctx.currentBranchId && can(ctx, "invoices", "approve", ctx.currentBranchId);
@@ -77,6 +79,7 @@ export default async function Advances({ searchParams }: { searchParams: Promise
         </table>
         {!rows.length && <p className="muted">Nothing held.</p>}
       </div>
+      <OlderRows rows={rows} base="/billing/advances" sp={sp} />
     </>
   );
 }
