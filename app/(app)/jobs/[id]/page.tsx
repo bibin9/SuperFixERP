@@ -180,8 +180,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         </div>
       </div>
 
-      <div className="card" id="checkin">
-        <h2>Check-in record</h2>
+      <details className="card fold" id="checkin" open={!job.checkin_signature && ["approved", "awaiting_parts"].includes(job.status)}>
+        <summary><h2>Check-in record: damage, photos and signature <span className="small muted">{job.checkin_signature ? `signed by ${job.checkin_signed_name} · ${photos.length} photo${photos.length === 1 ? "" : "s"}` : "not signed yet"}</span></h2></summary>
         <div className="checkin-grid">
           <div>
             <h3>Damage on arrival</h3>
@@ -218,7 +218,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
             <p className="small muted">JPG, PNG or HEIC, up to 5 MB each, at most 12 per job card.</p>
           </div>
         </div>
-      </div>
+      </details>
 
       <WorkLines quick={quick} owner={{ kind: "job", id }} back={back} lines={lines} m={m} canEdit={canEdit} canSeePrices={canSeePrices} canIssue={canIssue}
         discountEdit={discountEdit} priceEdit={fieldLevel(ctx, "selling_price", b) === "edit"} open={open} />

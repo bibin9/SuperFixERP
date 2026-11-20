@@ -74,6 +74,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick }: { ctx: 
           {active && <div className="popbtns"><Popup id="part-request" title="Ask the store for a part" label="Request a part">
             <form action={partRequestAction}>
               <input type="hidden" name="job_id" value={job.id} /><input type="hidden" name="$back" value={back} />
+              <p className="small muted">For a part the customer already approved on this job. A new part has to be added under Job lines with + Add part and approved by the customer before the store gives it out.</p>
               <div className="field"><label>Part</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Part not in the list (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>
                 {quick?.items && <QuickAdd spec={quick.items} target="item_id" label="+ New part" />}</div></div>
               <div className="row"><div className="field"><label>Quantity</label><input name="qty" defaultValue="1" inputMode="decimal" /></div>

@@ -658,3 +658,8 @@ dialog.popup>.flash{margin:12px 18px 0}
 .btn.quickadd{white-space:nowrap}
 .popbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 @media (max-width:640px){dialog.popup,dialog.popup.wide{width:100vw;max-width:100vw;max-height:92vh;margin:auto 0 0;border-radius:16px 16px 0 0}}
+/* Invoice draft, add a line: only the picker for the chosen kind of line is shown. */
+.addline select[name=new_service_id],.addline select[name=new_item_id],.addline input[name=new_description]{display:none}
+.addline:has(select[name=new_line_type] option[value=labour]:checked) select[name=new_service_id]{display:block}
+.addline:has(select[name=new_line_type] option[value=part]:checked) select[name=new_item_id],.addline:has(select[name=new_line_type] option[value=consumable]:checked) select[name=new_item_id]{display:block}
+.addline:has(select[name=new_line_type] option[value=outside]:checked) input[name=new_description]{display:block}

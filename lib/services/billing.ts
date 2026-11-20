@@ -94,7 +94,7 @@ export async function invoiceBasis(c: PoolClient, jobId: string, lineIds?: strin
     { ok: lines.length > 0, text: "There are approved lines not yet invoiced" },
     { ok: notIssued.length === 0, text: notIssued.length ? `Parts not issued from the store: ${notIssued.map((l) => l.description).join(", ")}` : "All approved parts on these lines are issued to the job" },
     { ok: strayIssue.length === 0, text: strayIssue.length ? `Parts issued to the job but not on an approved line: ${strayIssue.join(", ")}` : "Every part issued to the job is on an approved line" },
-    { ok: !!latestApproved && invoicedBefore.plus(total).lte(latestApproved.approved_total), text: "Not above the approved quotation (QT-07)" },
+    { ok: !!latestApproved && invoicedBefore.plus(total).lte(latestApproved.approved_total), text: "Not above the approved quotation total" },
     { ok: !late, text: late ? "Job was late and has no delay reason" : "Delay reason recorded if the job was late" },
   ];
   return { job, lines, allLines: all, taxable, vat, total, checks, latestApproved };
@@ -732,7 +732,7 @@ export async function combinableJobs(ctx: Ctx, customerId: string) {
     const cust = (await c.query("SELECT * FROM customer WHERE id = $1", [customerId])).rows[0];
     if (!cust) throw notFound("Customer");
     const jobs = (await c.query(
-      `SELECT j.id, j.doc_no, j.status, j.lpo_no, to_char(j.ready_at AT TIME ZONE 'Asia/Dubai', 'DD/MM/YYYY') ready_on, v.plate_code, v.plate_number, v.make, v.model
+      `SELECT j.id, j.doc_no, j.status, j.lpo_no, to_char(j.ready_at AT TIME ZONE 'Asia/Dubai', 'DD/MM/YYYY') ready_on, v.registered_in, v.plate_code, v.plate_number, v.make, v.model
          FROM job_card j JOIN vehicle v ON v.id = j.vehicle_id
         WHERE j.branch_id = $1 AND j.customer_id = $2 AND j.status = ANY($3) ORDER BY j.doc_no`, [b, customerId, BILLABLE_STATUS])).rows;
     const out = [];

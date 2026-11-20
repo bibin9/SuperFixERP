@@ -53,7 +53,7 @@ export default async function CombinedInvoice({ searchParams }: { searchParams: 
                 <tr key={j.id}>
                   <td><input type="checkbox" name="job" value={j.id} defaultChecked={!j.problems.length} disabled={!!j.problems.length} aria-label={`Include ${j.doc_no}`} /></td>
                   <td><Link href={`/jobs/${j.id}`}>{j.doc_no}</Link></td>
-                  <td>{[j.plate_code, j.plate_number].filter(Boolean).join(" ")} {j.make} {j.model}</td>
+                  <td>{[j.registered_in, j.plate_code, j.plate_number].filter(Boolean).join(" ")} {j.make} {j.model}</td>
                   <td>{j.ready_on ?? ""}</td><td>{j.lpo_no ?? ""}</td>
                   <td className="num"><Money v={j.taxable} /></td><td className="num"><Money v={j.vat} /></td><td className="num"><b><Money v={j.total} /></b></td>
                   <td className="small">{j.problems.length ? <span style={{ color: "var(--late)" }}>{j.problems.join("; ")}</span> : <span className="pill green">Ready to bill</span>}</td>

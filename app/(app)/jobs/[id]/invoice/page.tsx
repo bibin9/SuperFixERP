@@ -25,9 +25,10 @@ export default async function InvoiceDraft({ params, searchParams }: { params: P
         <Link className="btn ghost" href={`/jobs/${id}`}>Back to job</Link>
       </PageHead>
       <Flash sp={sp} />
-      <div className="card"><h2>Checks</h2>
-        <ul className="checks">{d.checks.map((c) => <li key={c.text} className={c.ok ? "ok" : "no"}>{c.text}</li>)}</ul>
-      </div>
+      {/* All checks passed: one line, details on a tap. Something wrong: shown open with the problem first. */}
+      <details className="card fold" open={d.checks.some((c) => !c.ok)}><summary><h2>{d.checks.every((c) => c.ok) ? "Checks: all passed ✓" : `Checks: ${d.checks.filter((c) => !c.ok).length} to fix before posting`}</h2></summary>
+        <ul className="checks">{[...d.checks].sort((a, b) => Number(a.ok) - Number(b.ok)).map((c) => <li key={c.text} className={c.ok ? "ok" : "no"}>{c.text}</li>)}</ul>
+      </details>
       {!d.lines.length ? (
         <div className="card"><p className="muted">Everything approved on this job is already billed. <Link href={`/jobs/${id}`}>Back to the job card</Link> to see its invoices.</p></div>
       ) : (
@@ -46,9 +47,9 @@ export default async function InvoiceDraft({ params, searchParams }: { params: P
               <tr className="addline"><td></td>
                 <td colSpan={2}>
                   <select name="new_line_type" defaultValue="" aria-label="New line type"><option value="">+ Add a line…</option><option value="labour">Labour (service)</option><option value="part">Part</option><option value="consumable">Consumable</option><option value="outside">Outside work</option></select>
-                  <select name="new_service_id" defaultValue="" aria-label="Service"><option value="">Service (for labour)</option>{m.services.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select>
-                  <select name="new_item_id" defaultValue="" aria-label="Part"><option value="">Part (for parts)</option>{m.items.map((x) => <option key={x.id} value={x.id}>{x.part_no} · {x.description}</option>)}</select>
-                  <input name="new_description" placeholder="Description (needed for outside work)" aria-label="New line description" />
+                  <select name="new_service_id" defaultValue="" aria-label="Service"><option value="">Choose the service</option>{m.services.map((x) => <option key={x.id} value={x.id}>{x.name_en}</option>)}</select>
+                  <select name="new_item_id" defaultValue="" aria-label="Part"><option value="">Choose the part</option>{m.items.map((x) => <option key={x.id} value={x.id}>{x.part_no} · {x.description}</option>)}</select>
+                  <input name="new_description" placeholder="What was done (outside work)" aria-label="New line description" />
                 </td>
                 <td className="num"><input name="new_qty" placeholder="1" inputMode="decimal" className="numin" aria-label="New line quantity" /></td>
                 <td className="num"><input name="new_unit_price" placeholder="List price" inputMode="decimal" className="numin" aria-label="New line price" /></td>
@@ -63,7 +64,7 @@ export default async function InvoiceDraft({ params, searchParams }: { params: P
           <div className="grid2">
             <div>
               <label className="check"><input type="radio" name="bill_to" value="customer" defaultChecked /> The customer: <b>{d.billToDefault}</b>{d.customer.trn && <> · TRN {d.customer.trn}</>}</label>
-              <label className="check"><input type="radio" name="bill_to" value="fleet" /> A fleet or company account</label>
+              <label className="check"><input type="radio" name="bill_to" value="fleet" /> Another company pays (fleet, leasing or insurance account)</label>
               <div className="field" style={{ marginLeft: 24 }}><select name="fleet_customer_id" defaultValue="" aria-label="Fleet account"><option value="">Choose the company</option>
                 {d.fleets.map((f) => <option key={f.id} value={f.id}>{f.company_name}{Number(f.payment_terms_days) > 0 ? ` · ${f.payment_terms_days} days` : ""}</option>)}</select></div>
               <label className="check"><input type="radio" name="bill_to" value="warranty" /> Warranty claim (no tax invoice; the parts cost goes to warranty)</label>

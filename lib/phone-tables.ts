@@ -11,7 +11,10 @@ export function markPhoneTables() {
     var form = !!t.querySelector("tbody input:not([type=hidden]),tbody select,tbody textarea");
     if (ths.length < (form ? 2 : 5)) return;
     t.querySelectorAll("tbody tr").forEach(function (tr) {
-      Array.prototype.forEach.call(tr.children, function (td: Element, i: number) {
+      // A cell spanning several columns takes the first column's name; the next cell lines up after it.
+      var col = 0;
+      Array.prototype.forEach.call(tr.children, function (td: Element) {
+        var i = col; col += (td as HTMLTableCellElement).colSpan || 1;
         if (ths[i] && td.getAttribute("data-label") !== ths[i]) td.setAttribute("data-label", ths[i]);
       });
     });

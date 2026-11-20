@@ -21,9 +21,11 @@ import { bookAction, closeBookingAction } from "@/app/actions-front";
 import { bookingOptions } from "@/lib/services/bookings";
 import { runOptions, runsFor, canEditRuns } from "@/lib/services/runs";
 import { Popup } from "@/components/Popup";
+import { withTx } from "@/lib/db";
 import { QuickAdd } from "@/components/QuickAdd";
 import { quickSpec } from "@/lib/services/quick-add";
 
+const STATUS_WORD: Record<string, string> = { approved: "waiting to start", awaiting_parts: "waiting for parts", in_progress: "work in progress", quality_check: "in quality check", ready: "ready" };
 const STEPS: [string, string[]][] = [
   ["Enquiry", ["open", "booked"]], ["Quotation sent", ["quoted"]], ["Customer approved", ["approved"]], ["Job card", ["converted"]],
 ];
@@ -55,6 +57,9 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
   const runEdit = canEditRuns(ctx, b);
   const drivers = runEdit ? (await runOptions(ctx, b)).drivers : [];
   const showBooking = open || e.booking_status;
+  // The car is already in the workshop on another job card: the advisor should add the work there as extra work.
+  const openJobs: { id: string; doc_no: string; status: string }[] = e.vehicle_id && open ? await withTx(ctx, async (c) => (await c.query(
+    `SELECT id, doc_no, status FROM job_card WHERE vehicle_id = $1 AND status IN ('approved','awaiting_parts','in_progress','quality_check','ready') ORDER BY created_at`, [e.vehicle_id])).rows) : [];
   const quick = canEditEnq
     ? { customer: !e.customer_id ? await quickSpec(ctx, "customer") : null, vehicle: await quickSpec(ctx, "vehicle"), items: await quickSpec(ctx, "items"), services: await quickSpec(ctx, "services") }
     : { customer: null, vehicle: null, items: null, services: null };
@@ -66,6 +71,7 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
         {e.converted_job_id && <Link className="btn" href={`/jobs/${e.converted_job_id}`}>Open job card {e.job_no}</Link>}
       </PageHead>
       <Flash sp={sp} />
+      {openJobs.length > 0 && <div className="flash warn">This car is already in the workshop on job card {openJobs.map((j, i) => <span key={j.id}>{i ? ", " : ""}<Link href={`/jobs/${j.id}`}>{j.doc_no}</Link> ({STATUS_WORD[j.status] ?? j.status})</span>)}. If the customer wants more work on it, open that job card and add it there as extra work instead of making a second job card.</div>}
       <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />
       {(() => {
         // One clear next step for where the enquiry is; the rest of the page is folded or below.

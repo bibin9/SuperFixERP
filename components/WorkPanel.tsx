@@ -47,21 +47,6 @@ export function WorkLines(p: {
         ))}
         {!p.lines.length && <tr><td colSpan={9} className="muted">No work added yet.</td></tr>}</tbody>
       </table>
-      {p.canEdit && p.open && !!p.m.bundles?.length && (
-        <div className="bundles">
-          <h3>Add a whole service in one tap</h3>
-          <div className="bundle-grid">
-            {p.m.bundles.slice(0, 6).map((b) => (
-              <form key={b.id} action={addBundleAction} className={`bundle${b.match ? " match" : ""}`}>{hidden}<input type="hidden" name="bundle_id" value={b.id} />
-                <div className="row bh">{b.match ? <span className="pill red">Fits this car</span> : <span className="pill">Bundle</span>}<span className="small muted">{b.labour_lines} labour · {b.part_lines} parts</span></div>
-                <b>{b.name_en}</b>
-                <div className="small muted">{b.lines.map((l: Row) => l.service_name ?? `${D(l.qty).toString()} × ${l.item_name}`).join(", ")}</div>
-                <div className="row bf">{p.canSeePrices ? <b><Money v={b.price} /></b> : <span />}<button className="btn sm">{isJob ? "Add as extra work" : "Add bundle"}</button></div>
-              </form>
-            ))}
-          </div>
-        </div>
-      )}
       {p.canEdit && p.open && (
         <div className="popbtns">
           <Popup id="add-labour" title={isJob ? "Add labour (extra work)" : "Add labour"} label="+ Add labour" className="btn sm">
@@ -86,6 +71,21 @@ export function WorkLines(p: {
               <button className="btn green" style={{ marginTop: 6 }}>Add outside work</button></form>
           </Popup>
         </div>
+      )}
+      {p.canEdit && p.open && !!p.m.bundles?.length && (
+        <details className="bundles" open={!isJob}>
+          <summary><h3 style={{ display: "inline" }}>{isJob ? "Add a whole service package as extra work" : "Or add a whole service in one tap"}</h3></summary>
+          <div className="bundle-grid">
+            {p.m.bundles.slice(0, 6).map((b) => (
+              <form key={b.id} action={addBundleAction} className={`bundle${b.match ? " match" : ""}`}>{hidden}<input type="hidden" name="bundle_id" value={b.id} />
+                <div className="row bh">{b.match ? <span className="pill red">Fits this car</span> : <span className="pill">Bundle</span>}<span className="small muted">{b.labour_lines} labour · {b.part_lines} parts</span></div>
+                <b>{b.name_en}</b>
+                <div className="small muted">{b.lines.map((l: Row) => l.service_name ?? `${D(l.qty).toString()} × ${l.item_name}`).join(", ")}</div>
+                <div className="row bf">{p.canSeePrices ? <b><Money v={b.price} /></b> : <span />}<button className="btn sm">{isJob ? "Add as extra work" : "Add bundle"}</button></div>
+              </form>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

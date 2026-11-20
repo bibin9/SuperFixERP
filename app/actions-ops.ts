@@ -177,7 +177,7 @@ export async function partRequestAction(fd: FormData) {
   const ctx = await requireCtx();
   await run(back(fd), async () => {
     const s = await ws.requestPart(ctx, String(fd.get("job_id")), obj(fd));
-    return `${back(fd)}${back(fd).includes("?") ? "&" : "?"}ok=${encodeURIComponent(s === "open" ? "Sent to the store" : "This part is not approved on the job: the advisor must quote it to the customer first")}`;
+    return `${back(fd)}${back(fd).includes("?") ? "&" : "?"}ok=${encodeURIComponent(s === "open" ? "Sent to the store" : "Part request saved. This part is not in the approved work yet, so the store will wait: add it under Job lines with + Add part so the customer can approve it")}`;
   });
 }
 export async function qcAction(fd: FormData) {
