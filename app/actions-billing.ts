@@ -1,5 +1,5 @@
 "use server";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { requireCtx } from "@/lib/session";
 import { obj, keyed, run, withQ } from "@/lib/action-run";
 import * as bl from "@/lib/services/billing";
@@ -41,10 +41,17 @@ export async function saveInvoiceLinesAction(fd: FormData) {
   });
 }
 
+/** What was typed on the quick job form, kept for a few minutes so an error does not lose it. */
+const QUICK_DRAFT = "sf_quick_draft";
+
 export async function quickJobAction(fd: FormData) {
   const ctx = await requireCtx();
   const f = obj(fd);
-  await run("/billing/quick", async () => {
+  const jar = await cookies();
+  const draft = JSON.stringify(Object.fromEntries([...fd.entries()].filter(([k, v]) => typeof v === "string" && v !== "" && !k.startsWith("$") && k !== "idempotency_key")));
+  // On an error the user stays on this customer's filled form, with the message at the top.
+  await run(`/billing/quick?customer=${encodeURIComponent(f.customer_id ?? "")}`, async () => {
+    jar.set(QUICK_DRAFT, draft.length < 3500 ? draft : "{}", { httpOnly: true, sameSite: "lax", path: "/billing/quick", maxAge: 600 });
     const lines: bq.NewLine[] = [];
     for (let i = 0; i < 30; i++) {
       const g = (n: string) => String(fd.get(`l${i}_${n}`) ?? "");
@@ -55,6 +62,7 @@ export async function quickJobAction(fd: FormData) {
       customer_id: f.customer_id, vehicle_id: f.vehicle_id, odometer_in: f.odometer_in, notes: f.notes, lines,
       pay_method: f.method, pay_amount: f.amount, pay_full: f.pay === "full", ...(f.pay === "later" ? { pay_amount: "" } : {}), pay_reference: f.reference, handed_over: f.handed_over === "on", idempotency_key: f.idempotency_key,
     });
+    jar.delete({ name: QUICK_DRAFT, path: "/billing/quick" });
     return `/invoices/${r.invoiceId}?ok=${encodeURIComponent(`Quick job done: invoice ${r.docNo} posted`)}`;
   });
 }
