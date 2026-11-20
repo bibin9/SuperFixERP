@@ -59,12 +59,51 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
         {e.vehicle_id && <Link className="btn ghost sm" href={`/vehicles/${e.vehicle_id}`}>Vehicle page</Link>}
         {e.converted_job_id && <Link className="btn" href={`/jobs/${e.converted_job_id}`}>Open job card {e.job_no}</Link>}
       </PageHead>
-      <div className="steps">{STEPS.map(([label], i) => <span key={label} className={e.status === "lost" ? "" : i < stepAt ? "done" : i === stepAt ? "on" : ""}>{i + 1}. {label}</span>)}{e.status === "lost" && <span className="on">Lost: {e.lost_reason}</span>}</div>
       <Flash sp={sp} />
       <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />
+      {(() => {
+        // One clear next step for where the enquiry is; the rest of the page is folded or below.
+        const pendingLines = lines.filter((l: { removed?: boolean; approval_status?: string }) => !l.removed && l.approval_status === "pending").length;
+        const go = (href: string, text: string) => <Link className="btn green" href={href}>{text}</Link>;
+        let title = "", hint = "", action: React.ReactNode = null;
+        if (e.status === "lost") { title = "This enquiry is closed"; hint = `Lost: ${e.lost_reason ?? ""}`; }
+        else if (e.status === "converted") { title = "Job card created"; hint = "The work continues on the job card."; action = go(`/jobs/${e.converted_job_id}`, `Open job card ${e.job_no}`); }
+        else if (!e.customer_id || !e.vehicle_id) { title = "Pick the customer and the car"; hint = "Needed before any work can be quoted."; action = go("#details", "Fill in customer and car"); }
+        else if (e.status === "approved") { title = "Create the job card"; hint = `The customer approved ${q?.doc_no ?? "the quotation"}. Create the job card to start the work.`; }
+        else if (pendingLines === 0 && (!q || ["superseded", "declined", "expired"].includes(q.status))) { title = "Add the work to quote"; hint = "Add services and parts, or tick the suggestions from the complaints."; action = go("#lines", "Add work"); }
+        else if (pendingLines > 0 && (!q || !["draft", "pending_internal_approval", "ready_to_send", "sent"].includes(q.status) || q.status === "superseded")) { title = "Save the quotation"; hint = `${pendingLines} line${pendingLines > 1 ? "s" : ""} to quote. Check the prices, then save the quotation.`; action = go("#quote", "Save the quotation"); }
+        else if (q?.status === "pending_internal_approval") { title = "Waiting for manager approval"; hint = `${q.doc_no} has a discount or price that needs a manager. It can be sent once approved.`; }
+        else if (q?.status === "ready_to_send" || q?.status === "draft") { title = "Send the quotation"; hint = `${q.doc_no} is ready. Send it on WhatsApp, or record the answer if the customer is here.`; action = go("#quote", "Send the quotation"); }
+        else if (q?.status === "sent") { title = "Wait for the customer's answer"; hint = `Sent ${q.doc_no}. If they answer in person or by phone, record it.`; action = go("#quote", "Record the answer"); }
+        else { title = "Add the work to quote"; action = go("#lines", "Add work"); }
+        return (
+          <div className="card nextstep">
+            <div className="steps" aria-label="Enquiry stages">{STEPS.map(([n], i) => <span key={n} className={e.status === "lost" ? "" : i < stepAt ? "done" : i === stepAt ? "on" : ""}>{i < stepAt && e.status !== "lost" ? "✓ " : ""}{n}</span>)}{e.status === "lost" && <span className="on">Lost</span>}</div>
+            <div className="nextrow">
+              <div><div className="small muted">Next step</div><h2 style={{ margin: "2px 0" }}>{title}</h2>{hint && <div className="small muted">{hint}</div>}</div>
+              <div className="shrink">{action}</div>
+            </div>
+            {e.status === "approved" && can(ctx, "jobs", "create", b) && <div style={{ marginTop: 10 }}><form action={createJobAction}>
+              <input type="hidden" name="enquiry_id" value={id} />
+              <p className="small">The customer approved {q?.doc_no} for {canSeePrices ? <>AED <Money v={q?.approved_total} /></> : "the listed work"}. Create the job card to start the work. Parts for approved lines are committed now.</p>
+              <div className="row">
+                <div className="field"><label>Job type</label><select name="job_type"><option value="service">Service</option><option value="repair">Repair</option><option value="warranty_comeback">Warranty comeback</option><option value="internal">Internal</option><option value="recovery">Recovery</option></select></div>
+                <div className="field"><label>Original job no. (comebacks)</label><input name="original_job_no" placeholder="YAS-1402" /></div>
+              </div>
+              <div className="row">
+                <div className="field"><label>Odometer (km)</label><input name="odometer_in" inputMode="numeric" defaultValue={e.odometer_in ?? ""} required /></div>
+                <div className="field"><label>Promised delivery</label><input type="datetime-local" name="promised_at" /></div>
+                <div className="field"><label>Customer LPO no. (fleet)</label><input name="lpo_no" /></div>
+              </div>
+              <button className="btn green">Create job card</button>
+            </form></div>}
+            {open && canEditEnq && <details className="more"><summary className="small">More: mark the enquiry as lost</summary><form action={lostEnquiryAction} style={{ marginTop: 14 }}><input type="hidden" name="id" value={id} /><input type="hidden" name="$back" value={back} />
+              <div className="row"><div className="field"><label>Why it was lost</label><select name="reason" required>{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select></div><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form></details>}
+          </div>
+        );
+      })()}
 
-      <div className="grid2">
-        <div className="card"><h2>Customer, vehicle and check-in</h2>
+      <details className="card fold" id="details" open={!e.customer_id || !e.vehicle_id}><summary><h2>Customer, car and check-in</h2></summary>
           <p className="small">Asked about: <b>{e.service_asked}</b> · source {label(e.source)} · advisor {e.assigned_name ?? "—"} · follow up {dt(e.follow_up_at) || "—"}</p>
           {canEditEnq ? (
             <form action={updateEnquiryAction}>
@@ -86,37 +125,11 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
           ) : (
             <div className="small">Odometer <b>{e.odometer_in?.toLocaleString() ?? "—"} km</b> · fuel <b>{e.fuel_level ?? "—"}/8</b><p><b>Complaints:</b> {e.complaints || "—"}</p></div>
           )}
-        </div>
+        </details>
 
-        <div className="card"><h2>Next step</h2>
-          {e.status === "approved" && can(ctx, "jobs", "create", b) ? (
-            <form action={createJobAction}>
-              <input type="hidden" name="enquiry_id" value={id} />
-              <p className="small">The customer approved {q?.doc_no} for {canSeePrices ? <>AED <Money v={q?.approved_total} /></> : "the listed work"}. Create the job card to start the work. Parts for approved lines are committed now.</p>
-              <div className="row">
-                <div className="field"><label>Job type</label><select name="job_type"><option value="service">Service</option><option value="repair">Repair</option><option value="warranty_comeback">Warranty comeback</option><option value="internal">Internal</option><option value="recovery">Recovery</option></select></div>
-                <div className="field"><label>Original job no. (comebacks)</label><input name="original_job_no" placeholder="YAS-1402" /></div>
-              </div>
-              <div className="row">
-                <div className="field"><label>Odometer (km)</label><input name="odometer_in" inputMode="numeric" defaultValue={e.odometer_in ?? ""} required /></div>
-                <div className="field"><label>Promised delivery</label><input type="datetime-local" name="promised_at" /></div>
-                <div className="field"><label>Customer LPO no. (fleet)</label><input name="lpo_no" /></div>
-              </div>
-              <button className="btn green">Create job card</button>
-            </form>
-          ) : e.status === "converted" ? <p>Job card <Link href={`/jobs/${e.converted_job_id}`}>{e.job_no}</Link> was created from the approved quotation.</p>
-            : e.status === "quoted" && q?.status === "expired" ? <p className="small"><b>{q?.doc_no} expired</b> without an answer from the customer. Check the work and prices below, then save a new quotation and send it again.</p>
-            : e.status === "quoted" ? <p className="small">Waiting for the customer&apos;s answer on {q?.doc_no}. Record it below if they answer in person or by phone. The job card can be created once they approve.</p>
-            : e.status === "lost" ? <p className="small">This enquiry is closed.</p>
-            : <p className="small">{e.customer_id && e.vehicle_id ? "Add the work below, save the quotation and send it to the customer. The job card is created after the customer approves." : "Pick the customer and the vehicle, then add the work to quote."}</p>}
-          {open && canEditEnq && (
-            <form action={lostEnquiryAction} style={{ marginTop: 14 }}><input type="hidden" name="id" value={id} /><input type="hidden" name="$back" value={back} />
-              <div className="row"><div className="field"><label>Why it was lost</label><select name="reason" required>{lost.map((l) => <option key={l.code} value={l.name_en}>{l.name_en}</option>)}</select></div><ConfirmButton className="btn ghost sm shrink" message="Mark this enquiry as lost? Its open quotation is withdrawn.">Mark lost</ConfirmButton></div></form>
-          )}
-        </div>
-      </div>
-
-      <div className="grid2">
+      {showBooking && (
+        <details className="card fold" open={!!e.booking_status || (e.source === "recovery" && !runs.length)}><summary><h2>Booking, pickup and drop-off{e.booking_status ? <> · <Status s={e.booking_status} /></> : runs.length ? ` · ${runs.length} run${runs.length > 1 ? "s" : ""}` : ""}</h2></summary>
+        <div className="grid2">
         {showBooking && <BookingCard enquiryId={id} branchId={b} back={back} bays={bk.bays} techs={bk.techs} policy={bk.policy} canEdit={canEditEnq}
           action={bookAction} closeAction={closeBookingAction} defaultHours={String(labourHours || "")}
           booking={{ status: e.booking_status, when: e.booked_for_local, bayId: e.booking_bay_id, techId: e.booking_technician_id, hours: e.booking_hours,
@@ -130,7 +143,8 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
           )}
         </div>
       </div>
-
+        </details>
+      )}
       {e.customer_id && e.vehicle_id && (
         <>
           {canQuote && open && suggested.length > 0 && (
@@ -149,18 +163,18 @@ export default async function EnquiryPage({ params, searchParams }: { params: Pr
       )}
 
       <div className="grid2">
-        <div className="card"><h2>Approval history</h2>
+        <details className="card history no-print"><summary><h2>Approval history <span className="small muted">({approvals.length})</span></h2></summary>
           <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{label(a.action)}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small muted">{dt(a.at)}</td><td className="small">{a.comment}</td></tr>)}</tbody></table>
           {!approvals.length && <p className="muted small">None.</p>}
-        </div>
-        <div className="card"><h2>Customer messages</h2>
+        </details>
+        <details className="card fold"><summary><h2>Customer messages <span className="small muted">({msgs.length})</span></h2></summary>
           {e.customer_id && e.vehicle_id && canEditEnq && (
             <form action={whatsappAction}><input type="hidden" name="enquiry_id" value={id} /><input type="hidden" name="$back" value={back} />
               <div className="row"><div className="field"><label>Message</label><select name="event"><option value="enquiry_reply">Reply to enquiry</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>
           )}
           <table><tbody>{msgs.map((x) => <tr key={x.id}><td>{x.event.replace(/_/g, " ")}</td><td><Status s={x.status} /></td><td className="small">{x.full_name}</td><td className="small muted">{dt(x.at)}</td></tr>)}</tbody></table>
           {!msgs.length && <p className="muted small">None yet. Messages are prepared here and sent by you; nothing is sent automatically.</p>}
-        </div>
+        </details>
       </div>
       <RecordHistory rows={await docHistory(ctx, "enquiry", id)} />
     </>

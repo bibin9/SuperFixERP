@@ -24,9 +24,9 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
   const assigned = (lineId: string) => w.assignments.filter((a) => a.job_line_id === lineId);
   return (
     <>
-      <div className="card"><h2>Workshop</h2>
+      <div className="card" id="workshop"><h2>Workshop: assign technicians</h2>
         {!labour.length && <p className="muted small">No approved labour lines yet.</p>}
-        {labour.length > 0 && <table><thead><tr><th>Work</th><th>Technicians</th><th>Clocked / standard</th>{canAssign && <th>Assign</th>}</tr></thead><tbody>
+        {labour.length > 0 && <table><thead><tr><th>Work</th><th>Technicians</th><th>Clocked / standard</th>{canAssign && <th>Assign technicians</th>}</tr></thead><tbody>
           {labour.map((l) => {
             const t = w.byLine[l.id];
             const mins = t?.minutes ?? 0;
@@ -38,7 +38,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
                 <td className="small">{mine.length ? mine.map((a) => <div key={a.technician_id}>{a.full_name}{t?.techs[a.technician_id] ? <span className="muted"> · {minutesText(t.techs[a.technician_id].minutes)} {t.techs[a.technician_id].state && <Status s={t.techs[a.technician_id].state} />}</span> : null}</div>) : (l.technician_name ?? <span className="muted">Not assigned</span>)}</td>
                 <td><span className={`pill ${colour}`}>{minutesText(mins)}</span> <span className="small muted">/ {l.standard_hours ? `${Number(l.standard_hours)} h` : "—"}</span></td>
                 {canAssign && <td>
-                  <details><summary className="small">Change</summary>
+                  <details open={!mine.length && !l.technician_id}><summary className="small">{mine.length || l.technician_id ? "Change technicians" : "Choose technicians"}</summary>
                     <form action={assignAction}>
                       <input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={back} />
                       {m.technicians.map((tech) => <label key={tech.id} className="check"><input type="checkbox" name="technician_id" value={tech.id} defaultChecked={mine.some((a) => a.technician_id === tech.id) || (!mine.length && l.technician_id === tech.id)} /> {tech.full_name}</label>)}

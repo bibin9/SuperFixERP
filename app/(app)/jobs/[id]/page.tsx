@@ -44,6 +44,11 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const late = job.promised_at && new Date(job.promised_at) < new Date() && !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status);
   const manual = nextStatuses(job.status).filter((s) => !["approved", "ready", "delivered", "invoiced", "cancelled", "closed"].includes(s));
   const delayReasons = m.lookups.filter((l) => l.list === "delay_reason");
+  // Approved labour lines nobody is assigned to yet: assigning them is the first step on a new job.
+  const unassigned = ["approved", "awaiting_parts"].includes(job.status) ? await withTx(ctx, async (c) => Number((await c.query(
+    `SELECT count(*) n FROM job_line l WHERE l.job_card_id = $1 AND NOT l.removed AND l.approval_status = 'approved' AND l.line_type IN ('labour','outside')
+        AND l.technician_id IS NULL AND NOT EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id)`, [id])).rows[0].n)) : 0;
+  const canAssignTech = can(ctx, "workshop", "edit", b) || canEdit;
   // Other finished job cards of the same customer at this branch: they can go on one combined invoice.
   const otherJobs = ["ready", "delivered", "invoiced"].includes(job.status) && unbilled > 0 && can(ctx, "invoices", "create", b)
     ? await withTx(ctx, async (c) => Number((await c.query(
@@ -75,9 +80,12 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         const go = (href: string, text: string) => <Link className="btn green" href={href}>{text}</Link>;
         if (job.status === "cancelled") { title = "This job was cancelled"; }
         else if (job.status === "closed") { title = "Job finished"; hint = "Paid and handed over. Nothing left to do."; }
-        else if (job.status === "approved" || job.status === "awaiting_parts") {
+        else if ((job.status === "approved" || job.status === "awaiting_parts") && unassigned > 0 && canAssignTech) {
+          title = "Assign technicians"; hint = `${unassigned} work line${unassigned > 1 ? "s have" : " has"} no technician yet. Tick who does each job under Workshop, then start the work.`;
+          primary = go("#workshop", "Assign technicians");
+        } else if (job.status === "approved" || job.status === "awaiting_parts") {
           title = job.status === "awaiting_parts" ? "Waiting for parts" : "Start the work";
-          hint = job.status === "awaiting_parts" ? "Start once the parts arrive. Part requests are under Workshop below." : "Assign the technicians under Workshop, then start the job.";
+          hint = job.status === "awaiting_parts" ? "Start once the parts arrive. Part requests are under Workshop below." : "Technicians are assigned. Start the job when the car is in the bay.";
           primaryTo = "in_progress";
         } else if (job.status === "in_progress") {
           const toIssue = lines.filter((l) => !l.removed && l.approval_status === "approved" && ["part", "consumable"].includes(l.line_type) && D(l.issued_qty).lt(l.qty));

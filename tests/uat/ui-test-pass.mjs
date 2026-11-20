@@ -9,7 +9,7 @@ const act = async (p, sel) => { await p.click(sel); await p.waitForTimeout(1500)
 const ctxs = {};
 async function as(user, vp = { width: 1366, height: 900 }) {
   if (ctxs[user]) return ctxs[user];
-  const c = await browser.newContext({ viewport: vp }); const p = await c.newPage();
+  const c = await browser.newContext({ viewport: vp }); await c.addInitScript(() => { const o = () => document.querySelectorAll("details.fold:not([data-t])").forEach((d) => { d.open = true; d.setAttribute("data-t", "1"); }); document.addEventListener("DOMContentLoaded", () => { o(); new MutationObserver(o).observe(document.body, { childList: true, subtree: true }); }); }); const p = await c.newPage();
   p.setDefaultTimeout(10000); p.on("dialog", (d) => { dialogs.push(d.message()); d.accept(); });
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]);
@@ -121,7 +121,7 @@ await tc("TC-WS03-01", async (sp) => { sp(priya); await priya.goto(enqUrl); cons
 await tc("TC-PC01-01", async (sp) => { sp(priya); await priya.goto(enqUrl); const t = await priya.locator(".card:has(h2:has-text('Work to quote'))").innerText();
   must(/in stock here|short here/.test(t) && /committed when the job card is created/.test(t), "stock check text missing"); return "Part line shows stock status and 'committed when the job card is created'"; });
 await tc("TC-QT01-01", async (sp) => { sp(priya); await priya.goto(enqUrl); await priya.click("button:has-text('Save quotation')"); await priya.waitForLoadState("networkidle");
-  const t = await priya.locator(".card:has(h2:has-text('Quotation'))").innerText(); must(/YAS-Q-\d\d-\d+-1/.test(t) && /VAT/.test(t) && /valid until/.test(t), "quotation panel: " + t.slice(0, 200));
+  const t = await priya.locator("#quote").innerText(); must(/YAS-Q-\d\d-\d+-1/.test(t) && /VAT/.test(t) && /valid until/.test(t), "quotation panel: " + t.slice(0, 200));
   return t.match(/YAS-Q-\S+/)[0] + " with VAT and validity"; });
 await tc("TC-QT02-04", async (sp) => { sp(priya); await priya.goto(enqUrl); must(!(await priya.locator("button:has-text('Create job card')").count()), "Create job card shown before approval"); return "Create job card not offered before approval (database rule covered by automated test)"; });
 let link;
@@ -139,23 +139,23 @@ await tc("TC-V10-05", async (sp) => { const c = await browser.newContext({ viewp
   must(!/Approve ticked work/.test(bad), "altered token shows quotation"); await p.goto(B + path); await p.waitForSelector("text=Approve ticked work"); return "Valid link opens without sign-in; altered token does not"; });
 await tc("TC-QT02-01", async (sp) => { const c = await browser.newContext({ viewport: { width: 420, height: 900 } }); const p = await c.newPage(); sp(p);
   await p.goto(B + link.replace(/^https?:\/\/[^/]+/, "")); await p.locator("label:has-text('Wheel balancing') input[type=checkbox], li:has-text('Wheel balancing') input[type=checkbox], tr:has-text('Wheel balancing') input[type=checkbox], div:has-text('Wheel balancing') > input[type=checkbox]").first().uncheck(); await p.click("text=Approve ticked work"); await p.waitForSelector("text=Your answer has been sent");
-  await priya.goto(enqUrl); const t = await priya.locator(".card:has(h2:has-text('Quotation'))").innerText();
+  await priya.goto(enqUrl); const t = await priya.locator("#quote").innerText();
   must(/Declined/i.test(t) && /Approved/i.test(t) && /customer link/i.test(t), "decisions: " + t.slice(0, 300)); return "Line-by-line: approved + declined recorded, channel 'customer link'"; });
 await tc("TC-QT03-01", async (sp) => { sp(priya); await priya.goto(enqUrl); const t = await text(priya); must(/deferred/i.test(t), "no deferred work shown"); return "Declined line shown as deferred"; });
 let jobUrl;
 await tc("TC-JC02-01", async (sp) => { sp(priya); await priya.goto(enqUrl);
-  if (await priya.locator("input[name=odometer_in]").first().count()) { await priya.locator("input[name=odometer_in]").first().fill("45000"); }
+  if (await priya.locator("#details input[name=odometer_in]").count()) { await priya.locator("#details input[name=odometer_in]").fill("45000"); }
   await priya.locator("textarea[aria-label=\"Extra notes in the customer's words\"]").first().fill("Squeal when braking");
   await act(priya, ".card:has(h2:has-text('check-in')) button:has-text('Save')");
-  const t = await text(priya); must(/45000|45,000/.test(await priya.locator("input[name=odometer_in]").first().inputValue()) && /Squeal when braking/.test(t) || (await priya.locator("input[name=complaints]").inputValue().catch(() => "")).includes("Squeal"), "complaints not saved"); return "Odometer and complaints saved on the enquiry"; });
+  const t = await text(priya); must(/45000|45,000/.test(await priya.locator("#details input[name=odometer_in]").inputValue()) && /Squeal when braking/.test(t) || (await priya.locator("input[name=complaints]").inputValue().catch(() => "")).includes("Squeal"), "complaints not saved"); return "Odometer and complaints saved on the enquiry"; });
 await tc("TC-JC08-01", async (sp) => { sp(priya); await priya.goto(enqUrl); await priya.selectOption("select[name=job_type]", { label: "Warranty comeback" });
-  await priya.locator("input[name=odometer_in]").last().fill("45000").catch(() => {}); await priya.click("button:has-text('Create job card')"); await priya.waitForLoadState("networkidle");
+  await priya.locator("form:has(button:has-text('Create job card')) input[name=odometer_in]").fill("45000").catch(() => {}); await priya.click("button:has-text('Create job card')"); await priya.waitForLoadState("networkidle");
   const f = await flash(priya); must(/original/i.test(f), "warranty without original job accepted: " + f); return `Refused: "${f}"`; });
 await tc("TC-JC02-02", async (sp) => { sp(priya); await priya.goto(enqUrl); await priya.selectOption("select[name=job_type]", { label: "Service" });
-  await priya.locator("input[name=odometer_in]").last().fill("5"); await priya.click("button:has-text('Create job card')"); await priya.waitForLoadState("networkidle");
+  await priya.locator("form:has(button:has-text('Create job card')) input[name=odometer_in]").fill("5"); await priya.click("button:has-text('Create job card')"); await priya.waitForLoadState("networkidle");
   const f = await flash(priya); if (!/odometer/i.test(f)) { jobUrl = priya.url().includes("/jobs/") ? priya.url().split("?")[0] : jobUrl; throw new Error("odometer 5 accepted (previous reading 45000): " + f); } return `Refused: "${f}"`; });
 await tc("TC-JC04-01", async (sp) => { sp(priya); if (!jobUrl) { await priya.goto(enqUrl); await priya.selectOption("select[name=job_type]", { label: "Service" });
-  await priya.locator("input[name=odometer_in]").last().fill("45100"); await priya.click("button:has-text('Create job card')"); await priya.waitForSelector("text=created from the approved quotation"); jobUrl = priya.url().split("?")[0]; } else await priya.goto(jobUrl);
+  await priya.locator("form:has(button:has-text('Create job card')) input[name=odometer_in]").fill("45100"); await priya.click("button:has-text('Create job card')"); await priya.waitForSelector("text=created from the approved quotation"); jobUrl = priya.url().split("?")[0]; } else await priya.goto(jobUrl);
   const t = await text(priya); const no = t.match(/Job card (YAS-\d+)/)?.[1]; must(no, "no job number"); return "Job card " + no + " in the single YAS series"; });
 await tc("TC-JC06-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.click("summary:has-text('Approval and status history')"); const t = await priya.locator("details.history:has(h2:has-text('status history'))").innerText();
   must(/Approved/i.test(t), "job did not start at Approved: " + t); const e = await (await priya.goto(enqUrl), text(priya)); must(/Converted/i.test(e), "enquiry not Converted"); return "Job starts at Approved; enquiry shows Converted"; });
@@ -163,13 +163,13 @@ await tc("TC-JC06-02", async (sp) => { sp(priya); await priya.goto(jobUrl); cons
   must(!btns.some((b) => /Delivered|Ready/i.test(b)), "jump offered: " + btns); return "Next statuses offered: " + btns.join(", "); });
 await tc("TC-PC03-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const t = await priya.locator(".card:has(h2:has-text('Job lines'))").innerText(); must(/committed/.test(t), "no committed qty shown"); return t.match(/committed[^\n]*/)[0]; });
 await tc("TC-WS02-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const card = priya.locator(".card:has(h2:has-text('Workshop'))");
-  await card.locator("summary:has-text('Change')").first().click(); await card.locator("label.check:has-text('Ramesh') input").first().check();
+  await card.locator("details").first().evaluate((d) => { d.open = true; }); await card.locator("label.check:has-text('Ramesh') input").first().check();
   await act(priya, ".card:has(h2:has-text('Workshop')) button:has-text('Save') >> nth=0"); const t = await priya.locator(".card:has(h2:has-text('Workshop'))").innerText();
   must(/Ramesh/.test(t), "technician not kept"); return "Technician assigned to the labour line from the Workshop panel"; });
 await tc("TC-JC09-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.click("summary:has-text('Message the customer')"); await priya.selectOption("select[name=event]", "approved"); await priya.click("button:has-text('Prepare WhatsApp')"); await priya.waitForSelector("text=Send it yourself");
   must(await priya.locator("a:has-text('Open WhatsApp')").count() && await priya.locator("button:has-text('Mark as sent')").count(), "manual controls missing"); return "Prepared, with Open WhatsApp, Copy and Mark as sent; not sent automatically"; });
 await tc("TC-JC07-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.selectOption("form:has(input[value=labour]) select[name=service_id]", { index: 1 }); await act(priya, "button:has-text('Add labour')");
-  await act(priya, "button:has-text('Save new revision')"); const t = await priya.locator(".card:has(h2:has-text('Quotation'))").innerText();
+  await act(priya, "button:has-text('Save new revision')"); const t = await priya.locator("#quote").innerText();
   must(/-2\b/.test(t), "no revision 2: " + t.slice(0, 200)); return "Revision " + t.match(/YAS-Q-\S+-2/)?.[0] + " created for the extra work, pending the customer"; });
 await tc("TC-QT04-01", async (sp) => { sp(priya); await priya.goto(jobUrl);
   const align = await priya.locator("form:has(input[value=labour]) select[name=service_id] option", { hasText: "Wheel alignment" }).getAttribute("value");
@@ -184,7 +184,7 @@ await tc("TC-QT04-02", async (sp) => { sp(yousef); await yousef.goto(B + "/appro
 await tc("TC-WF09-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.click("summary:has-text('Approval and status history')"); const t = await priya.locator("details.history:has(h2:has-text('status history'))").innerText(); must(/approve/i.test(t) && /Yousef/i.test(t), "history: " + t); return "History: " + t.replace(/\s+/g, " ").slice(0, 120); });
 await tc("TC-QT02-02", async (sp) => { sp(priya); await priya.goto(jobUrl); await act(priya, "button:has-text('Prepare approval message')"); await act(priya, "button:has-text('Mark as sent')");
   await priya.goto(jobUrl); await priya.selectOption("select[name=channel]", "whatsapp_reply"); await priya.fill("form:has(button:has-text('Record answer')) input[name=note]", "YES - customer reply 23:40"); await priya.click("button:has-text('Record answer')"); await priya.waitForSelector("text=Customer decision recorded");
-  const t = await priya.locator(".card:has(h2:has-text('Quotation'))").innerText(); must(/WhatsApp reply/.test(t), "channel not shown"); return "Recorded as Approved · WhatsApp reply"; });
+  const t = await priya.locator("#quote").innerText(); must(/WhatsApp reply/.test(t), "channel not shown"); return "Recorded as Approved · WhatsApp reply"; });
 
 // ---------- Prices / roles ----------
 const ramesh = await as("ramesh");

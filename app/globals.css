@@ -640,3 +640,5 @@ details.card[open]>summary{margin-bottom:10px}
 .quicklines select{margin:2px 0;width:100%}.quicklines .numin{width:90px;text-align:right;padding:4px 6px;min-height:32px}
 .quicklines td:first-child select{min-width:120px}
 .quicklines input[readonly]{background:#f3f4f6}
+.fold .card{box-shadow:none;border:1px solid #e5e7eb;margin-bottom:0}
+.main [id]{scroll-margin-top:84px}

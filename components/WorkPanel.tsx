@@ -89,7 +89,7 @@ export function QuotationPanel(p: {
 }) {
   const q = p.quotations[0];
   return (
-    <div className="card">
+    <div className="card" id="quote">
       <h2>Quotation</h2>
       {q ? (
         <>
