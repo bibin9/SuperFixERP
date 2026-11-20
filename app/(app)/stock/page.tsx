@@ -1,4 +1,6 @@
 import { requireCtx } from "@/lib/session";
+import { QuickAdd } from "@/components/QuickAdd";
+import { quickSpec } from "@/lib/services/quick-add";
 import { stockList } from "@/lib/services/stock";
 import { masters } from "@/lib/services/masters";
 import { can, canSee } from "@/lib/access";
@@ -13,6 +15,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
   const sp = await searchParams;
   const rows = await stockList(ctx, sp.q ?? "");
   const m = await masters(ctx);
+  const qi = await quickSpec(ctx, "items");
   const cost = canSee(ctx, "purchase_cost");
   return (
     <>
@@ -22,7 +25,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
       {can(ctx, "stock", "create") && (
         <details className="card"><summary><b>Opening stock or a receipt without a purchase order</b></summary>
           <form action={receiveStockAction} className="row">
-            <div className="field"><label>Item</label><select name="item_id">{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select></div>
+            <div className="field"><label>Item</label><div className="picker"><select name="item_id">{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>{qi && <QuickAdd spec={qi} target="item_id" label="+ New part" />}</div></div>
             <div className="field"><label>Quantity</label><input name="qty" required /></div>
             <div className="field"><label>Unit cost (AED)</label><input name="unit_cost" required /></div>
             <div className="field"><label>Type</label><select name="kind"><option value="receipt">Receipt (before supplier bill)</option><option value="opening">Opening stock</option></select></div>

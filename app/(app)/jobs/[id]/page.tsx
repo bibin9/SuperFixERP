@@ -22,6 +22,8 @@ import { WorkshopPanel } from "@/components/WorkshopPanel";
 import { Flash, Link, Money, PageHead, Status, custName, plate, dt } from "@/components/ui";
 import { D } from "@/lib/money";
 import { withTx } from "@/lib/db";
+import { Popup } from "@/components/Popup";
+import { quickSpec } from "@/lib/services/quick-add";
 
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
@@ -45,9 +47,11 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const manual = nextStatuses(job.status).filter((s) => !["approved", "ready", "delivered", "invoiced", "cancelled", "closed"].includes(s));
   const delayReasons = m.lookups.filter((l) => l.list === "delay_reason");
   // Approved labour lines nobody is assigned to yet: assigning them is the first step on a new job.
-  const unassigned = ["approved", "awaiting_parts"].includes(job.status) ? await withTx(ctx, async (c) => Number((await c.query(
-    `SELECT count(*) n FROM job_line l WHERE l.job_card_id = $1 AND NOT l.removed AND l.approval_status = 'approved' AND l.line_type IN ('labour','outside')
-        AND l.technician_id IS NULL AND NOT EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id)`, [id])).rows[0].n)) : 0;
+  const unassignedIds: string[] = ["approved", "awaiting_parts"].includes(job.status) ? await withTx(ctx, async (c) => (await c.query(
+    `SELECT l.id FROM job_line l WHERE l.job_card_id = $1 AND NOT l.removed AND l.approval_status = 'approved' AND l.line_type IN ('labour','outside')
+        AND l.technician_id IS NULL AND NOT EXISTS (SELECT 1 FROM job_assignment a WHERE a.job_line_id = l.id) ORDER BY l.line_no`, [id])).rows.map((r) => r.id)) : [];
+  const unassigned = unassignedIds.length;
+  const quick = { items: await quickSpec(ctx, "items"), services: await quickSpec(ctx, "services") };
   const canAssignTech = can(ctx, "workshop", "edit", b) || canEdit;
   // Other finished job cards of the same customer at this branch: they can go on one combined invoice.
   const otherJobs = ["ready", "delivered", "invoiced"].includes(job.status) && unbilled > 0 && can(ctx, "invoices", "create", b)
@@ -81,8 +85,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         if (job.status === "cancelled") { title = "This job was cancelled"; }
         else if (job.status === "closed") { title = "Job finished"; hint = "Paid and handed over. Nothing left to do."; }
         else if ((job.status === "approved" || job.status === "awaiting_parts") && unassigned > 0 && canAssignTech) {
-          title = "Assign technicians"; hint = `${unassigned} work line${unassigned > 1 ? "s have" : " has"} no technician yet. Tick who does each job under Workshop, then start the work.`;
-          primary = go("#workshop", "Assign technicians");
+          title = "Assign technicians"; hint = `${unassigned} work line${unassigned > 1 ? "s have" : " has"} no technician yet. Choose who does each job, then start the work.`;
+          primary = <a className="btn green" href={`#assign-${unassignedIds[0]}`}>Assign technicians</a>;
         } else if (job.status === "approved" || job.status === "awaiting_parts") {
           title = job.status === "awaiting_parts" ? "Waiting for parts" : "Start the work";
           hint = job.status === "awaiting_parts" ? "Start once the parts arrive. Part requests are under Workshop below." : "Technicians are assigned. Start the job when the car is in the bay.";
@@ -94,7 +98,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         }
         else if (job.status === "quality_check") {
           title = "Record the quality check"; hint = "A pass makes the car Ready.";
-          if (can(ctx, "workshop", "edit", b)) primary = go("#qc", "Open the quality check"); else hint = "Waiting for the supervisor's quality check.";
+          if (can(ctx, "workshop", "edit", b)) primary = <a className="btn green" href="#qc-form">Record the quality check</a>; else hint = "Waiting for the supervisor's quality check.";
         } else if (unbilled > 0) {
           title = job.status === "invoiced" ? "Invoice the rest" : "Prepare the invoice"; hint = "Check the lines, change them if needed, then post.";
           if (canInvoice) primary = <>{go(`/jobs/${id}/invoice`, title)}{otherJobs > 0 && <> <Link className="btn ghost" href={`/invoices/combined?customer=${job.customer_id}`}>One invoice with {otherJobs} other car{otherJobs > 1 ? "s" : ""}</Link></>}</>;
@@ -129,10 +133,14 @@ export default async function JobPage({ params, searchParams }: { params: Promis
                   {late && !job.delay_reason && <div className="field"><label>Delay reason</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select></div>}
                   {others.map((s) => <button key={s} name="to" value={s} className="btn ghost sm shrink">Move to {STATUS_LABEL[s]}</button>)}
                 </form>}
-                {canCancel && <form action={statusAction} style={{ marginTop: 10 }}>
-                  <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
-                  <div className="row"><div className="field"><label>Reason for cancelling</label><input name="reason" required /></div><ConfirmButton className="btn red sm shrink" message="Cancel this job card? Committed parts are released.">Cancel job</ConfirmButton></div>
-                </form>}
+                {canCancel && <div style={{ marginTop: 10 }}><Popup id="cancel-job" title="Cancel this job card" label="Cancel job" className="btn ghost sm red-text">
+                  <form action={statusAction}>
+                    <input type="hidden" name="job_id" value={id} /><input type="hidden" name="to" value="cancelled" />
+                    <p className="small muted">Committed parts are released back to stock. This cannot be undone.</p>
+                    <div className="field"><label>Reason for cancelling</label><input name="reason" required /></div>
+                    <ConfirmButton className="btn red" message="Cancel this job card? Committed parts are released.">Cancel the job</ConfirmButton>
+                  </form>
+                </Popup></div>}
               </details>
             )}
           </div>
@@ -147,16 +155,15 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           <p className="small"><b>Complaints:</b> {job.complaints || "—"}</p>
           {job.delay_reason && <p className="small"><b>Delay reason:</b> {job.delay_reason} {job.delay_note}</p>}
           {canEdit && !["ready", "delivered", "invoiced", "closed", "cancelled"].includes(job.status) && (
-            <details id="newtime" className="newtime" open={late}>
-              <summary className={late ? "red-text" : ""}>{late ? "Running late: send the customer a new time" : "Change the promised time"}</summary>
+            <div className="popbtns"><Popup id="newtime" title={late ? "Running late: send the customer a new time" : "Change the promised time"} label={late ? "Running late: send a new time" : "Change the promised time"} className={late ? "btn amber sm" : "btn ghost sm"}>
               <form action={newTimeAction}>
                 <input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
                 <div className="field"><label>New promised time</label><input type="datetime-local" name="promised_at" required /></div>
                 <div className="field"><label>Delay reason</label><select name="delay_reason" required defaultValue=""><option value="" disabled>Choose a reason</option>{delayReasons.map((r) => <option key={r.code}>{r.name_en}</option>)}</select></div>
                 <div className="field"><label>Note (not sent)</label><input name="delay_note" /></div>
-                <button className="btn wa sm">Send new time</button>
+                <button className="btn wa">Send new time</button>
               </form>
-            </details>
+            </Popup></div>
           )}
         </div>
         <div className="card"><h2>Customer and invoices</h2>
@@ -213,9 +220,9 @@ export default async function JobPage({ params, searchParams }: { params: Promis
         </div>
       </div>
 
-      <WorkLines owner={{ kind: "job", id }} back={back} lines={lines} m={m} canEdit={canEdit} canSeePrices={canSeePrices} canIssue={canIssue}
+      <WorkLines quick={quick} owner={{ kind: "job", id }} back={back} lines={lines} m={m} canEdit={canEdit} canSeePrices={canSeePrices} canIssue={canIssue}
         discountEdit={discountEdit} priceEdit={fieldLevel(ctx, "selling_price", b) === "edit"} open={open} />
-      <div id="parts"><WorkshopPanel ctx={ctx} job={job} lines={lines} m={m} back={back} /></div>
+      <div id="parts"><WorkshopPanel ctx={ctx} job={job} lines={lines} m={m} back={back} quick={quick} /></div>
       <QuotationPanel enquiryId={job.enquiry_id} back={back} origin={origin} quotations={quotations} quotationLines={quotationLines} lines={lines}
         canEdit={canEdit && open} canSeePrices={canSeePrices} discountEdit={discountEdit} open={open} isJob />
 
@@ -241,9 +248,9 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           <div className="card" id="runs"><h2>Pickup, drop-off and recovery</h2>
             <RunsTable rows={runs} back={jb} canEdit={runEdit} prices={canSeePrices} showRef={false} />
             {runEdit && !closed && (
-              <details style={{ marginTop: 10 }}><summary className="btn sm ghost">Schedule a run</summary>
+              <div className="popbtns"><Popup id="schedule-run" wide title="Schedule a pickup, drop-off or recovery" label="Schedule a run" className="btn sm ghost">
                 <RunForm back={jb} drivers={drivers} jobId={id} canCharge={canSeePrices} defaults={{ type: "drop_off", from: job.branch_name ?? "" }}
-                  chargeTarget={["approved", "awaiting_parts", "in_progress", "quality_check"].includes(job.status) ? "job" : null} /></details>
+                  chargeTarget={["approved", "awaiting_parts", "in_progress", "quality_check"].includes(job.status) ? "job" : null} /></Popup></div>
             )}
           </div>
         );

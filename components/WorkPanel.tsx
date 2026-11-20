@@ -1,6 +1,9 @@
 import { addLineAction, addBundleAction, removeLineAction, saveQuotationAction, sendQuotationAction, staffDecisionAction, issueAction } from "@/app/actions";
 import { Money, Status } from "./ui";
 import { D } from "@/lib/money";
+import { Popup } from "./Popup";
+import { QuickAdd } from "./QuickAdd";
+import type { QuickSpec } from "@/lib/services/quick-add";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
@@ -12,7 +15,7 @@ type Masters = { services: Row[]; items: Row[]; technicians: Row[]; bundles?: Ro
  */
 export function WorkLines(p: {
   owner: { kind: "enquiry" | "job"; id: string }; back: string; lines: Row[]; m: Masters; canEdit: boolean; canSeePrices: boolean;
-  canIssue?: boolean; discountEdit: boolean; priceEdit: boolean; open: boolean;
+  canIssue?: boolean; discountEdit: boolean; priceEdit: boolean; open: boolean; quick?: { items?: QuickSpec | null; services?: QuickSpec | null };
 }) {
   const isJob = p.owner.kind === "job";
   const hidden = (<><input type="hidden" name="owner_kind" value={p.owner.kind} /><input type="hidden" name="owner_id" value={p.owner.id} /><input type="hidden" name="$back" value={p.back} /></>);
@@ -60,23 +63,28 @@ export function WorkLines(p: {
         </div>
       )}
       {p.canEdit && p.open && (
-        <div className="grid3" style={{ marginTop: 14 }}>
-          <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="labour" />
-            <h3>Add labour{isJob ? " (extra work)" : ""}</h3>
-            <div className="field"><label>Service or labour</label><select name="service_id" required>{p.m.services.map((s) => <option key={s.id} value={s.id}>{s.name_en} · {D(s.standard_hours).toString()} h{s.is_quick ? " · quick" : ""}</option>)}</select></div>
-            {p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}
-            <button className="btn sm">Add labour</button></form>
-          <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="part" />
-            <h3>Add part</h3>
-            <div className="field"><label>Part</label><select name="item_id" required>{p.m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select></div>
-            <div className="row"><div className="field"><label>Qty</label><input name="qty" defaultValue="1" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
-            {p.priceEdit && <div className="field"><label>Override unit price (manager, optional)</label><input name="unit_price" inputMode="decimal" /></div>}
-            <button className="btn sm" style={{ marginTop: 6 }}>Add part</button></form>
-          <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="outside" />
-            <h3>Add outside work</h3>
-            <div className="field"><label>Description</label><input name="description" required /></div>
-            <div className="row"><div className="field"><label>Price AED</label><input name="unit_price" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
-            <button className="btn sm" style={{ marginTop: 6 }}>Add outside work</button></form>
+        <div className="popbtns">
+          <Popup id="add-labour" title={isJob ? "Add labour (extra work)" : "Add labour"} label="+ Add labour" className="btn sm">
+            <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="labour" />
+              <div className="field"><label>Service or labour</label><div className="picker"><select name="service_id" required>{p.m.services.map((s) => <option key={s.id} value={s.id}>{s.name_en} · {D(s.standard_hours).toString()} h{s.is_quick ? " · quick" : ""}</option>)}</select>
+                {p.quick?.services && <QuickAdd spec={p.quick.services} target="service_id" label="+ New service" />}</div></div>
+              {p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}
+              <button className="btn green">Add labour</button></form>
+          </Popup>
+          <Popup id="add-part" title={isJob ? "Add a part (extra work)" : "Add a part"} label="+ Add part" className="btn sm">
+            <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="part" />
+              <div className="field"><label>Part</label><div className="picker"><select name="item_id" required>{p.m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select>
+                {p.quick?.items && <QuickAdd spec={p.quick.items} target="item_id" label="+ New part" />}</div></div>
+              <div className="row"><div className="field"><label>Qty</label><input name="qty" defaultValue="1" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
+              {p.priceEdit && <div className="field"><label>Override unit price (manager, optional)</label><input name="unit_price" inputMode="decimal" /></div>}
+              <button className="btn green" style={{ marginTop: 6 }}>Add part</button></form>
+          </Popup>
+          <Popup id="add-outside" title={isJob ? "Add outside work (extra work)" : "Add outside work"} label="+ Add outside work" className="btn sm">
+            <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="outside" />
+              <div className="field"><label>Description</label><input name="description" required /></div>
+              <div className="row"><div className="field"><label>Price AED</label><input name="unit_price" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
+              <button className="btn green" style={{ marginTop: 6 }}>Add outside work</button></form>
+          </Popup>
         </div>
       )}
     </div>
@@ -118,9 +126,10 @@ export function QuotationPanel(p: {
               <div className="small muted">You send the message yourself from WhatsApp; nothing is sent automatically.</div>
             </form>
           )}
-          {p.canEdit && q.status === "sent" && (
-            <form action={staffDecisionAction} style={{ marginTop: 12 }}>
-              <h3>Record the customer&apos;s answer given in person, by phone, by email or as a WhatsApp reply</h3>
+          {p.canEdit && q.status === "sent" && (<div className="popbtns">
+            <Popup id="record-answer" wide title="Record the customer's answer" label="Record the customer's answer" className="btn green sm">
+            <form action={staffDecisionAction}>
+              <p className="small muted">Use this when the customer answered in person, by phone, by email or as a WhatsApp reply.</p>
               <input type="hidden" name="quotation_id" value={q.id} /><input type="hidden" name="$back" value={p.back} />
               <table><tbody>{p.quotationLines.filter((l) => l.decision === "pending").map((l) => (
                 <tr key={l.id}><td>{l.description}</td><td style={{ whiteSpace: "nowrap" }}>
@@ -131,6 +140,7 @@ export function QuotationPanel(p: {
                 <div className="field"><label>Note (needed for phone or WhatsApp reply)</label><input name="note" /></div><button className="btn green shrink">Record answer</button></div>
               <p className="small muted">If the customer approved through the link, there is nothing to do here: the answer appears on its own. If they replied YES in WhatsApp instead, choose WhatsApp reply and paste what they wrote into the note.</p>
             </form>
+            </Popup></div>
           )}
         </>
       ) : <p className="muted">No quotation yet.</p>}

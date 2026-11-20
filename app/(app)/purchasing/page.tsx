@@ -1,4 +1,6 @@
 import { OlderRows } from "@/components/OlderRows";
+import { QuickAdd } from "@/components/QuickAdd";
+import { quickSpec } from "@/lib/services/quick-add";
 import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listPos } from "@/lib/services/purchasing";
@@ -15,6 +17,7 @@ export default async function Pos({ searchParams }: { searchParams: Promise<Reco
   const ctx = await requireCtx();
   const sp = await searchParams;
   const [rows, m] = await Promise.all([listPos(ctx, sp.status ?? "", offsetOf(sp)), masters(ctx)]);
+  const qs = await quickSpec(ctx, "suppliers");
   const here = ctx.currentBranchId;
   return (
     <>
@@ -24,7 +27,7 @@ export default async function Pos({ searchParams }: { searchParams: Promise<Reco
       {here && can(ctx, "purchasing", "create", here) && (
         <details className="card"><summary><b>New purchase order</b></summary>
           <form action={createPoAction} className="row" style={{ marginTop: 12 }}>
-            <div className="field"><label>Supplier</label><select name="supplier_id" required defaultValue=""><option value="" disabled>Choose a supplier</option>{m.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name_en}</option>)}</select></div>
+            <div className="field"><label>Supplier</label><div className="picker"><select name="supplier_id" required defaultValue=""><option value="" disabled>Choose a supplier</option>{m.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name_en}</option>)}</select>{qs && <QuickAdd spec={qs} target="supplier_id" label="+ New supplier" />}</div></div>
             <div className="field"><label>Delivery date</label><input type="date" name="delivery_date" /></div>
             <div className="field"><label>Terms</label><input name="terms" placeholder="e.g. 30 days" /></div>
             <div className="shrink"><button className="btn">Create and add lines</button></div>

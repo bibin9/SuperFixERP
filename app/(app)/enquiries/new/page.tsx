@@ -1,4 +1,6 @@
 import { requireCtx } from "@/lib/session";
+import { QuickAdd } from "@/components/QuickAdd";
+import { quickSpec } from "@/lib/services/quick-add";
 import { getCustomer, listCustomers } from "@/lib/services/customers";
 import { masters } from "@/lib/services/masters";
 import { complaintList } from "@/lib/services/bundles";
@@ -23,12 +25,13 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
   );
   if (!sp.customer) {
     const customers = await listCustomers(ctx, sp.q ?? "");
+    const qc = await quickSpec(ctx, "customer");
     return (
       <>
         <PageHead title="New enquiry · step 1: customer" sub="Find the customer, add a new one, or note a contact for a quick phone enquiry." />
         <Flash sp={sp} />
         <div className="card">
-          <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name or mobile" /></div><button className="btn ghost shrink">Find</button><Link className="btn shrink" href="/customers/new">New customer</Link></form>
+          <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name or mobile" /></div><button className="btn ghost shrink">Find</button>{qc ? <div className="shrink"><QuickAdd spec={qc} go="/enquiries/new?customer={id}" label="+ New customer" className="btn shrink" /></div> : <Link className="btn shrink" href="/customers/new">New customer</Link>}</form>
           <table><tbody>{customers.map((c) => <tr key={c.id}><td><Link href={`/enquiries/new?customer=${c.id}`}>{custName(c)}</Link></td><td>{c.mobile}</td><td className="muted">{c.vehicles} vehicles</td></tr>)}</tbody></table>
         </div>
         <div className="card"><h2>Contact only (no customer record yet)</h2>
@@ -43,15 +46,17 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
     );
   }
   const { customer, vehicles } = await getCustomer(ctx, sp.customer);
+  const qv = await quickSpec(ctx, "vehicle");
   return (
     <>
       <PageHead title="New enquiry · step 2: vehicle and request" sub={`${custName(customer)} · ${customer.mobile}`} />
       <Flash sp={sp} />
-      {!vehicles.length && <div className="flash warn">This customer has no vehicle yet. <Link href={`/customers/${customer.id}`}>Add one</Link> to quote for it.</div>}
+      {!vehicles.length && <div className="flash warn">This customer has no vehicle yet. {qv ? <>Add it with <b>+ New car</b> below to quote for it.</> : <><Link href={`/customers/${customer.id}`}>Add one</Link> to quote for it.</>}</div>}
       <div className="card">
         <form action={createEnquiryAction}>
           <input type="hidden" name="$back" value={`/enquiries/new?customer=${customer.id}`} /><input type="hidden" name="customer_id" value={customer.id} />
-          <div className="field"><label>Vehicle</label><select name="vehicle_id" defaultValue={sp.vehicle}><option value="">Not known yet</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{plate(v)} · {v.make} {v.model}</option>)}</select></div>
+          <div className="field"><label>Vehicle</label><div className="picker"><select name="vehicle_id" defaultValue={sp.vehicle}><option value="">Not known yet</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{plate(v)} · {v.make} {v.model}</option>)}</select>
+            {qv && <QuickAdd spec={qv} target="vehicle_id" owner={customer.id} label="+ New car" />}</div></div>
           {details}
           <h3>Vehicle received (optional now, needed before the job card)</h3>
           <div className="row">

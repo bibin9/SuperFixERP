@@ -8,6 +8,8 @@ import { fieldLevel } from "@/lib/access";
 import { quickJobAction } from "@/app/actions-billing";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Flash, Link, PageHead, custName, plate } from "@/components/ui";
+import { QuickAdd } from "@/components/QuickAdd";
+import { quickSpec } from "@/lib/services/quick-add";
 
 const ROWS = 6;
 
@@ -19,12 +21,13 @@ export default async function QuickJob({ searchParams }: { searchParams: Promise
   const sub = `For small jobs done while the customer waits, up to AED ${limit}. One step makes the job card, the invoice and the receipt.`;
   if (!sp.customer) {
     const customers = await listCustomers(ctx, sp.q ?? "");
+    const qc = await quickSpec(ctx, "customer");
     return (
       <>
         <PageHead title="Quick job · choose the customer" sub={sub} />
         <Flash sp={sp} />
         <div className="card">
-          <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name, mobile or plate" /></div><button className="btn ghost shrink">Find</button><Link className="btn ghost shrink" href="/customers/new">New customer</Link></form>
+          <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name, mobile or plate" /></div><button className="btn ghost shrink">Find</button>{qc && <div className="shrink"><QuickAdd spec={qc} go="/billing/quick?customer={id}" label="+ New customer" className="btn shrink" /></div>}</form>
           <table className="no-pager"><tbody>{customers.slice(0, 30).map((c) => <tr key={c.id}><td><Link href={`/billing/quick?customer=${c.id}`}>{custName(c)}</Link></td><td>{c.mobile}</td><td className="muted">{c.vehicles} vehicles</td></tr>)}</tbody></table>
         </div>
       </>
@@ -38,7 +41,8 @@ export default async function QuickJob({ searchParams }: { searchParams: Promise
   const dv = (k: string, d = "") => dr[k] ?? d;
   const priceEdit = fieldLevel(ctx, "selling_price", ctx.currentBranchId ?? "") === "edit";
   const discEdit = fieldLevel(ctx, "discount", ctx.currentBranchId ?? "") === "edit";
-  const one = vehicles.length === 1 ? vehicles[0] : null;
+  const one = vehicles.find((v) => v.id === sp.v) ?? (vehicles.length === 1 ? vehicles[0] : null);
+  const qv = await quickSpec(ctx, "vehicle");
   const services = [...m.services].sort((a, b) => Number(b.is_quick) - Number(a.is_quick) || a.name_en.localeCompare(b.name_en));
   return (
     <>
@@ -46,12 +50,13 @@ export default async function QuickJob({ searchParams }: { searchParams: Promise
         <Link className="btn ghost sm" href="/billing/quick">Other customer</Link>
       </PageHead>
       <Flash sp={sp} />
-      {!vehicles.length ? <div className="flash warn">This customer has no car yet. <Link href={`/customers/${customer.id}`}>Add one</Link> first.</div> : (
+      {!vehicles.length ? <div className="flash warn">This customer has no car yet. {qv ? <QuickAdd spec={qv} owner={customer.id} go={`/billing/quick?customer=${customer.id}&v={id}`} label="+ Add the car" className="btn sm" /> : <Link href={`/customers/${customer.id}`}>Add one</Link>}</div> : (
         <form action={quickJobAction} className="card quickjob">
           <input type="hidden" name="$back" value={`/billing/quick?customer=${customer.id}`} />
           <input type="hidden" name="customer_id" value={customer.id} /><input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
           <div className="row">
-            <div className="field"><label>Car</label><select name="vehicle_id" required defaultValue={dv("vehicle_id", one?.id ?? "")}><option value="" disabled>Choose the car</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{plate(v)} · {v.make} {v.model}{v.odometer ? ` · last ${Number(v.odometer).toLocaleString()} km` : ""}</option>)}</select></div>
+            <div className="field"><label>Car</label><select name="vehicle_id" required defaultValue={dv("vehicle_id", one?.id ?? "")}><option value="" disabled>Choose the car</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{plate(v)} · {v.make} {v.model}{v.odometer ? ` · last ${Number(v.odometer).toLocaleString()} km` : ""}</option>)}</select>
+              {qv && <div style={{ marginTop: 4 }}><QuickAdd spec={qv} owner={customer.id} go={`/billing/quick?customer=${customer.id}&v={id}`} label="+ New car" /></div>}</div>
             <div className="field"><label>Odometer (km)</label><input name="odometer_in" type="number" min={one?.odometer ?? 0} required defaultValue={dv("odometer_in")} placeholder={one?.odometer ? `${one.odometer} or more` : ""} /></div>
             <div className="field"><label>Note (printed on the invoice)</label><input name="notes" defaultValue={dv("notes")} /></div>
           </div>

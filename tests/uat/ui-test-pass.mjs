@@ -1,6 +1,7 @@
 // UAT browser pass (Playwright). Needs the app on :3000 and a fresh demo database (npm run db:reset). Run: node tests/uat/ui-test-pass.mjs
 import { mkdirSync } from "node:fs"; mkdirSync(process.env.EVIDENCE_DIR || "uat-evidence", { recursive: true });
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
+import { inlinePopups } from "./inline-popups.mjs";
 const { chromium } = require("playwright"); const fs = require("node:fs");
 const B = "http://localhost:3000", PW = "Superfix@2026", EV = process.env.EVIDENCE_DIR || "uat-evidence";
 const browser = await chromium.launch();
@@ -9,7 +10,7 @@ const act = async (p, sel) => { await p.click(sel); await p.waitForTimeout(1500)
 const ctxs = {};
 async function as(user, vp = { width: 1366, height: 900 }) {
   if (ctxs[user]) return ctxs[user];
-  const c = await browser.newContext({ viewport: vp }); await c.addInitScript(() => { const o = () => document.querySelectorAll("details.fold:not([data-t])").forEach((d) => { d.open = true; d.setAttribute("data-t", "1"); }); document.addEventListener("DOMContentLoaded", () => { o(); new MutationObserver(o).observe(document.body, { childList: true, subtree: true }); }); }); const p = await c.newPage();
+  const c = await browser.newContext({ viewport: vp }); await c.addInitScript(inlinePopups); await c.addInitScript(() => { const o = () => document.querySelectorAll("details.fold:not([data-t])").forEach((d) => { d.open = true; d.setAttribute("data-t", "1"); }); document.addEventListener("DOMContentLoaded", () => { o(); new MutationObserver(o).observe(document.body, { childList: true, subtree: true }); }); }); const p = await c.newPage();
   p.setDefaultTimeout(10000); p.on("dialog", (d) => { dialogs.push(d.message()); d.accept(); });
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]);
@@ -163,7 +164,7 @@ await tc("TC-JC06-02", async (sp) => { sp(priya); await priya.goto(jobUrl); cons
   must(!btns.some((b) => /Delivered|Ready/i.test(b)), "jump offered: " + btns); return "Next statuses offered: " + btns.join(", "); });
 await tc("TC-PC03-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const t = await priya.locator(".card:has(h2:has-text('Job lines'))").innerText(); must(/committed/.test(t), "no committed qty shown"); return t.match(/committed[^\n]*/)[0]; });
 await tc("TC-WS02-01", async (sp) => { sp(priya); await priya.goto(jobUrl); const card = priya.locator(".card:has(h2:has-text('Workshop'))");
-  await card.locator("details").first().evaluate((d) => { d.open = true; }); await card.locator("label.check:has-text('Ramesh') input").first().check();
+  await card.locator("label.check:has-text('Ramesh') input").first().check(); // the technician popup is shown in place (inline-popups.mjs)
   await act(priya, ".card:has(h2:has-text('Workshop')) button:has-text('Save') >> nth=0"); const t = await priya.locator(".card:has(h2:has-text('Workshop'))").innerText();
   must(/Ramesh/.test(t), "technician not kept"); return "Technician assigned to the labour line from the Workshop panel"; });
 await tc("TC-JC09-01", async (sp) => { sp(priya); await priya.goto(jobUrl); await priya.click("summary:has-text('Message the customer')"); await priya.selectOption("select[name=event]", "approved"); await priya.click("button:has-text('Prepare WhatsApp')"); await priya.waitForSelector("text=Send it yourself");

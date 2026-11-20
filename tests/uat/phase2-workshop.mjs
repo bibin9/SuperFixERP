@@ -1,11 +1,12 @@
 // Phase 2 workshop flow in the browser: switch prompt, pause, clock out, issue parts, QC fail then pass, clock correction, delivery with signature.
 // Needs the app on :3000 and a fresh demo database (npm run db:reset). Run: node tests/uat/phase2-workshop.mjs
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
+import { inlinePopups } from "./inline-popups.mjs";
 const { chromium } = require("playwright");
 const B = "http://localhost:3000", PW = "Superfix@2026", EV = process.env.EVIDENCE_DIR || "uat-evidence"; (await import("node:fs")).mkdirSync(EV, { recursive: true });
 const browser = await chromium.launch();
 async function as(user, vp = { width: 1366, height: 900 }) {
-  const c = await browser.newContext({ viewport: vp }); const p = await c.newPage(); p.setDefaultTimeout(10000);
+  const c = await browser.newContext({ viewport: vp }); await c.addInitScript(inlinePopups); const p = await c.newPage(); p.setDefaultTimeout(10000);
   p.on("dialog", (d) => d.accept());
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]); return p;

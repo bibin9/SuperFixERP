@@ -7,6 +7,9 @@ import { assignAction, correctClockAction, partRequestAction, qcAction, deliverA
 import { SignaturePad } from "@/components/SignaturePad";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Status, dt, label } from "@/components/ui";
+import { Popup } from "@/components/Popup";
+import { QuickAdd } from "@/components/QuickAdd";
+import type { QuickSpec } from "@/lib/services/quick-add";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const ACTIVE = ["approved", "awaiting_parts", "in_progress", "quality_check"];
@@ -14,7 +17,7 @@ const KIND: Record<string, string> = { clock_in: "Clock in", pause: "Pause", res
 const local = (v: string | Date) => new Date(new Date(v).getTime() + 4 * 3600_000).toISOString().slice(0, 16);
 
 /** Workshop floor on the job card: who works on what, clocked time, part requests, quality check and delivery. */
-export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; job: Row; lines: Row[]; m: { technicians: Row[]; bays: Row[]; items: Row[] }; back: string }) {
+export async function WorkshopPanel({ ctx, job, lines, m, back, quick }: { ctx: Ctx; job: Row; lines: Row[]; m: { technicians: Row[]; bays: Row[]; items: Row[] }; back: string; quick?: { items?: QuickSpec | null } }) {
   const w = await jobWorkshop(ctx, job.id);
   const rel = !w.delivery && can(ctx, "jobs", "view", job.branch_id) && (job.status === "ready" || (job.status === "invoiced" && !job.delivered_at)) ? await jobRelease(ctx, job.id) : null;
   const b = job.branch_id;
@@ -38,13 +41,16 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
                 <td className="small">{mine.length ? mine.map((a) => <div key={a.technician_id}>{a.full_name}{t?.techs[a.technician_id] ? <span className="muted"> · {minutesText(t.techs[a.technician_id].minutes)} {t.techs[a.technician_id].state && <Status s={t.techs[a.technician_id].state} />}</span> : null}</div>) : (l.technician_name ?? <span className="muted">Not assigned</span>)}</td>
                 <td><span className={`pill ${colour}`}>{minutesText(mins)}</span> <span className="small muted">/ {l.standard_hours ? `${Number(l.standard_hours)} h` : "—"}</span></td>
                 {canAssign && <td>
-                  <details open={!mine.length && !l.technician_id}><summary className="small">{mine.length || l.technician_id ? "Change technicians" : "Choose technicians"}</summary>
+                  <Popup id={`assign-${l.id}`} title={`Assign technicians: ${l.description}`} label={mine.length || l.technician_id ? "Change technicians" : "Choose technicians"}
+                    className={mine.length || l.technician_id ? "btn ghost sm" : "btn sm"}>
                     <form action={assignAction}>
                       <input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={back} />
+                      <p className="small muted">Tick everyone who works on this job. Their clocked time is kept per technician.</p>
                       {m.technicians.map((tech) => <label key={tech.id} className="check"><input type="checkbox" name="technician_id" value={tech.id} defaultChecked={mine.some((a) => a.technician_id === tech.id) || (!mine.length && l.technician_id === tech.id)} /> {tech.full_name}</label>)}
-                      <div className="row"><select name="bay_id" defaultValue={job.bay_id ?? ""} aria-label="Bay"><option value="">Bay</option>{m.bays.map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}</select><button className="btn sm shrink">Save</button></div>
+                      {!m.technicians.length && <p className="small muted">No technicians at this branch.</p>}
+                      <div className="row" style={{ marginTop: 8 }}><div className="field"><label>Bay</label><select name="bay_id" defaultValue={job.bay_id ?? ""}><option value="">No bay</option>{m.bays.map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}</select></div><button className="btn green shrink">Save technicians</button></div>
                     </form>
-                  </details>
+                  </Popup>
                 </td>}
               </tr>
             );
@@ -65,24 +71,31 @@ export async function WorkshopPanel({ ctx, job, lines, m, back }: { ctx: Ctx; jo
         <div className="card"><h2>Part requests</h2>
           {w.requests.map((r) => <div key={r.id} className="small">{r.part_no ?? r.description} × {Number(r.qty)} · {r.requested_name} · <Status s={r.status} /> <span className="muted">{dt(r.requested_at)}</span>{r.note && <> · {r.note}</>}</div>)}
           {!w.requests.length && <p className="muted small">None.</p>}
-          {active && <form action={partRequestAction} style={{ marginTop: 8 }}>
-            <input type="hidden" name="job_id" value={job.id} /><input type="hidden" name="$back" value={back} />
-            <div className="row"><select name="item_id" defaultValue="" aria-label="Part"><option value="">Part not in the list</option>{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>
-              <input name="qty" defaultValue="1" inputMode="decimal" style={{ maxWidth: 70 }} aria-label="Quantity" /></div>
-            <div className="row" style={{ marginTop: 6 }}><input name="description" placeholder="Describe it if not in the list" /><input name="note" placeholder="Note" /><button className="btn sm shrink">Need part</button></div>
-          </form>}
+          {active && <div className="popbtns"><Popup id="part-request" title="Ask the store for a part" label="Request a part">
+            <form action={partRequestAction}>
+              <input type="hidden" name="job_id" value={job.id} /><input type="hidden" name="$back" value={back} />
+              <div className="field"><label>Part</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Part not in the list (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>
+                {quick?.items && <QuickAdd spec={quick.items} target="item_id" label="+ New part" />}</div></div>
+              <div className="row"><div className="field"><label>Quantity</label><input name="qty" defaultValue="1" inputMode="decimal" /></div>
+                <div className="field"><label>Description (if not in the list)</label><input name="description" /></div></div>
+              <div className="field"><label>Note</label><input name="note" /></div>
+              <button className="btn green">Send the request</button>
+            </form>
+          </Popup></div>}
         </div>
         <div className="card" id="qc"><h2>Quality check</h2>
           {w.qc.map((q) => <div key={q.id} className="small"><Status s={q.result === "pass" ? "passed" : "failed"} /> {q.full_name} <span className="muted">{dt(q.checked_at)}</span>
             {(q.items as Row[]).filter((i) => i.result === "failed").map((i) => <div key={i.code} className="muted">✗ {i.label}: {i.note}</div>)}{q.note && <div className="muted">{q.note}</div>}</div>)}
           {job.status === "quality_check" && w.canSupervise ? (
-            <form action={qcAction} style={{ marginTop: 8 }}>
+            <div className="popbtns"><Popup id="qc-form" wide title="Quality check" label="Record the quality check" className="btn green">
+            <form action={qcAction}>
               <input type="hidden" name="job_id" value={job.id} />
               <table><tbody>{w.qcList.map((i) => <tr key={i.code}><td>{i.name_en}</td><td>
                 <select name={`qc[${i.code}]`} defaultValue="" required aria-label={i.name_en}><option value="" disabled>Choose</option><option value="done">Done</option><option value="na">N/A</option><option value="failed">Failed</option></select></td>
                 <td><input name={`qcnote[${i.code}]`} placeholder="What failed" /></td></tr>)}</tbody></table>
               <div className="row"><input name="note" placeholder="Note" /><button className="btn green sm shrink">Record check</button></div>
             </form>
+            </Popup></div>
           ) : job.status === "quality_check" ? <p className="small muted">Waiting for the supervisor's check.</p>
             : !w.qc.length && <p className="small muted">The quality check opens when the job is moved to Quality check. A pass makes the car Ready.</p>}
         </div>

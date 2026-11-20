@@ -3,11 +3,12 @@
 // Run: node tests/uat/bookings-runs.mjs
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
 import fs from "node:fs";
+import { inlinePopups } from "./inline-popups.mjs";
 const { chromium } = require("playwright");
 const B = "http://localhost:3000", PW = "Superfix@2026", EV = process.env.EVIDENCE_DIR || "uat-evidence"; fs.mkdirSync(EV, { recursive: true });
 const browser = await chromium.launch();
 async function as(user) {
-  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); await c.addInitScript(() => { const o = () => document.querySelectorAll("details.fold:not([data-t])").forEach((d) => { d.open = true; d.setAttribute("data-t", "1"); }); document.addEventListener("DOMContentLoaded", () => { o(); new MutationObserver(o).observe(document.body, { childList: true, subtree: true }); }); }); const p = await c.newPage(); p.setDefaultTimeout(10000);
+  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); await c.addInitScript(inlinePopups); await c.addInitScript(() => { const o = () => document.querySelectorAll("details.fold:not([data-t])").forEach((d) => { d.open = true; d.setAttribute("data-t", "1"); }); document.addEventListener("DOMContentLoaded", () => { o(); new MutationObserver(o).observe(document.body, { childList: true, subtree: true }); }); }); const p = await c.newPage(); p.setDefaultTimeout(10000);
   p.on("dialog", (d) => d.accept());
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]); return p;
@@ -104,7 +105,7 @@ await step("TC-BK05-01", "a technician cannot open the booking calendar", async 
 
 // ---------- runs ----------
 await step("TC-RN01-01", "schedule a pickup on the enquiry; its charge goes on the work lines for the quotation", async () => {
-  await priya.goto(enqUrl); await settle(priya); await priya.click("#runs summary"); const f = priya.locator("[data-testid=run-form]");
+  await priya.goto(enqUrl); await settle(priya); await priya.click("#runs button[data-popup=schedule-run]"); const f = priya.locator("[data-testid=run-form]");
   await f.locator("#run-type").selectOption("pickup"); await f.locator("#run-when").fill(`${D1}T08:00`);
   await f.locator("#run-from").fill("Al Raha Gardens, villa 12"); await f.locator("#run-to").fill("Superfix Yas");
   await f.locator("#run-driver").selectOption({ label: "Yousef Kareem" }); await f.locator("#run-veh").fill("Flatbed AD 4 22817"); await f.locator("#run-charge").fill("100");
@@ -113,7 +114,7 @@ await step("TC-RN01-01", "schedule a pickup on the enquiry; its charge goes on t
   must(/Pickup Al Raha Gardens, villa 12 to Superfix Yas/.test(t), "charge line missing"); return fl.match(/YAS-RUN-26-\d+/)[0];
 });
 await step("TC-RN01-02", "a run without a driver is refused, in red under Driver, with the rest kept", async () => {
-  await priya.click("#runs summary"); const f = priya.locator("[data-testid=run-form]");
+  await priya.click("#runs button[data-popup=schedule-run]"); const f = priya.locator("[data-testid=run-form]");
   await f.locator("#run-type").selectOption("drop_off"); await f.locator("#run-when").fill(`${D1}T17:00`); await f.locator("#run-from").fill("Superfix Yas"); await f.locator("#run-to").fill("Khalifa City, street 9");
   await f.locator("button:has-text('Schedule run')").click(); await settle(priya); const e = await inlineErr(priya);
   must(/Driver/.test(e) && (await fieldOfErr(priya)) === "Driver", `${e} under ${await fieldOfErr(priya)}`);
@@ -138,7 +139,7 @@ await step("TC-RN02-02", "cancelling a run needs a reason", async () => {
   await priya.click("[data-testid=runs-table] button:has-text('Cancel')"); await settle(priya); must(/Run cancelled/.test(await flash(priya)), await flash(priya)); return "reason required";
 });
 await step("TC-RN03-01", "drop-off run on a job card shows on the job and on the booking calendar day", async () => {
-  await go(priya, "/jobs"); await priya.click("a:has-text('YAS-1484')"); await settle(priya); await priya.click("#runs summary");
+  await go(priya, "/jobs"); await priya.click("a:has-text('YAS-1484')"); await settle(priya); await priya.click("#runs button[data-popup=schedule-run]");
   const f = priya.locator("[data-testid=run-form]"); await f.locator("#run-when").fill(`${D1}T18:30`); await f.locator("#run-to").fill("Saadiyat, villa 7");
   await f.locator("#run-driver").selectOption({ label: "Yousef Kareem" }); await f.locator("button:has-text('Schedule run')").click(); await settle(priya);
   must(/Drop-off/.test(await priya.locator("#runs").innerText()), "not on job"); await go(priya, `/bookings?date=${D1}`);

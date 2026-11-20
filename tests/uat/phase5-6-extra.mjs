@@ -4,11 +4,12 @@
 // Run: node tests/uat/phase5-6-extra.mjs
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
 import fs from "node:fs";
+import { inlinePopups } from "./inline-popups.mjs";
 const { chromium } = require("playwright");
 const B = "http://localhost:3000", PW = "Superfix@2026", EV = process.env.EVIDENCE_DIR || "uat-evidence"; fs.mkdirSync(EV, { recursive: true });
 const browser = await chromium.launch();
 async function as(user) {
-  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); const p = await c.newPage(); p.setDefaultTimeout(10000);
+  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); await c.addInitScript(inlinePopups); const p = await c.newPage(); p.setDefaultTimeout(10000);
   p.on("dialog", (d) => d.accept());
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL((u) => !u.pathname.startsWith("/login")), p.click("button:has-text('Sign in')")]); return p;

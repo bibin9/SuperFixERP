@@ -5,6 +5,7 @@
 // Run: node tests/uat/phase4-accounting.mjs
 import { createRequire } from "node:module"; const require = createRequire(import.meta.url);
 import fs from "node:fs";
+import { inlinePopups } from "./inline-popups.mjs";
 const { chromium } = require("playwright");
 const B = "http://localhost:3000", PW = "Superfix@2026", EV = process.env.EVIDENCE_DIR || "uat-evidence"; fs.mkdirSync(EV, { recursive: true });
 const { Client } = require("pg");
@@ -14,7 +15,7 @@ const db = new Client({ connectionString: dbUrl }); await db.connect();
 const sql = async (q) => { const r = await db.query(q); const v = r.rows[0] ? Object.values(r.rows[0])[0] : ""; return v === null ? "" : String(v); };
 const browser = await chromium.launch();
 async function as(user) {
-  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); const p = await c.newPage(); p.setDefaultTimeout(15000);
+  const c = await browser.newContext({ viewport: { width: 1366, height: 900 } }); await c.addInitScript(inlinePopups); const p = await c.newPage(); p.setDefaultTimeout(15000);
   p.on("dialog", (d) => d.accept());
   await p.goto(`${B}/login`); await p.fill("input[name=username]", user); await p.fill("input[name=password]", PW);
   await Promise.all([p.waitForURL(`${B}/`), p.click("button:has-text('Sign in')")]); return p;

@@ -1,4 +1,6 @@
 import { OlderRows } from "@/components/OlderRows";
+import { QuickAdd } from "@/components/QuickAdd";
+import { quickSpec } from "@/lib/services/quick-add";
 import { offsetOf } from "@/lib/paging";
 import { requireCtx } from "@/lib/session";
 import { listBills } from "@/lib/services/purchasing";
@@ -11,6 +13,7 @@ export default async function Bills({ searchParams }: { searchParams: Promise<Re
   const ctx = await requireCtx();
   const sp = await searchParams;
   const [rows, m] = await Promise.all([listBills(ctx, offsetOf(sp)), masters(ctx)]);
+  const qs = await quickSpec(ctx, "suppliers");
   const here = ctx.currentBranchId;
   const canEnter = !!here && (can(ctx, "purchasing", "edit", here) || can(ctx, "accounting", "create", here));
   return (
@@ -19,7 +22,7 @@ export default async function Bills({ searchParams }: { searchParams: Promise<Re
       <PurchTabs at="/purchasing/bills" />
       <Flash sp={sp} />
       {canEnter && (
-        <form action="/purchasing/bills/new" className="card row"><div className="field"><label>Enter a bill from</label><select name="supplier_id" required>{m.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name_en}</option>)}</select></div>
+        <form action="/purchasing/bills/new" className="card row"><div className="field"><label>Enter a bill from</label><div className="picker"><select name="supplier_id" required>{m.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name_en}</option>)}</select>{qs && <QuickAdd spec={qs} target="supplier_id" label="+ New supplier" />}</div></div>
           <div className="shrink"><button className="btn">Next</button></div></form>
       )}
       <div className="card">
