@@ -15,8 +15,12 @@ async function main() {
   if (!fs.existsSync(file)) return;
   const token = fs.readFileSync(file, "utf8").trim().split(/\s+/)[0];
   if (!/^[a-z0-9-]{8,80}$/.test(token)) throw new Error("db/reset-request.txt: bad token");
+  // UAT is recognised by its public domain or by its Railway environment name ("UAT"); production never matches.
   const domain = process.env.RAILWAY_PUBLIC_DOMAIN ?? "";
-  if (domain !== UAT_DOMAIN && process.env.ALLOW_LOCAL_RESET !== "yes") { console.log(`reset request ${token} ignored: not the UAT host (${domain || "no domain"})`); return; }
+  const envName = (process.env.RAILWAY_ENVIRONMENT_NAME ?? "").trim().toLowerCase();
+  const isUat = domain === UAT_DOMAIN || envName === "uat";
+  console.log(`reset check: domain=${domain || "-"} environment=${envName || "-"}`);
+  if (!isUat && process.env.ALLOW_LOCAL_RESET !== "yes") { console.log(`reset request ${token} ignored: not the UAT host`); return; }
   const cfg = dbConfig();
   if (process.argv.includes("--record")) {
     const c = new Client({ connectionString: cfg.adminUrl });
