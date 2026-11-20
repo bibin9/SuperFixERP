@@ -13,6 +13,9 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const [m, complaints] = await Promise.all([masters(ctx), complaintList(ctx)]);
   const src = m.lookups.filter((l) => l.list === "enquiry_source");
+  // Enquiries belong to the branch picked at the top. A branch with no technicians (Head Office) cannot do the work.
+  const here = m.branches.find((x) => x.id === ctx.currentBranchId);
+  const noWorkshop = here && !m.technicians.length ? <div className="flash warn">You are working in <b>{here.name_en}</b>, which has no technicians, so its job cards cannot be assigned. If the car is at a workshop branch, pick that branch at the top of the screen first.</div> : null;
   const details = (
     <>
       <div className="row">
@@ -29,6 +32,7 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
     return (
       <>
         <PageHead title="New enquiry · step 1: customer" sub="Find the customer, add a new one, or note a contact for a quick phone enquiry." />
+        {noWorkshop}
         <Flash sp={sp} />
         <div className="card">
           <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Find the customer</label><input id="q" name="q" defaultValue={sp.q} placeholder="Name or mobile" /></div><button className="btn ghost shrink">Find</button>{qc ? <div className="shrink"><QuickAdd spec={qc} go="/enquiries/new?customer={id}" label="+ New customer" className="btn shrink" /></div> : <Link className="btn shrink" href="/customers/new">New customer</Link>}</form>
@@ -50,6 +54,7 @@ export default async function NewEnquiry({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHead title="New enquiry · step 2: vehicle and request" sub={`${custName(customer)} · ${customer.mobile}`} />
+      {noWorkshop}
       <Flash sp={sp} />
       {!vehicles.length && <div className="flash warn">This customer has no vehicle yet. {qv ? <>Add it with <b>+ New car</b> below to quote for it.</> : <><Link href={`/customers/${customer.id}`}>Add one</Link> to quote for it.</>}</div>}
       <div className="card">

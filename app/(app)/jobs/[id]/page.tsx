@@ -32,7 +32,14 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const { job, lines, quotations, quotationLines, statusHistory, invoices, invoicedLineIds, warranty, approvals, canSeePrices } = await getJob(ctx, id);
   const invoicedLines = new Set(invoicedLineIds);
   const [m0, bundles, photos] = await Promise.all([masters(ctx), listBundles(ctx), checkinPhotos(ctx, id)]);
-  const m = { ...m0, bundles: rankForVehicle(bundles, job) };
+  // Technicians and bays of the job's own branch, whichever branch is picked at the top of the screen.
+  const floor = await withTx(ctx, async (c) => ({
+    technicians: (await c.query(
+      `SELECT DISTINCT u.id, u.full_name FROM user_branch_role ubr JOIN app_user u ON u.id = ubr.user_id JOIN role r ON r.id = ubr.role_id
+        WHERE r.code = 'technician' AND ubr.branch_id = $1 AND u.status = 'active' ORDER BY u.full_name`, [job.branch_id])).rows,
+    bays: (await c.query("SELECT id, code FROM bay WHERE branch_id = $1 AND active ORDER BY code", [job.branch_id])).rows,
+  }));
+  const m = { ...m0, ...floor, bundles: rankForVehicle(bundles, job) };
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
   const b = job.branch_id;
@@ -222,7 +229,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
 
       <WorkLines quick={quick} owner={{ kind: "job", id }} back={back} lines={lines} m={m} canEdit={canEdit} canSeePrices={canSeePrices} canIssue={canIssue}
         discountEdit={discountEdit} priceEdit={fieldLevel(ctx, "selling_price", b) === "edit"} open={open} />
-      <div id="parts"><WorkshopPanel ctx={ctx} job={job} lines={lines} m={m} back={back} quick={quick} /></div>
+      <div id="parts"><WorkshopPanel ctx={ctx} job={job} lines={lines} m={m} back={back} quick={quick} canAddUsers={can(ctx, "admin", "edit")} /></div>
       <QuotationPanel enquiryId={job.enquiry_id} back={back} origin={origin} quotations={quotations} quotationLines={quotationLines} lines={lines}
         canEdit={canEdit && open} canSeePrices={canSeePrices} discountEdit={discountEdit} open={open} isJob />
 

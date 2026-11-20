@@ -17,7 +17,7 @@ const KIND: Record<string, string> = { clock_in: "Clock in", pause: "Pause", res
 const local = (v: string | Date) => new Date(new Date(v).getTime() + 4 * 3600_000).toISOString().slice(0, 16);
 
 /** Workshop floor on the job card: who works on what, clocked time, part requests, quality check and delivery. */
-export async function WorkshopPanel({ ctx, job, lines, m, back, quick }: { ctx: Ctx; job: Row; lines: Row[]; m: { technicians: Row[]; bays: Row[]; items: Row[] }; back: string; quick?: { items?: QuickSpec | null } }) {
+export async function WorkshopPanel({ ctx, job, lines, m, back, quick, canAddUsers }: { ctx: Ctx; job: Row; lines: Row[]; m: { technicians: Row[]; bays: Row[]; items: Row[] }; back: string; quick?: { items?: QuickSpec | null }; canAddUsers?: boolean }) {
   const w = await jobWorkshop(ctx, job.id);
   const rel = !w.delivery && can(ctx, "jobs", "view", job.branch_id) && (job.status === "ready" || (job.status === "invoiced" && !job.delivered_at)) ? await jobRelease(ctx, job.id) : null;
   const b = job.branch_id;
@@ -47,7 +47,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick }: { ctx: 
                       <input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={back} />
                       <p className="small muted">Tick everyone who works on this job. Their clocked time is kept per technician.</p>
                       {m.technicians.map((tech) => <label key={tech.id} className="check"><input type="checkbox" name="technician_id" value={tech.id} defaultChecked={mine.some((a) => a.technician_id === tech.id) || (!mine.length && l.technician_id === tech.id)} /> {tech.full_name}</label>)}
-                      {!m.technicians.length && <p className="small muted">No technicians at this branch.</p>}
+                      {!m.technicians.length && <div className="flash warn">{job.branch_name ?? "This branch"} has no technicians set up yet, so there is nobody to choose. {canAddUsers ? <>Add them under <a href="/admin/users">Admin, Users</a> with the role Technician at this branch.</> : "Ask the administrator to add the branch's technicians."}</div>}
                       <div className="row" style={{ marginTop: 8 }}><div className="field"><label>Bay</label><select name="bay_id" defaultValue={job.bay_id ?? ""}><option value="">No bay</option>{m.bays.map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}</select></div><button className="btn green shrink">Save technicians</button></div>
                     </form>
                   </Popup>
