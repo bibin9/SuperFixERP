@@ -121,6 +121,25 @@ async function branchAlerts(ctx: Ctx): Promise<Alert[]> {
           ORDER BY j.promised_at LIMIT 8`, [b])).rows)
         out.push({ group: "Running late", text: `${r.doc_no} · ${r.car}`, sub: "Past the promised time: send the customer a new time", href: `/jobs/${r.id}#newtime`, tone: "r" });
     }
+    // Work assigned to me that I have not clocked in on yet (any branch I work at).
+    for (const r of (await c.query(
+      `SELECT j.id, j.doc_no, v.make || ' ' || v.model car, l.description, min(a.assigned_at) assigned_at
+         FROM job_assignment a JOIN job_line l ON l.id = a.job_line_id JOIN job_card j ON j.id = l.job_card_id JOIN vehicle v ON v.id = j.vehicle_id
+        WHERE a.technician_id = $1 AND NOT l.removed AND j.status IN ('approved','awaiting_parts','in_progress')
+          AND NOT EXISTS (SELECT 1 FROM time_event t WHERE t.job_line_id = l.id AND t.technician_id = $1)
+        GROUP BY j.id, j.doc_no, v.make, v.model, l.id, l.description ORDER BY min(a.assigned_at) LIMIT 8`, [ctx.userId])).rows)
+      out.push({ group: "New work for you", text: `${r.doc_no} · ${r.car}`, sub: `${r.description}: open My jobs and clock in`, href: "/my-jobs", tone: "b" });
+    // Assigned work nobody has clocked in on after the set minutes: the advisor and foreman should check.
+    if (b && (canAnywhere(ctx, "workshop", "edit") || canAnywhere(ctx, "jobs", "edit"))) {
+      const mins = Number(await getSetting(c, "workshop.start_alert_minutes", b, 30));
+      for (const r of (await c.query(
+        `SELECT j.id, j.doc_no, v.make || ' ' || v.model car, string_agg(DISTINCT u.full_name, ', ') techs, max(a.assigned_at) assigned_at
+           FROM job_assignment a JOIN job_line l ON l.id = a.job_line_id JOIN job_card j ON j.id = l.job_card_id JOIN vehicle v ON v.id = j.vehicle_id JOIN app_user u ON u.id = a.technician_id
+          WHERE j.branch_id = $1 AND NOT l.removed AND j.status IN ('approved','in_progress') AND a.assigned_at < now() - make_interval(mins => $2)
+            AND NOT EXISTS (SELECT 1 FROM time_event t WHERE t.job_line_id = l.id)
+          GROUP BY j.id, j.doc_no, v.make, v.model ORDER BY max(a.assigned_at) LIMIT 8`, [b, mins])).rows)
+        out.push({ group: "Assigned but not started", text: `${r.doc_no} · ${r.car}`, sub: `${r.techs} not clocked in after ${mins} minutes`, href: `/jobs/${r.id}#workshop`, tone: "a" });
+    }
     if (b && canAnywhere(ctx, "customers", "view")) {
       for (const r of (await c.query("SELECT id, doc_no, name, plate_number FROM key_drop WHERE branch_id = $1 AND status = 'waiting' ORDER BY created_at LIMIT 8", [b])).rows)
         out.push({ group: "Keys dropped after hours", text: `${r.name} · ${r.plate_number}`, sub: `${r.doc_no}: check the car in`, href: `/workshop/keys/${r.id}`, tone: "b" });

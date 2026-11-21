@@ -5,6 +5,7 @@ import { clockAction } from "@/app/actions-ops";
 import { Flash, PageHead, Link, Plate, label } from "@/components/ui";
 import { setPinAction, tabletLockAction } from "@/app/actions";
 import { IdleLock } from "@/components/IdleLock";
+import { AutoRefresh } from "@/components/AutoRefresh";
 
 /** Technician phone screen (WS-04, UX-02): big buttons, one job at a time. */
 export default async function MyJobs({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
@@ -18,15 +19,17 @@ export default async function MyJobs({ searchParams }: { searchParams: Promise<R
     <>
       <PageHead title="My jobs" sub={`${jobs.length} line${jobs.length === 1 ? "" : "s"} assigned to you`}>
         {ctx.pinOnly && <IdleLock minutes={2} action={tabletLockAction} />}
+        <AutoRefresh seconds={30} />
       </PageHead>
       <Flash sp={askSwitch ? { ok: sp.ok } : sp} />
       {!jobs.length && <p className="muted">No work is assigned to you right now.</p>}
-      {jobs.map((j) => (
-        <div key={j.line_id} className="techjob">
-          <div className="row"><Plate v={j} /><span className={`pill ${j.colour}`}>{minutesText(j.minutes)}{j.standard_hours ? ` / ${Number(j.standard_hours)} h` : ""}</span></div>
+      {/* New work first: assigned to me and not started yet. The page re-reads every 30 seconds, so new work appears by itself. */}
+      {[...jobs].sort((a, b) => Number(b.state === "not_started") - Number(a.state === "not_started")).map((j) => (
+        <div key={j.line_id} className={`techjob${j.state === "not_started" ? " new" : ""}`}>
+          <div className="row"><Plate v={j} />{j.state === "not_started" && <span className="pill blue">New</span>}<span className={`pill ${j.colour}`}>{minutesText(j.minutes)}{j.standard_hours ? ` / ${Number(j.standard_hours)} h` : ""}</span></div>
           <div className="small">{j.make} {j.model} · <Link href={`/jobs/${j.job_id}`}>{j.doc_no}</Link>{j.bay_code ? ` · bay ${j.bay_code}` : ""}</div>
           <div style={{ marginTop: 4 }}>{j.description}</div>
-          <div className="small muted">{j.state === "working" ? "Working" : j.state === "paused" ? `Paused: ${label(j.pauseReason)}` : j.state === "done" ? "Clocked out" : "Not started"}</div>
+          <div className="small muted">{j.state === "working" ? "Working" : j.state === "paused" ? `Paused: ${label(j.pauseReason)}` : j.state === "done" ? "Clocked out" : "Not started yet: tap Clock in when you begin"}</div>
           {j.qcFailed.length > 0 && <div className="small" style={{ color: "var(--late)" }}>Quality check failed: {j.qcFailed.map((q: { label: string; note?: string }) => `${q.label}${q.note ? ` (${q.note})` : ""}`).join(", ")}</div>}
           {askSwitch === j.line_id && <div className="flash err">{sp.err}
             <form action={clockAction}><input type="hidden" name="line_id" value={j.line_id} /><input type="hidden" name="kind" value={j.state === "paused" ? "resume" : "clock_in"} /><input type="hidden" name="confirm" value="1" />

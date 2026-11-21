@@ -38,7 +38,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick, canAddUse
             return (
               <tr key={l.id}>
                 <td>{l.description}</td>
-                <td className="small">{mine.length ? mine.map((a) => <div key={a.technician_id}>{a.full_name}{t?.techs[a.technician_id] ? <span className="muted"> · {minutesText(t.techs[a.technician_id].minutes)} {t.techs[a.technician_id].state && <Status s={t.techs[a.technician_id].state} />}</span> : null}</div>) : (l.technician_name ?? <span className="muted">Not assigned</span>)}</td>
+                <td className="small">{mine.length ? mine.map((a) => <div key={a.technician_id}>{a.full_name}{t?.techs[a.technician_id] ? <span className="muted"> · {minutesText(t.techs[a.technician_id].minutes)} {t.techs[a.technician_id].state && <Status s={t.techs[a.technician_id].state} />}</span> : <> <span className="pill grey">Not clocked in yet</span></>}</div>) : (l.technician_name ?? <span className="muted">Not assigned</span>)}</td>
                 <td><span className={`pill ${colour}`}>{minutesText(mins)}</span> <span className="small muted">/ {l.standard_hours ? `${Number(l.standard_hours)} h` : "—"}</span></td>
                 {canAssign && <td>
                   <Popup id={`assign-${l.id}`} title={`Assign technicians: ${l.description}`} label={mine.length || l.technician_id ? "Change technicians" : "Choose technicians"}
@@ -46,6 +46,7 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick, canAddUse
                     <form action={assignAction}>
                       <input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={back} />
                       <p className="small muted">Tick everyone who works on this job. Their clocked time is kept per technician.</p>
+                      <p className="small muted">Each technician sees the work in their bell and on My jobs. The clock starts when they tap Clock in, and the job moves to In progress then.</p>
                       {m.technicians.map((tech) => <label key={tech.id} className="check"><input type="checkbox" name="technician_id" value={tech.id} defaultChecked={mine.some((a) => a.technician_id === tech.id) || (!mine.length && l.technician_id === tech.id)} /> {tech.full_name}</label>)}
                       {!m.technicians.length && <div className="flash warn">{job.branch_name ?? "This branch"} has no technicians set up yet, so there is nobody to choose. {canAddUsers ? <>Add them under <a href="/admin/users">Admin, Users</a> with the role Technician at this branch.</> : "Ask the administrator to add the branch's technicians."}</div>}
                       <div className="row" style={{ marginTop: 8 }}><div className="field"><label>Bay</label><select name="bay_id" defaultValue={job.bay_id ?? ""}><option value="">No bay</option>{m.bays.map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}</select></div><button className="btn green shrink">Save technicians</button></div>

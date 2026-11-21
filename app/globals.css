@@ -116,6 +116,7 @@ canvas.sigpad{width:100%;max-width:480px;height:140px;border:1px dashed var(--li
 .tile b{font-size:17px}.tile .small{margin-top:3px}
 .wall{background:#0f1720;min-height:100vh;padding:18px;color:#fff}.wall h1{font-size:22px;margin:0 0 14px}.wall .tile{color:var(--ink)}
 .techjob{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.techjob.new{border-left:5px solid var(--blue)}
 .techjob .big{display:block;width:100%;min-height:54px;font-size:18px;margin-top:8px}
 .btn.amber{background:var(--amber)}
 .public.wide{max-width:960px}.invoice-doc table td,.invoice-doc table th{font-size:13px}
