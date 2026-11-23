@@ -685,3 +685,7 @@ tr.scanhit td{animation:scanflash 1.6s ease-out}
 .printdoc td div.ar{margin:2px 0 0}
 .printdoc[dir=rtl] .printgrid>div>span:last-child,.printdoc[dir=rtl] .printhead .small{unicode-bidi:plaintext;text-align:right}
 .printdoc[dir=ltr] .printhead div[dir=rtl]{text-align:left}.printdoc[dir=ltr] .printtitle div[dir=rtl]{text-align:right}
+/* Customer-facing pages: Arabic under the English */
+.bilingual .ar{font-family:"Noto Naskh Arabic","Geeza Pro","Segoe UI","Tahoma",sans-serif;font-weight:500;margin-top:2px}
+.bilingual h1 .ar{font-size:.8em;color:var(--muted)}.bilingual .sub .ar,.bilingual .flash .ar,.bilingual td .ar,.bilingual p .ar{color:inherit;opacity:.85}
+.bilingual span.ar{display:block}

@@ -34,7 +34,7 @@ export async function getPublicFeedback(token: string) {
   const b = await branchFor(token);
   if (!b) return null;
   return withBranchSystemTx(b, async (c) => (await c.query(
-    `SELECT f.rating, f.comment, j.doc_no, br.name_en branch_name, br.phone branch_phone, v.make, v.model, c.customer_type, c.title, c.first_name, c.company_name
+    `SELECT f.rating, f.comment, j.doc_no, br.name_en branch_name, br.name_ar branch_name_ar, br.phone branch_phone, v.make, v.model, c.customer_type, c.title, c.first_name, c.company_name, c.name_ar
        FROM job_feedback f JOIN job_card j ON j.id = f.job_card_id JOIN branch br ON br.id = f.branch_id JOIN vehicle v ON v.id = j.vehicle_id JOIN customer c ON c.id = j.customer_id
       WHERE f.token = $1`, [token])).rows[0] ?? null);
 }

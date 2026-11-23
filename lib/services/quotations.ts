@@ -228,12 +228,13 @@ export async function getPublicQuotation(token: string) {
   if (!branchId) return null;
   return withBranchSystemTx(branchId, async (c) => {
     const q = (await c.query(
-      `SELECT q.id, q.doc_no, q.status, q.valid_until, q.taxable_total, q.vat_total, q.grand_total, q.approved_total, b.name_en branch_name, b.phone branch_phone,
-              v.make, v.model, v.plate_code, v.plate_number, v.registered_in, c.customer_type, c.title, c.first_name, c.last_name, c.company_name
+      `SELECT q.id, q.doc_no, q.status, q.valid_until, q.taxable_total, q.vat_total, q.grand_total, q.approved_total, b.name_en branch_name, b.name_ar branch_name_ar, b.phone branch_phone,
+              v.make, v.model, v.plate_code, v.plate_number, v.registered_in, c.customer_type, c.title, c.first_name, c.last_name, c.company_name, c.name_ar
          FROM quotation q JOIN branch b ON b.id = q.branch_id JOIN enquiry e ON e.id = q.enquiry_id JOIN vehicle v ON v.id = e.vehicle_id JOIN customer c ON c.id = e.customer_id
         WHERE q.public_token = $1`, [token])).rows[0];
     if (!q) return null;
-    const lines = (await c.query("SELECT id, line_no, description, qty, line_total, decision FROM quotation_line WHERE quotation_id = $1 ORDER BY line_no", [q.id])).rows;
+    const lines = (await c.query(`SELECT ql.id, ql.line_no, ql.description, coalesce(i.name_ar, s.name_ar) name_ar, ql.qty, ql.line_total, ql.decision FROM quotation_line ql
+       LEFT JOIN job_line jl ON jl.id = ql.job_line_id LEFT JOIN item i ON i.id = jl.item_id LEFT JOIN service s ON s.id = jl.service_id WHERE ql.quotation_id = $1 ORDER BY ql.line_no`, [q.id])).rows;
     return { q, lines, expired: q.valid_until < today() };
   });
 }

@@ -161,13 +161,13 @@ export async function getCreditNote(ctx: Ctx, id: string) {
   return withTx(ctx, async (c) => {
     const cn = (await c.query(
       `SELECT cn.*, i.doc_no invoice_no, i.doc_date invoice_date, i.bill_to_name, i.customer_trn, i.invoice_kind, b.code branch_code, b.name_en branch_name, b.address branch_address,
-              co.legal_name_en, co.trn company_trn, lv.name_en reason_name, u.full_name created_by_name
+              co.legal_name_en, co.trn company_trn, lv.name_en reason_name, lv.name_ar reason_name_ar, u.full_name created_by_name
          FROM credit_note cn JOIN sales_invoice i ON i.id = cn.invoice_id JOIN branch b ON b.id = cn.branch_id CROSS JOIN LATERAL (SELECT * FROM company LIMIT 1) co
          LEFT JOIN lookup_value lv ON lv.list = 'credit_note_reason' AND lv.code = cn.reason LEFT JOIN app_user u ON u.id = cn.created_by WHERE cn.id = $1`, [id])).rows[0];
     if (!cn) throw notFound("Credit note");
     assertCan(ctx, "invoices", "view", cn.branch_id);
     const lines = (await c.query(
-      "SELECT cl.*, il.line_no, il.description, il.vat_code, il.vat_rate, il.unit_price FROM credit_note_line cl JOIN sales_invoice_line il ON il.id = cl.invoice_line_id WHERE cl.credit_note_id = $1 ORDER BY il.line_no", [id])).rows;
+      "SELECT cl.*, il.line_no, il.description, il.item_id, il.job_line_id, il.vat_code, il.vat_rate, il.unit_price FROM credit_note_line cl JOIN sales_invoice_line il ON il.id = cl.invoice_line_id WHERE cl.credit_note_id = $1 ORDER BY il.line_no", [id])).rows;
     return { cn, lines };
   });
 }

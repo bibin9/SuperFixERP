@@ -11,7 +11,7 @@ import { printLang, type PrintLang } from "../print-text";
  * OT-08: printed documents in English and Arabic. The admin sets the language (both, en, ar) and the
  * terms at the foot of each document under Settings, Printing; a branch setting overrides the company one.
  */
-export type DocKind = "invoice" | "quotation" | "job_card" | "receipt";
+export type DocKind = "invoice" | "quotation" | "job_card" | "receipt" | "credit_note";
 export type PrintSetup = {
   lang: PrintLang; terms: { en: string; ar: string };
   company: { name_en: string; name_ar: string; trn: string };
@@ -42,10 +42,10 @@ async function arabicNamesIn(c: PoolClient, jobLineIds: string[], itemIds: strin
  * For the invoice, which is also printed from the customer's share link: the caller has already
  * checked access to the invoice, so this reads only the shared print settings and the line names.
  */
-export async function invoicePrintSetup(branchId: string, lines: { job_line_id?: string | null; item_id?: string | null }[]) {
+export async function invoicePrintSetup(branchId: string, lines: { job_line_id?: string | null; item_id?: string | null }[], kind: DocKind = "invoice") {
   return withBranchSystemTx(branchId, async (c) => {
     const names = await arabicNamesIn(c, lines.map((l) => l.job_line_id).filter(Boolean) as string[], lines.map((l) => l.item_id).filter(Boolean) as string[]);
-    return { setup: await setupIn(c, branchId, "invoice"), names };
+    return { setup: await setupIn(c, branchId, kind), names };
   });
 }
 
