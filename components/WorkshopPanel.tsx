@@ -131,7 +131,9 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick, canAddUse
               <div>{w.deliveryList.map((i) => <label key={i.code} className="check"><input type="checkbox" name={`chk_${i.code}`} required /> {i.name_en}</label>)}
                 <div className="field"><label>Old parts</label><select name="old_parts" required defaultValue=""><option value="" disabled>Choose</option><option value="returned">Returned to the customer</option><option value="disposed">Disposed</option><option value="none">No old parts</option></select></div>
                 <div className="field"><label>Odometer out (km)</label><input name="odometer_out" inputMode="numeric" required defaultValue={job.odometer_in ?? ""} /></div>
-                <div className="field"><label>Received by</label><input name="received_by_name" required /></div></div>
+                <div className="field"><label>Received by</label><input name="received_by_name" required list={w.drivers.length ? "approved-drivers" : undefined} />
+                  {w.drivers.length > 0 && <><datalist id="approved-drivers">{w.drivers.map((d) => <option key={d.name} value={d.name}>{d.mobile ?? ""}</option>)}</datalist>
+                    <div className="small muted">Approved drivers: {w.drivers.map((d) => d.name).join(", ")}</div></>}</div></div>
               <div><label className="small">Customer signature</label><SignaturePad /></div>
             </div>
             <ConfirmButton className="btn green" message="Hand the car over to the customer now?">Deliver the car</ConfirmButton>

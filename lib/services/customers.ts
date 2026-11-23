@@ -44,7 +44,8 @@ export async function getCustomer(ctx: Ctx, id: string) {
     if (!r.rowCount) throw notFound("Customer");
     const vehicles = (await c.query("SELECT * FROM vehicle WHERE owner_customer_id = $1 AND active ORDER BY created_at", [id])).rows;
     const consents = (await c.query("SELECT * FROM consent_log WHERE customer_id = $1 ORDER BY at DESC", [id])).rows;
-    return { customer: r.rows[0], vehicles, consents };
+    const drivers = (await c.query("SELECT * FROM customer_driver WHERE customer_id = $1 ORDER BY active DESC, name", [id])).rows;
+    return { customer: r.rows[0], vehicles, consents, drivers };
   });
 }
 
@@ -226,5 +227,38 @@ export async function getVehicle(ctx: Ctx, id: string) {
       .map((h) => (h.amount !== null && !canSee(ctx, "selling_price") ? { ...h, amount: null } : h));
     const deferred = (await c.query("SELECT d.*, j.doc_no FROM deferred_work d JOIN job_card j ON j.id = d.job_card_id WHERE d.vehicle_id = $1 AND d.status = 'open'", [id])).rows;
     return { vehicle: v.rows[0], history: hist, deferred };
+  });
+}
+
+/** CV-03: add an approved driver to a corporate or government account. */
+export async function addDriver(ctx: Ctx, customerId: string, f: Record<string, unknown>) {
+  assertCan(ctx, "customers", "edit");
+  return withTx(ctx, async (c) => {
+    const cu = (await c.query("SELECT customer_type, country_code FROM customer WHERE id = $1 AND active", [customerId])).rows[0];
+    if (!cu) throw notFound("Customer");
+    if (cu.customer_type === "individual") throw invalid("Approved drivers are kept for company and government accounts.");
+    const name = required(f.name, "Driver name");
+    let mobile: string | null = null;
+    if (str(f.mobile)) {
+      const ctry = (await c.query("SELECT dial_code, mobile_regex, name FROM country WHERE code = $1", [cu.country_code ?? "AE"])).rows[0];
+      mobile = ctry ? normaliseMobile(f.mobile, ctry) : str(f.mobile);
+    }
+    const dup = await c.query("SELECT 1 FROM customer_driver WHERE customer_id = $1 AND active AND lower(name) = lower($2)", [customerId, name]);
+    if (dup.rowCount) throw invalid(`${name} is already on the approved drivers list.`);
+    const id = (await c.query("INSERT INTO customer_driver (customer_id, name, mobile, licence_no, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+      [customerId, name, mobile, optStr(f.licence_no), ctx.userId])).rows[0].id;
+    await audit(c, ctx, "customer", customerId, "driver_added", { name, mobile, licence_no: optStr(f.licence_no) });
+    return id as string;
+  });
+}
+
+/** Takes a driver off the approved list (or puts them back). */
+export async function setDriverActive(ctx: Ctx, driverId: string, active: boolean) {
+  assertCan(ctx, "customers", "edit");
+  return withTx(ctx, async (c) => {
+    const d = (await c.query("UPDATE customer_driver SET active = $2 WHERE id = $1 RETURNING customer_id, name", [driverId, active])).rows[0];
+    if (!d) throw notFound("Driver");
+    await audit(c, ctx, "customer", d.customer_id, active ? "driver_restored" : "driver_removed", { name: d.name });
+    return d.customer_id as string;
   });
 }

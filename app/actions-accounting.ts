@@ -10,7 +10,9 @@ const fileText = async (fd: FormData, k: string) => {
   const f = fd.get(k);
   if (f && typeof f === "object" && "text" in f && (f as File).size > 0) {
     if ((f as File).size > 5_000_000) throw new Error("The file must be at most 5 MB.");
-    return { text: await (f as File).text(), name: (f as File).name };
+    const file = f as File;
+    if (/\.xlsx$/i.test(file.name)) { const { xlsxToCsv } = await import("@/lib/xlsx-read"); return { text: xlsxToCsv(Buffer.from(await file.arrayBuffer())), name: file.name }; }
+    return { text: await file.text(), name: file.name };
   }
   return { text: s(fd, `${k}_text`), name: "" };
 };

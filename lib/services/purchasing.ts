@@ -8,7 +8,7 @@ import { nextDocNo } from "./numbering";
 import { postJournal } from "./ledger";
 import { D, Decimal, r2, parseDec } from "../money";
 import { optStr, required, str, normaliseTrn } from "../validate";
-import { stockIn, today } from "./stock";
+import { stockIn, stockOut, today } from "./stock";
 import { registerHandler, submitForApproval } from "./workflow";
 import { getSetting } from "./settings";
 import { cfVisible, customFields } from "./hr";
@@ -208,10 +208,18 @@ export async function getPo(ctx: Ctx, id: string) {
       `SELECT pl.*, i.part_no, i.item_type, j.doc_no job_no, j.id job_id FROM po_line pl LEFT JOIN item i ON i.id = pl.item_id
          LEFT JOIN job_line jl ON jl.id = pl.job_line_id LEFT JOIN job_card j ON j.id = jl.job_card_id WHERE pl.po_id = $1 ORDER BY pl.line_no`, [id])).rows;
     const grns = (await c.query("SELECT g.*, u.full_name FROM grn g LEFT JOIN app_user u ON u.id = g.received_by WHERE g.po_id = $1 ORDER BY g.received_at", [id])).rows;
+    const grnLines = (await c.query(
+      `SELECT gl.id, gl.grn_id, i.part_no, i.description, gl.qty, gl.billed_qty, gl.returned_qty, gl.qty - gl.billed_qty - gl.returned_qty returnable
+         FROM grn_line gl JOIN grn g ON g.id = gl.grn_id JOIN item i ON i.id = gl.item_id WHERE g.po_id = $1 ORDER BY i.part_no`, [id])).rows;
+    const returns = (await c.query(
+      `SELECT r.*, g.doc_no grn_no, lv.name_en reason_name, u.full_name FROM supplier_return r JOIN grn g ON g.id = r.grn_id
+         LEFT JOIN lookup_value lv ON lv.list = 'supplier_return_reason' AND lv.code = r.reason LEFT JOIN app_user u ON u.id = r.created_by
+        WHERE g.po_id = $1 ORDER BY r.created_at`, [id])).rows;
+    const returnReasons = (await c.query("SELECT code, name_en FROM lookup_value WHERE list = 'supplier_return_reason' AND active ORDER BY sort")).rows;
     const approvals = (await c.query(
       `SELECT a.*, u.full_name, t.step_name FROM approval_action a JOIN approval_request r ON r.id = a.request_id LEFT JOIN app_user u ON u.id = a.user_id
          LEFT JOIN approval_task t ON t.id = a.task_id WHERE r.doc_type = 'purchase_order' AND r.doc_id = $1 ORDER BY a.at`, [id])).rows;
-    return { po: redact(ctx, [po], PO_COST, () => po.branch_id)[0], lines: redact(ctx, lines, LINE_COST, () => po.branch_id), grns, approvals };
+    return { po: redact(ctx, [po], PO_COST, () => po.branch_id)[0], lines: redact(ctx, lines, LINE_COST, () => po.branch_id), grns, grnLines, returns, returnReasons, approvals };
   });
 }
 
@@ -258,6 +266,59 @@ export async function receiveGoods(ctx: Ctx, poId: string, f: { delivery_note?: 
 }
 
 // =====================================================================================
+// Returns to the supplier (PU-04): received parts that are not billed yet go back
+// =====================================================================================
+
+/**
+ * Sends received parts back to the supplier before they are billed. The parts leave free stock at
+ * average cost; the goods-received clearing is reversed at the received cost, and any difference
+ * between the two goes to stock write-off. The order line opens again so a replacement can be
+ * received, and the returned quantity can no longer be billed. Parts already billed go back through a
+ * debit note voucher to the supplier instead.
+ */
+export async function returnToSupplier(ctx: Ctx, grnId: string, f: { reason?: string; note?: string; qty: Record<string, unknown> }) {
+  return withTx(ctx, async (c) => {
+    const g = (await c.query("SELECT g.*, p.doc_no po_no, p.status po_status FROM grn g JOIN purchase_order p ON p.id = g.po_id WHERE g.id = $1 FOR UPDATE OF g", [grnId])).rows[0];
+    if (!g) throw notFound("Goods received note");
+    if (!can(ctx, "stock", "create", g.branch_id) && !can(ctx, "purchasing", "edit", g.branch_id)) throw forbidden();
+    const reason = str(f.reason);
+    if (!reason || !(await c.query("SELECT 1 FROM lookup_value WHERE list = 'supplier_return_reason' AND code = $1 AND active", [reason])).rowCount) throw invalid("Choose why the parts go back.");
+    if (reason === "other" && !optStr(f.note)) throw invalid("Write a note when the reason is Other.");
+    const lines = (await c.query("SELECT gl.*, i.part_no FROM grn_line gl JOIN item i ON i.id = gl.item_id WHERE gl.grn_id = $1 ORDER BY i.part_no FOR UPDATE OF gl", [grnId])).rows;
+    const docNo = await nextDocNo(c, g.branch_id, "supplier_return");
+    const r = (await c.query("INSERT INTO supplier_return (branch_id, doc_no, grn_id, supplier_id, reason, note, value, created_by) VALUES ($1,$2,$3,$4,$5,$6,0,$7) RETURNING id",
+      [g.branch_id, docNo, grnId, g.supplier_id, reason, optStr(f.note), ctx.userId])).rows[0];
+    let received = D(0), stockValue = D(0);
+    for (const l of lines) {
+      if (!str(f.qty[l.id])) continue;
+      const q = parseDec(f.qty[l.id], "Quantity to return", { min: 0, dp: 3 });
+      if (q.eq(0)) continue;
+      const open = D(l.qty).minus(l.billed_qty).minus(l.returned_qty);
+      if (q.gt(open)) throw invalid(`${l.part_no}: only ${open.toString()} can go back (the rest is billed or already returned). For billed parts, raise a debit note to the supplier.`);
+      const out = await stockOut(c, ctx, { branchId: g.branch_id, itemId: l.item_id, qty: q, moveType: "supplier_return", ref: docNo });
+      const value = r2(q.mul(l.unit_cost));
+      received = received.plus(value); stockValue = stockValue.plus(out.value);
+      await c.query("INSERT INTO supplier_return_line (return_id, branch_id, grn_line_id, item_id, qty, unit_cost, value) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        [r.id, g.branch_id, l.id, l.item_id, q.toFixed(3), D(l.unit_cost).toFixed(4), value.toFixed(2)]);
+      await c.query("UPDATE grn_line SET returned_qty = returned_qty + $2 WHERE id = $1", [l.id, q.toFixed(3)]);
+      await c.query("UPDATE po_line SET received_qty = received_qty - $2 WHERE id = $1", [l.po_line_id, q.toFixed(3)]);
+    }
+    if (received.eq(0)) throw invalid("Enter the quantity to send back on at least one line.");
+    const diff = received.minus(stockValue);
+    await postJournal(c, ctx, { branchId: g.branch_id, date: today(), sourceType: "supplier_return", sourceId: r.id, narration: `${docNo}: return to supplier against ${g.doc_no}`,
+      lines: [{ event: "goods_received_clearing", debit: received }, { event: "inventory", credit: stockValue },
+        ...(diff.gt(0) ? [{ event: "stock_writeoff", credit: diff }] : diff.lt(0) ? [{ event: "stock_writeoff", debit: diff.neg() }] : [])] });
+    await c.query("UPDATE supplier_return SET value = $2 WHERE id = $1", [r.id, received.toFixed(2)]);
+    if (["received", "partly_received"].includes(g.po_status)) {
+      const open = (await c.query("SELECT count(*) n FROM po_line WHERE po_id = $1 AND item_id IS NOT NULL AND received_qty < qty", [g.po_id])).rows[0].n;
+      await c.query("UPDATE purchase_order SET status = $2, version = version + 1 WHERE id = $1", [g.po_id, Number(open) ? "partly_received" : "received"]);
+    }
+    await audit(c, ctx, "grn", grnId, "returned_to_supplier", { doc_no: docNo, reason, value: received.toFixed(2) }, g.branch_id);
+    return { id: r.id as string, docNo };
+  });
+}
+
+// =====================================================================================
 // Supplier bills with three-way match (PU-05, PU-07)
 // =====================================================================================
 
@@ -298,7 +359,7 @@ export async function createBill(ctx: Ctx, f: { supplier_id: string; supplier_in
             WHERE gl.id = $1 FOR UPDATE OF gl`, [l.grn_line_id])).rows[0];
         if (!gl || gl.supplier_id !== f.supplier_id) throw invalid("A received line does not belong to this supplier.");
         code = gl.vat_code; desc = desc || `${gl.description} (${gl.grn_no})`;
-        const open = D(gl.qty).minus(gl.billed_qty);
+        const open = D(gl.qty).minus(gl.billed_qty).minus(gl.returned_qty);
         recv = r2(q.mul(gl.unit_cost));
         const diff = net.minus(recv).abs();
         const allowed = Decimal.max(r2(recv.mul(tolPct).div(100)), tolAmt);
@@ -376,9 +437,9 @@ export async function unbilledLines(ctx: Ctx, supplierId: string) {
   assertCan(ctx, "purchasing", "view");
   return withTx(ctx, async (c) => {
     const rows = (await c.query(
-      `SELECT gl.id, g.doc_no grn_no, p.doc_no po_no, i.part_no, pl.description, gl.qty - gl.billed_qty open_qty, gl.unit_cost, gl.branch_id
+      `SELECT gl.id, g.doc_no grn_no, p.doc_no po_no, i.part_no, pl.description, gl.qty - gl.billed_qty - gl.returned_qty open_qty, gl.unit_cost, gl.branch_id
          FROM grn_line gl JOIN grn g ON g.id = gl.grn_id JOIN purchase_order p ON p.id = g.po_id JOIN po_line pl ON pl.id = gl.po_line_id JOIN item i ON i.id = gl.item_id
-        WHERE g.supplier_id = $1 AND gl.billed_qty < gl.qty ORDER BY g.received_at, i.part_no`, [supplierId])).rows;
+        WHERE g.supplier_id = $1 AND gl.billed_qty + gl.returned_qty < gl.qty ORDER BY g.received_at, i.part_no`, [supplierId])).rows;
     return redact(ctx, rows, LINE_COST, (r) => r.branch_id as string);
   });
 }

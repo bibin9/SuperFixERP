@@ -3,14 +3,14 @@ import { getCustomer } from "@/lib/services/customers";
 import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { CustomerForm } from "@/components/CustomerForm";
-import { addVehicleAction } from "@/app/actions";
+import { addVehicleAction, driverAction } from "@/app/actions";
 import { Flash, Link, PageHead, custName, plate, Plate, dt, label } from "@/components/ui";
 
 export default async function CustomerPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const { id } = await params;
   const sp = await searchParams;
-  const { customer: c, vehicles, consents } = await getCustomer(ctx, id);
+  const { customer: c, vehicles, consents, drivers } = await getCustomer(ctx, id);
   const m = await masters(ctx);
   const back = `/customers/${id}`;
   const vdups = sp.vdups ? JSON.parse(sp.vdups) : null;
@@ -56,6 +56,22 @@ export default async function CustomerPage({ params, searchParams }: { params: P
           </form>
         )}
       </div>
+      {c.customer_type !== "individual" && <div className="card" id="drivers"><h2>Approved drivers</h2>
+        <p className="small muted">People this account allows to bring in and collect its cars. Their names are offered at delivery.</p>
+        {drivers.length > 0 ? <table><thead><tr><th>Name</th><th>Mobile</th><th>Licence no.</th><th>Status</th>{can(ctx, "customers", "edit") && <th></th>}</tr></thead><tbody>
+          {drivers.map((d) => <tr key={d.id} className={d.active ? "" : "muted"}><td>{d.name}</td><td>{d.mobile ?? "—"}</td><td>{d.licence_no ?? "—"}</td><td>{d.active ? "Approved" : "Taken off"}</td>
+            {can(ctx, "customers", "edit") && <td><form action={driverAction}><input type="hidden" name="$back" value={`${back}#drivers`} /><input type="hidden" name="driver_id" value={d.id} /><input type="hidden" name="active" value={d.active ? "0" : "1"} /><button className="btn ghost sm">{d.active ? "Take off the list" : "Put back"}</button></form></td>}</tr>)}
+        </tbody></table> : <p className="muted small">No approved drivers yet.</p>}
+        {can(ctx, "customers", "edit") && <form action={driverAction} style={{ marginTop: 10 }}>
+          <input type="hidden" name="$back" value={`${back}#drivers`} /><input type="hidden" name="customer_id" value={id} />
+          <div className="row">
+            <div className="field"><label>Driver name</label><input name="name" required /></div>
+            <div className="field"><label>Mobile</label><input name="mobile" inputMode="tel" /></div>
+            <div className="field"><label>Licence no.</label><input name="licence_no" /></div>
+            <div className="shrink"><button className="btn">Add driver</button></div>
+          </div>
+        </form>}
+      </div>}
       {can(ctx, "customers", "edit") && <div className="card"><h2>Details</h2><CustomerForm back={back} countries={m.countries} titles={m.titles} lookups={m.lookups} c={c} dups={sp.dups ? JSON.parse(sp.dups) : undefined} /></div>}
       <div className="card"><h2>Consent history (PDPL)</h2>
         <table><tbody>{consents.map((x) => <tr key={x.id}><td>{x.consent ? "Opted in" : "Not opted in"}</td><td>{label(x.channel)}</td><td className="muted">{dt(x.at)}</td></tr>)}</tbody></table>

@@ -95,6 +95,7 @@ export async function poStepAction(fd: FormData) {
   await run(`/purchasing/${id}`, async () => {
     if (step === "submit") { const s = await pu.submitPo(ctx, id); return `/purchasing/${id}?ok=${s === "approved" ? "Approved (within the limit that needs no approval)" : "Sent for approval"}`; }
     if (step === "cancel") await pu.cancelPo(ctx, id);
+    if (step === "return") { const r = await pu.returnToSupplier(ctx, String(fd.get("grn_id")), { reason: String(fd.get("reason") ?? ""), note: String(fd.get("note") ?? ""), qty: keyed(fd, "rq") }); return `/purchasing/${id}?ok=${encodeURIComponent(`${r.docNo}: parts returned to the supplier`)}`; }
     if (step === "receive") { const g = await pu.receiveGoods(ctx, id, { delivery_note: String(fd.get("delivery_note") ?? ""), qty: keyed(fd, "qty"), damaged: keyed(fd, "damaged") }); return `/purchasing/${id}?ok=${encodeURIComponent(`${g.docNo} received into stock`)}`; }
   }, step === "cancel" ? "Cancelled" : undefined);
 }

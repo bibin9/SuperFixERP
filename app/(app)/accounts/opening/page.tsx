@@ -21,15 +21,15 @@ export default async function Opening({ searchParams }: { searchParams: Promise<
       <Flash sp={sp} />
       {(canAnywhere(ctx, "settings", "create") || canAnywhere(ctx, "customers", "create")) && (
         <details className="card" open={!b}>
-          <summary><b>Step 1 · Import masters from Tally</b> <span className="small muted">ledgers, suppliers, stock items and customers; existing codes are skipped</span></summary>
+          <summary><b>Step 1 · Import masters and opening data</b> <span className="small muted">ledgers, suppliers, stock items, customers, vehicles, employees and opening stock; rows already there are skipped</span></summary>
           <form action={importMastersAction} encType="multipart/form-data" style={{ marginTop: 10 }}>
             <div className="row">
               <div className="field"><label>What</label><select name="kind">{Object.entries(MASTER_IMPORTS).map(([k, v]) => <option key={k} value={k}>{v.title}</option>)}</select></div>
-              <div className="field"><label>CSV file</label><input type="file" name="file" accept=".csv" /></div>
+              <div className="field"><label>Excel or CSV file</label><input type="file" name="file" accept=".xlsx,.csv" /></div>
             </div>
             <div className="field"><label>Or paste the CSV</label><textarea name="file_text" rows={4} aria-label="Masters CSV" placeholder={Object.values(MASTER_IMPORTS).map((v) => v.sample).join("\n\n")} /></div>
             <button className="btn ghost">Import</button>
-            <p className="small muted">Employees are imported in HR. Stock quantities and values are loaded per branch under Parts, stock on hand, as opening stock; leave 1300 inventory out of the ledger balances file.</p>
+            <p className="small muted">The first row holds the column names, as in the examples above; the first sheet of an Excel file is read. Import in this order: stock items, then opening stock; customers, then their vehicles (each car finds its owner by mobile). Employees need the branch code and the department and designation code or name. Opening stock posts to the opening balance account, so leave 1300 inventory out of the ledger balances file.</p>
           </form>
         </details>)}
       {!b && canAnywhere(ctx, "accounting", "create") && <OpeningCheck action={openingAction} />}

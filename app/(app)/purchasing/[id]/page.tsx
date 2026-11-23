@@ -8,6 +8,7 @@ import { masters } from "@/lib/services/masters";
 import { can } from "@/lib/access";
 import { poLineAction, poStepAction } from "@/app/actions-ops";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { Popup } from "@/components/Popup";
 import { Flash, Link, Money, PageHead, Status, dt, label } from "@/components/ui";
 import { PurchTabs } from "@/components/PurchTabs";
 import { D } from "@/lib/money";
@@ -16,7 +17,7 @@ export default async function PoPage({ params, searchParams }: { params: Promise
   const ctx = await requireCtx();
   const { id } = await params;
   const sp = await searchParams;
-  const [{ po, lines, grns, approvals }, m] = await Promise.all([getPo(ctx, id), masters(ctx)]);
+  const [{ po, lines, grns, grnLines, returns, returnReasons, approvals }, m] = await Promise.all([getPo(ctx, id), masters(ctx)]);
   const qi = await quickSpec(ctx, "items");
   const b = po.branch_id;
   const cost = "grand_total" in po;
@@ -72,8 +73,26 @@ export default async function PoPage({ params, searchParams }: { params: Promise
       )}
       <div className="grid2">
         <div className="card"><h2>Receipts</h2>
-          <table><tbody>{grns.map((g) => <tr key={g.id}><td>{g.doc_no}</td><td className="small">{g.delivery_note}</td><td className="small">{g.full_name}</td><td className="small muted">{dt(g.received_at)}</td></tr>)}</tbody></table>
+          <table><tbody>{grns.map((g) => {
+            const gl = grnLines.filter((x) => x.grn_id === g.id && D(x.returnable).gt(0));
+            return <tr key={g.id}><td>{g.doc_no}</td><td className="small">{g.delivery_note}</td><td className="small">{g.full_name}</td><td className="small muted">{dt(g.received_at)}</td>
+              <td>{gl.length > 0 && (can(ctx, "stock", "create", b) || can(ctx, "purchasing", "edit", b)) && <Popup id={`return-${g.id}`} title={`Return to supplier: ${g.doc_no}`} label="Return to supplier" className="btn ghost sm">
+                <form action={poStepAction}>
+                  <input type="hidden" name="po_id" value={po.id} /><input type="hidden" name="grn_id" value={g.id} />
+                  <p className="small muted">Send back parts that are not billed yet. They leave stock now, and the order line opens again for a replacement. For parts already billed, raise a debit note to the supplier.</p>
+                  <table><thead><tr><th>Part</th><th className="num">Can go back</th><th>Quantity to return</th></tr></thead><tbody>
+                    {gl.map((x) => <tr key={x.id}><td>{x.part_no} · {x.description}</td><td className="num">{Number(x.returnable)}</td><td><input name={`rq[${x.id}]`} inputMode="decimal" placeholder="0" style={{ width: 90, minWidth: 70 }} /></td></tr>)}
+                  </tbody></table>
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <div className="field"><label>Reason</label><select name="reason" required defaultValue=""><option value="" disabled>Choose</option>{returnReasons.map((r) => <option key={r.code} value={r.code}>{r.name_en}</option>)}</select></div>
+                    <div className="field"><label>Note</label><input name="note" /></div>
+                  </div>
+                  <ConfirmButton className="btn green" name="step" value="return" message="Take these parts out of stock and send them back to the supplier?">Return the parts</ConfirmButton>
+                </form>
+              </Popup>}</td></tr>;
+          })}</tbody></table>
           {!grns.length && <p className="muted small">Nothing received yet.</p>}
+          {returns.length > 0 && <><h3>Returned to the supplier</h3><table><tbody>{returns.map((r) => <tr key={r.id}><td>{r.doc_no}</td><td className="small">from {r.grn_no}</td><td className="small">{r.reason_name}{r.note ? `: ${r.note}` : ""}</td><td className="small">{r.full_name}</td><td className="small muted">{dt(r.created_at)}</td></tr>)}</tbody></table></>}
         </div>
         <div className="card"><h2>Approval history</h2>
           <table><tbody>{approvals.map((a) => <tr key={a.id}><td>{label(a.action)}</td><td>{a.step_name ?? ""}</td><td>{a.full_name}</td><td className="small">{a.comment}</td><td className="small muted">{dt(a.at)}</td></tr>)}</tbody></table>

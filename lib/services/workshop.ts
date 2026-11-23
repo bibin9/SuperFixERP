@@ -206,7 +206,9 @@ export async function jobWorkshop(ctx: Ctx, jobId: string) {
     const t = await jobTime(c, ctx, jobId, j.branch_id);
     const qcList = (await c.query("SELECT code, name_en FROM lookup_value WHERE list = 'qc_checklist' AND active ORDER BY sort")).rows;
     const deliveryList = (await c.query("SELECT code, name_en FROM lookup_value WHERE list = 'delivery_checklist' AND active ORDER BY sort")).rows;
-    return { ...t, qcList, deliveryList, canSupervise: can(ctx, "workshop", "edit", j.branch_id) };
+    // CV-03: a company's approved drivers are offered as "Received by" at delivery.
+    const drivers = (await c.query("SELECT d.name, d.mobile FROM customer_driver d JOIN job_card j ON j.customer_id = d.customer_id WHERE j.id = $1 AND d.active ORDER BY d.name", [jobId])).rows as { name: string; mobile: string | null }[];
+    return { ...t, qcList, deliveryList, drivers, canSupervise: can(ctx, "workshop", "edit", j.branch_id) };
   });
 }
 

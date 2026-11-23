@@ -8,7 +8,7 @@ import { siteOrigin } from "@/lib/origin";
 import { allow } from "@/lib/rate-limit";
 import { COOKIE, requireCtx, requestMeta } from "@/lib/session";
 import { login, logout, switchBranch, disableUser } from "@/lib/services/auth";
-import { createCustomer, updateCustomer, createVehicle } from "@/lib/services/customers";
+import { createCustomer, updateCustomer, createVehicle, addDriver, setDriverActive } from "@/lib/services/customers";
 import { addJobLine, addEnquiryLine, removeLine, changeStatus, assignTechnician, setNewTime, saveCheckin, addCheckinPhoto } from "@/lib/services/jobs";
 import { createEnquiry, updateEnquiry, markEnquiryLost, createJobCard } from "@/lib/services/enquiries";
 import { saveQuotation, sendQuotation, recordDecisionsByStaff, submitPublicDecisions, type StaffChannel } from "@/lib/services/quotations";
@@ -84,6 +84,16 @@ export async function addVehicleAction(fd: FormData) {
     const r = await createVehicle(ctx, f);
     if (r.duplicates) return withQ(withQ(back, "vdups", JSON.stringify(r.duplicates)), "vform", JSON.stringify(f));
     return withQ(back, "ok", "Vehicle added");
+  });
+}
+
+export async function driverAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const back = String(fd.get("$back"));
+  await run(back, async () => {
+    if (fd.get("driver_id")) { await setDriverActive(ctx, String(fd.get("driver_id")), fd.get("active") === "1"); return withQ(back, "ok", fd.get("active") === "1" ? "Driver put back on the list" : "Driver taken off the list"); }
+    await addDriver(ctx, String(fd.get("customer_id")), obj(fd));
+    return withQ(back, "ok", "Driver added");
   });
 }
 

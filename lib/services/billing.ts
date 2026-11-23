@@ -273,7 +273,25 @@ export async function maybeCloseJob(c: PoolClient, ctx: Ctx, jobId: string) {
   const open = (await c.query(`SELECT count(*) n FROM sales_invoice i WHERE ${invOfJob("i", "$1")} AND i.paid_amount + i.credited_amount < i.grand_total`, [jobId])).rows[0].n;
   if (Number(open)) return false;
   await setStatus(c, ctx, job, "closed", "Paid and delivered");
+  await clearClosedJobPhotos(c, ctx, job.branch_id);
   return true;
+}
+
+/**
+ * JC-10: check-in photos of closed jobs are deleted once the keep period in Settings has passed
+ * (photos.keep_days_after_close; 0 deletes them when the job closes). Runs for the branch each time
+ * one of its jobs closes. The damage diagram, notes and the customer's signature stay on the job card.
+ */
+export async function clearClosedJobPhotos(c: PoolClient, ctx: Ctx, branchId: string) {
+  const keep = Math.max(0, Number(await getSetting(c, "photos.keep_days_after_close", branchId, 0)) || 0);
+  const r = await c.query(
+    `DELETE FROM attachment a USING job_card j
+      WHERE a.entity = 'job_checkin' AND a.entity_id = j.id AND j.branch_id = $1 AND j.status = 'closed'
+        AND coalesce((SELECT max(h.at) FROM job_status_history h WHERE h.job_card_id = j.id AND h.to_status = 'closed'), j.updated_at) <= now() - make_interval(days => $2)
+      RETURNING a.entity_id`, [branchId, keep]);
+  for (const id of new Set(r.rows.map((x) => x.entity_id as string)))
+    await audit(c, ctx, "job_card", id, "photos_cleared", { keep_days: keep, photos: r.rows.filter((x) => x.entity_id === id).length }, branchId);
+  return r.rowCount ?? 0;
 }
 
 // =====================================================================================
