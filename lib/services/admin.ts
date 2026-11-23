@@ -272,7 +272,14 @@ export async function listWorkflows(ctx: Ctx) {
       `SELECT s.*, r.name role_name, u.full_name user_name, bu.full_name backup_name, b.code branch_code FROM workflow_step s
          LEFT JOIN role r ON r.id = s.approver_role_id LEFT JOIN app_user u ON u.id = s.approver_user_id LEFT JOIN app_user bu ON bu.id = s.backup_user_id
          LEFT JOIN branch b ON b.id = s.cond_branch_id ORDER BY s.seq`)).rows;
-    return wfs.map((w) => ({ ...w, steps: steps.filter((s) => s.workflow_id === w.id) }));
+    // WF-03 rule choices: supplier rules for purchasing documents, customer rules for sales documents.
+    const options = {
+      branches: (await c.query("SELECT id, code || ' · ' || name_en label FROM branch WHERE active ORDER BY code")).rows as { id: string; label: string }[],
+      suppliers: (await c.query("SELECT id, code || ' · ' || name_en label FROM supplier WHERE active ORDER BY code")).rows as { id: string; label: string }[],
+      customers: (await c.query("SELECT id, coalesce(company_name, concat_ws(' ', first_name, last_name)) || ' · ' || customer_no label FROM customer WHERE active AND customer_type <> 'individual' ORDER BY 2")).rows as { id: string; label: string }[],
+      categories: (await c.query("SELECT code id, name_en label FROM lookup_value WHERE list = 'item_category' AND active ORDER BY sort, name_en")).rows as { id: string; label: string }[],
+    };
+    return { workflows: wfs.map((w) => ({ ...w, steps: steps.filter((s) => s.workflow_id === w.id) })), options };
   });
 }
 
@@ -292,10 +299,18 @@ export async function saveStepLimits(ctx: Ctx, stepId: string, f: Record<string,
   return withTx(ctx, async (c) => {
     const cur = await c.query("SELECT * FROM workflow_step WHERE id = $1 FOR UPDATE", [stepId]);
     if (!cur.rowCount) throw notFound("Step");
-    const row = { cond_min_amount: num(f.cond_min_amount), cond_max_amount: num(f.cond_max_amount), cond_min_discount_pct: num(f.cond_min_discount_pct), enabled: f.enabled === "on" };
+    const row = { cond_min_amount: num(f.cond_min_amount), cond_max_amount: num(f.cond_max_amount), cond_min_discount_pct: num(f.cond_min_discount_pct), enabled: f.enabled === "on",
+      cond_branch_id: num(f.cond_branch_id), cond_supplier_id: num(f.cond_supplier_id), cond_customer_id: num(f.cond_customer_id), cond_item_category: num(f.cond_item_category) };
     for (const k of ["cond_min_amount", "cond_max_amount", "cond_min_discount_pct"] as const) if (row[k] !== null && !/^\d+(\.\d{1,4})?$/.test(row[k]!)) throw invalid("Limits must be numbers.");
-    await c.query("UPDATE workflow_step SET cond_min_amount = $2, cond_max_amount = $3, cond_min_discount_pct = $4, enabled = $5 WHERE id = $1",
-      [stepId, row.cond_min_amount, row.cond_max_amount, row.cond_min_discount_pct, row.enabled]);
+    if (row.cond_min_amount && row.cond_max_amount && Number(row.cond_min_amount) > Number(row.cond_max_amount)) throw invalid("From AED cannot be more than To AED.");
+    const exists = async (sql: string, v: string | null, what: string) => { if (v && !(await c.query(sql, [v])).rowCount) throw invalid(`Choose a valid ${what}.`); };
+    await exists("SELECT 1 FROM branch WHERE id = $1 AND active", row.cond_branch_id, "branch");
+    await exists("SELECT 1 FROM supplier WHERE id = $1 AND active", row.cond_supplier_id, "supplier");
+    await exists("SELECT 1 FROM customer WHERE id = $1 AND active", row.cond_customer_id, "customer");
+    await exists("SELECT 1 FROM lookup_value WHERE list = 'item_category' AND code = $1 AND active", row.cond_item_category, "item category");
+    await c.query(`UPDATE workflow_step SET cond_min_amount = $2, cond_max_amount = $3, cond_min_discount_pct = $4, enabled = $5,
+                     cond_branch_id = $6, cond_supplier_id = $7, cond_customer_id = $8, cond_item_category = $9 WHERE id = $1`,
+      [stepId, row.cond_min_amount, row.cond_max_amount, row.cond_min_discount_pct, row.enabled, row.cond_branch_id, row.cond_supplier_id, row.cond_customer_id, row.cond_item_category]);
     await audit(c, ctx, "workflow_step", stepId, "update", diff(cur.rows[0], row));
   });
 }

@@ -17,7 +17,18 @@ export type SubmitInput = {
   summary?: Record<string, unknown>;
   /** The employee an HR request is about; line-manager steps go to that employee's manager (HR-14). */
   subjectEmployeeId?: string | null;
+  /** WF-03 rule facts: the document's supplier, customer and the item categories on its lines. */
+  supplierId?: string | null;
+  customerId?: string | null;
+  itemCategories?: string[] | null;
 };
+
+/** The distinct item categories of these items, for WF-03 category rules. */
+export async function categoriesOf(c: PoolClient, itemIds: (string | null | undefined)[]) {
+  const ids = itemIds.filter(Boolean);
+  if (!ids.length) return [];
+  return (await c.query("SELECT DISTINCT category FROM item WHERE id = ANY($1::uuid[]) AND category IS NOT NULL", [ids])).rows.map((r) => r.category as string);
+}
 
 export type Handler = {
   onApproved: (c: PoolClient, ctx: Ctx, req: ApprovalRequestRow) => Promise<void>;
@@ -43,8 +54,11 @@ async function matchingSteps(c: PoolClient, input: SubmitInput, afterSeq = -1): 
         AND (s.cond_min_amount IS NULL OR ($4::numeric IS NOT NULL AND $4::numeric >= s.cond_min_amount))
         AND (s.cond_max_amount IS NULL OR ($4::numeric IS NOT NULL AND $4::numeric <= s.cond_max_amount))
         AND (s.cond_min_discount_pct IS NULL OR ($5::numeric IS NOT NULL AND $5::numeric > s.cond_min_discount_pct))
+        AND (s.cond_supplier_id IS NULL OR s.cond_supplier_id = $6::uuid)
+        AND (s.cond_customer_id IS NULL OR s.cond_customer_id = $7::uuid)
+        AND (s.cond_item_category IS NULL OR s.cond_item_category = ANY($8::text[]))
       ORDER BY s.seq`,
-    [input.docType, afterSeq, input.branchId, input.amount ?? null, input.discountPct ?? null],
+    [input.docType, afterSeq, input.branchId, input.amount ?? null, input.discountPct ?? null, input.supplierId ?? null, input.customerId ?? null, input.itemCategories ?? []],
   );
   return r.rows;
 }
@@ -83,10 +97,10 @@ export async function submitForApproval(c: PoolClient, ctx: Ctx, input: SubmitIn
   const steps = await matchingSteps(c, input);
   const status = steps.length ? "pending" : "approved";
   const r = await c.query(
-    `INSERT INTO approval_request (branch_id, approver_branch_id, doc_type, doc_id, doc_ref, amount, discount_pct, summary, requested_by, status, current_seq, decided_at, subject_employee_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $10 = 'approved' THEN now() END, $12) RETURNING id`,
+    `INSERT INTO approval_request (branch_id, approver_branch_id, doc_type, doc_id, doc_ref, amount, discount_pct, summary, requested_by, status, current_seq, decided_at, subject_employee_id, supplier_id, customer_id, item_categories)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $10 = 'approved' THEN now() END, $12, $13, $14, $15) RETURNING id`,
     [input.branchId, input.approverBranchId ?? input.branchId, input.docType, input.docId, input.docRef, input.amount ?? null, input.discountPct ?? null,
-      JSON.stringify(input.summary ?? {}), ctx.userId, status, steps[0]?.seq ?? null, input.subjectEmployeeId ?? null],
+      JSON.stringify(input.summary ?? {}), ctx.userId, status, steps[0]?.seq ?? null, input.subjectEmployeeId ?? null, input.supplierId ?? null, input.customerId ?? null, input.itemCategories ?? null],
   ).catch((e) => {
     if (e.code === "23505") throw conflict("This document is already waiting for approval.");
     throw e;
@@ -163,7 +177,7 @@ export async function act(ctx: Ctx, taskId: string, action: "approved" | "reject
       [req.id, req.branch_id, taskId, ctx.userId, action, comment || null, channel]);
     const h = handlers.get(req.doc_type);
     if (action === "approved") {
-      const next = await matchingSteps(c, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id, amount: req.amount, discountPct: req.discount_pct }, task.seq);
+      const next = await matchingSteps(c, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id, amount: req.amount, discountPct: req.discount_pct, supplierId: req.supplier_id, customerId: req.customer_id, itemCategories: req.item_categories }, task.seq);
       if (next.length) {
         await c.query("UPDATE approval_request SET current_seq = $2, version = version + 1 WHERE id = $1", [req.id, next[0].seq]);
         await createTask(c, req.id, { docType: req.doc_type, docId: req.doc_id, docRef: req.doc_ref, branchId: req.branch_id, approverBranchId: req.approver_branch_id, subjectEmployeeId: req.subject_employee_id }, next[0], req.requested_by);

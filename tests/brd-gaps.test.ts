@@ -105,3 +105,56 @@ test("PU-04: received parts go back to the supplier before billing; stock, order
   const maryam = await ctxFor("maryam", "YAS");
   await rejects(pu.createBill(maryam, { supplier_id: supplier, supplier_invoice_no: "R-1", invoice_date: "2026-11-20", lines: [{ grn_line_id: gl.id, qty: "10", unit_price: "20" }] }).then((b) => { if (b.match === "matched") throw new Error("billed returned parts"); throw new AppError("validation", "mismatch"); }), "validation");
 });
+
+test("WF-03: a step can apply only to one supplier, customer or item category", async () => {
+  const { saveStepLimits } = await import("../lib/services/admin");
+  const admin = await ctxFor("admin", "YAS");
+  const anil = await ctxFor("anil", "YAS");
+  const step = (await adminQuery("SELECT s.id FROM workflow_step s JOIN workflow w ON w.id = s.workflow_id WHERE w.doc_type = 'purchase_order' AND s.seq = 1"))[0].id;
+  const agmc = await id("supplier", "code = $1", ["AGMC"]);
+  const other = (await adminQuery("SELECT id FROM supplier WHERE code <> 'AGMC' AND active LIMIT 1"))[0].id;
+  const item = await id("item", "part_no = $1", ["FLT-OIL-90915"]);
+  const small = async (sup: string) => { const po = await pu.createPo(anil, { supplier_id: sup }); await pu.addPoLine(anil, po.id, { item_id: item, qty: "1", unit_price: "10" }); return pu.submitPo(anil, po.id); };
+  // Every order from AGMC needs the branch manager, whatever the amount; others under AED 5,001 do not.
+  await saveStepLimits(admin, step, { cond_supplier_id: agmc, enabled: "on" });
+  assert.equal(await small(agmc), "pending");
+  assert.equal(await small(other), "approved");
+  // Category: only orders with a filter (category of FLT-OIL-90915) on them.
+  const cat = (await adminQuery("SELECT category FROM item WHERE id = $1", [item]))[0].category;
+  await saveStepLimits(admin, step, { cond_item_category: cat === "tyres" ? "batteries" : "tyres", enabled: "on" });
+  assert.equal(await small(agmc), "approved");
+  await saveStepLimits(admin, step, { cond_item_category: cat, enabled: "on" });
+  assert.equal(await small(other), "pending");
+  await rejects(saveStepLimits(admin, step, { cond_item_category: "nope", enabled: "on" }), "validation");
+  await rejects(saveStepLimits(admin, step, { cond_min_amount: "10", cond_max_amount: "5", enabled: "on" }), "validation");
+  await saveStepLimits(admin, step, { cond_min_amount: "5001", enabled: "on" });
+});
+
+test("OT-03: complaints register: open from a job or a low rating, act, hand over, close, reopen", async () => {
+  const cx = await import("../lib/services/complaints");
+  const priya = await ctxFor("priya", "YAS");
+  const job = (await adminQuery("SELECT id, customer_id FROM job_card WHERE branch_id = $1 ORDER BY created_at LIMIT 1", [YAS]))[0];
+  await rejects(cx.openComplaint(priya, { job_card_id: job.id, description: "" }), "validation");
+  await rejects(cx.openComplaint(await ctxFor("ramesh", "YAS"), { job_card_id: job.id, description: "Noise" }), "forbidden");
+  const k = await cx.openComplaint(priya, { job_card_id: job.id, description: "Noise from the front after the service", source: "phone" });
+  assert.match(k.docNo, /^YAS-CMP-/);
+  await rejects(cx.workComplaint(priya, k.id, { step: "close" }), "validation");
+  await cx.workComplaint(priya, k.id, { step: "action", note: "Called, booked a re-check" });
+  const khalid = (await adminQuery("SELECT id FROM app_user WHERE username = 'khalid'"))[0].id;
+  await cx.workComplaint(priya, k.id, { step: "owner", owner_id: khalid });
+  await cx.workComplaint(priya, k.id, { step: "close", note: "Loose heat shield fixed free of charge" });
+  const got = await cx.getComplaint(priya, k.id);
+  assert.equal(got.k.status, "closed"); assert.equal(got.k.owner_id, khalid); assert.equal(got.actions.length, 4);
+  await rejects(cx.workComplaint(priya, k.id, { step: "action", note: "x" }), "validation");
+  await cx.workComplaint(priya, k.id, { step: "reopen", note: "Noise is back" });
+  assert.equal((await cx.getComplaint(priya, k.id)).k.status, "in_progress");
+  // Another branch cannot see it.
+  await assert.rejects(cx.getComplaint(await ctxFor("sara", "QUS"), k.id), (e: unknown) => e instanceof AppError);
+  assert.ok(!(await cx.listComplaints(await ctxFor("sara", "QUS"), "all")).rows.some((r) => r.id === k.id));
+  // From a low rating: one case per rating.
+  const fb = (await adminQuery("INSERT INTO job_feedback (branch_id, job_card_id, token, rating, comment, answered_at) VALUES ($1,$2,$3,2,'Car not washed', now()) RETURNING id", [YAS, job.id, "t".repeat(40)]))[0].id;
+  const k2 = await cx.openComplaint(priya, { feedback_id: fb });
+  assert.equal((await cx.getComplaint(priya, k2.id)).k.source, "feedback");
+  await rejects(cx.openComplaint(priya, { feedback_id: fb }), "validation");
+  assert.ok((await adminQuery("SELECT followed_up_at FROM job_feedback WHERE id = $1", [fb]))[0].followed_up_at);
+});

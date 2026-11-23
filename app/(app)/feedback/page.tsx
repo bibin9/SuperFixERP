@@ -1,7 +1,7 @@
 import { requireCtx } from "@/lib/session";
 import { listFeedback } from "@/lib/services/feedback";
 import { can } from "@/lib/access";
-import { followUpFeedbackAction } from "@/app/actions-front";
+import { followUpFeedbackAction, openComplaintAction } from "@/app/actions-front";
 import { Flash, Link, PageHead, custName, dt } from "@/components/ui";
 
 const Stars = ({ n }: { n: number }) => <span className="starline" aria-label={`${n} out of 5`}>{"★".repeat(n)}<span>{"★".repeat(5 - n)}</span></span>;
@@ -35,8 +35,10 @@ export default async function FeedbackList({ searchParams }: { searchParams: Pro
               <td className="small">{f.comment ?? ""}</td>
               <td className="small">{f.followed_up_at ? <>{f.follow_up_note}<div className="muted">{f.followed_by_name} · {dt(f.followed_up_at)}</div></>
                 : f.rating && f.rating <= 2 && can(ctx, "jobs", "edit", f.branch_id) ? (
-                  <form action={followUpFeedbackAction} className="row" style={{ margin: 0 }}><input type="hidden" name="id" value={f.id} />
+                  <><form action={followUpFeedbackAction} className="row" style={{ margin: 0 }}><input type="hidden" name="id" value={f.id} />
                     <input name="note" required placeholder="Called, offered a free re-check" aria-label="What was done" /><button className="btn sm shrink">Save</button></form>
+                  <form action={openComplaintAction} style={{ marginTop: 4 }}><input type="hidden" name="$back" value="/feedback?show=low" /><input type="hidden" name="feedback_id" value={f.id} />
+                    <button className="btn ghost sm">Open a complaint</button></form></>
                 ) : ""}</td>
             </tr>
           ))}

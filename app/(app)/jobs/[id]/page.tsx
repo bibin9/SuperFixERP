@@ -178,10 +178,11 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {warranty.map((w) => <div key={w.id} className="small">Warranty claim {w.doc_no}{w.claim_ref ? ` · ${w.claim_ref}` : ""}</div>)}
           {!invoices.length && !warranty.length && <p className="small muted">No invoice yet.</p>}
           {msgs.slice(0, 3).map((x) => <div key={x.id} className="small">{x.event.replace(/_/g, " ")} <Status s={x.status} /> <span className="muted">{dt(x.at)}</span></div>)}
-          {canEdit && <details className="more" style={{ marginTop: 8 }}><summary className="small">Message the customer, ask for a rating or take a deposit</summary>
+          {canEdit && <details className="more" style={{ marginTop: 8 }}><summary className="small">Message the customer, ask for a rating, open a complaint or take a deposit</summary>
             <form action={whatsappAction} style={{ marginTop: 8 }}><input type="hidden" name="job_id" value={id} /><input type="hidden" name="$back" value={back} />
               <div className="row"><div className="field"><label>Message</label><select name="event"><option value="approved">Work approved</option><option value="car_ready">Car ready</option></select></div><button className="btn wa sm shrink">Prepare WhatsApp</button></div></form>
             {["delivered", "invoiced", "closed"].includes(job.status) && <form action={askFeedbackAction} style={{ marginTop: 8 }}><input type="hidden" name="job_id" value={id} /><button className="btn ghost sm">Ask for a rating</button></form>}
+            <p><Link className="btn ghost sm" href={`/complaints/new?job=${id}`}>Open a complaint</Link></p>
             {!["closed", "cancelled"].includes(job.status) && can(ctx, "invoices", "create", b) && <p><Link className="btn ghost sm" href={`/billing/advances?job=${id}`}>Take deposit</Link></p>}
           </details>}
         </div>

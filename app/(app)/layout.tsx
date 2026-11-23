@@ -45,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/jobs", "Job cards", can("jobs") || can("workshop")],
       ["/approvals", "Approvals", can("approvals"), pending],
       ["/feedback", "Customer feedback", can("jobs")],
+      ["/complaints", "Complaints", can("jobs")],
     ]],
     ["Workshop", [
       ["/workshop", "Workshop board", can("workshop"), undefined, lateJobs ? `${lateJobs} late` : undefined],

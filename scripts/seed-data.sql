@@ -262,7 +262,7 @@ SELECT w.id, 1, 'Accountant', (SELECT id FROM role WHERE code = 'accountant'), '
 
 INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
 SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
-CROSS JOIN (VALUES ('transfer','-TR-'),('stock_adjustment','-ADJ-'),('stock_count','-CNT-'),('purchase_order','-PO-'),('grn','-GRN-'),('supplier_bill','-PB-'),('petty_cash','-PC-'),('supplier_return','-SR-')) t(doc_type, suffix)
+CROSS JOIN (VALUES ('transfer','-TR-'),('stock_adjustment','-ADJ-'),('stock_count','-CNT-'),('purchase_order','-PO-'),('grn','-GRN-'),('supplier_bill','-PB-'),('petty_cash','-PC-'),('supplier_return','-SR-'),('complaint','-CMP-')) t(doc_type, suffix)
 ;
 
 INSERT INTO lookup_value (list, code, name_en, sort) VALUES

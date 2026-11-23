@@ -8,7 +8,7 @@ import { audit } from "./audit";
 import { nextDocNo } from "./numbering";
 import { postJournal, type PostLine } from "./ledger";
 import { getSetting } from "./settings";
-import { registerHandler, submitForApproval } from "./workflow";
+import { registerHandler, submitForApproval, categoriesOf } from "./workflow";
 import { stockIn, stockOut, today } from "./stock";
 import { D, Decimal, parseDec, r2 } from "../money";
 import { optStr, str } from "../validate";
@@ -80,7 +80,8 @@ export async function createCreditNote(ctx: Ctx, invoiceId: string, f: { reason:
         [cn.id, inv.branch_id, p.l.id, p.qty.toFixed(3), p.taxable.toFixed(2), p.vat.toFixed(2), p.taxable.plus(p.vat).toFixed(2), p.action]);
     }
     await audit(c, ctx, "credit_note", cn.id, "requested", { invoice: inv.doc_no, total: total.toFixed(2), reason }, inv.branch_id);
-    const r = await submitForApproval(c, ctx, { docType: "credit_note", docId: cn.id, docRef: `Credit for ${inv.doc_no}`, branchId: inv.branch_id, amount: total.toFixed(2), summary: { invoice: inv.doc_no, reason } });
+    const r = await submitForApproval(c, ctx, { docType: "credit_note", docId: cn.id, docRef: `Credit for ${inv.doc_no}`, branchId: inv.branch_id, amount: total.toFixed(2), summary: { invoice: inv.doc_no, reason },
+      customerId: inv.customer_id, itemCategories: await categoriesOf(c, (await c.query("SELECT il.item_id FROM credit_note_line cl JOIN sales_invoice_line il ON il.id = cl.invoice_line_id WHERE cl.credit_note_id = $1", [cn.id])).rows.map((r) => r.item_id)) });
     if (r.status === "approved") await postCreditNote(c, ctx, cn.id);
     return { id: cn.id as string, status: r.status === "approved" ? "posted" : "pending_approval" };
   });

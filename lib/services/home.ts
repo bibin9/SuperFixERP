@@ -140,6 +140,10 @@ async function branchAlerts(ctx: Ctx): Promise<Alert[]> {
           GROUP BY j.id, j.doc_no, v.make, v.model ORDER BY max(a.assigned_at) LIMIT 8`, [b, mins])).rows)
         out.push({ group: "Assigned but not started", text: `${r.doc_no} · ${r.car}`, sub: `${r.techs} not clocked in after ${mins} minutes`, href: `/jobs/${r.id}#workshop`, tone: "a" });
     }
+    // Complaints with me that are past their close-by date (OT-03).
+    for (const r of (await c.query(
+      `SELECT k.id, k.doc_no, k.description FROM complaint_case k WHERE k.owner_id = $1 AND k.status <> 'closed' AND k.due_date < current_date ORDER BY k.due_date LIMIT 8`, [ctx.userId])).rows)
+      out.push({ group: "Complaints past their date", text: r.doc_no, sub: String(r.description).slice(0, 80), href: `/complaints/${r.id}`, tone: "r" });
     if (b && canAnywhere(ctx, "customers", "view")) {
       for (const r of (await c.query("SELECT id, doc_no, name, plate_number FROM key_drop WHERE branch_id = $1 AND status = 'waiting' ORDER BY created_at LIMIT 8", [b])).rows)
         out.push({ group: "Keys dropped after hours", text: `${r.name} · ${r.plate_number}`, sub: `${r.doc_no}: check the car in`, href: `/workshop/keys/${r.id}`, tone: "b" });

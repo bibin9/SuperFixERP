@@ -9,7 +9,7 @@ import { postJournal } from "./ledger";
 import { D, r2, parseDec } from "../money";
 import { optStr, required, str } from "../validate";
 import { freeQty, lockBalance, stockIn, stockOut, today } from "./stock";
-import { registerHandler, submitForApproval, type ApprovalRequestRow } from "./workflow";
+import { registerHandler, submitForApproval, categoriesOf, type ApprovalRequestRow } from "./workflow";
 import { getSetting } from "./settings";
 
 /** M07 transfers, adjustments and counts; M06 planning screen and store queue. */
@@ -50,7 +50,7 @@ async function createTransfer(c: PoolClient, ctx: Ctx, to: string, from: string,
   }
   await c.query("INSERT INTO transfer_event (transfer_id, status, user_id, note) VALUES ($1,'requested',$2,$3)", [t.id, ctx.userId, note]);
   await audit(c, ctx, "transfer", t.id, "requested", { from: fromB.code, lines: lines.length }, to);
-  const r = await submitForApproval(c, ctx, { docType: "stock_transfer", docId: t.id, docRef: docNo, branchId: to, approverBranchId: from, summary: { from: fromB.code } });
+  const r = await submitForApproval(c, ctx, { docType: "stock_transfer", docId: t.id, docRef: docNo, branchId: to, approverBranchId: from, summary: { from: fromB.code }, itemCategories: await categoriesOf(c, lines.map((l) => l.item_id)) });
   // Workflow switched off: approved at once, so the supplying branch's stock is reserved now.
   if (r.status === "approved") await reserveTransfer(c, ctx, t.id);
   return { id: t.id as string, docNo, status: r.status === "approved" ? "approved" : "requested" };
@@ -229,7 +229,7 @@ async function insertAdjustment(c: PoolClient, ctx: Ctx, b: string, reason: stri
     await c.query("INSERT INTO stock_adjustment_line (adjustment_id, branch_id, item_id, qty_change) VALUES ($1,$2,$3,$4)", [a.id, b, l.item_id, l.q.toFixed(3)]);
   }
   await audit(c, ctx, "stock_adjustment", a.id, "submitted", { reason, lines: lines.length }, b);
-  const r = await submitForApproval(c, ctx, { docType: "stock_adjustment", docId: a.id, docRef: docNo, branchId: b, amount: value.toFixed(2), summary: { reason } });
+  const r = await submitForApproval(c, ctx, { docType: "stock_adjustment", docId: a.id, docRef: docNo, branchId: b, amount: value.toFixed(2), summary: { reason }, itemCategories: await categoriesOf(c, lines.map((l) => l.item_id)) });
   if (r.status === "approved") await postAdjustment(c, ctx, a.id);
   return { id: a.id as string, docNo, status: r.status };
 }

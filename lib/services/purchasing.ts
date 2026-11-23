@@ -9,7 +9,7 @@ import { postJournal } from "./ledger";
 import { D, Decimal, r2, parseDec } from "../money";
 import { optStr, required, str, normaliseTrn } from "../validate";
 import { stockIn, stockOut, today } from "./stock";
-import { registerHandler, submitForApproval } from "./workflow";
+import { categoriesOf, registerHandler, submitForApproval } from "./workflow";
 import { getSetting } from "./settings";
 import { cfVisible, customFields } from "./hr";
 
@@ -122,7 +122,8 @@ export async function submitPo(ctx: Ctx, poId: string) {
     if (!["draft", "rejected"].includes(po.status)) throw invalid("Only a draft order can be submitted.");
     const n = (await c.query("SELECT count(*) n FROM po_line WHERE po_id = $1", [poId])).rows[0].n;
     if (!Number(n)) throw invalid("Add at least one line.");
-    const r = await submitForApproval(c, ctx, { docType: "purchase_order", docId: poId, docRef: po.doc_no, branchId: po.branch_id, amount: po.grand_total, summary: { supplier: po.supplier_id } });
+    const r = await submitForApproval(c, ctx, { docType: "purchase_order", docId: poId, docRef: po.doc_no, branchId: po.branch_id, amount: po.grand_total, summary: { supplier: po.supplier_id },
+      supplierId: po.supplier_id, itemCategories: await categoriesOf(c, (await c.query("SELECT item_id FROM po_line WHERE po_id = $1", [poId])).rows.map((r) => r.item_id)) });
     await c.query("UPDATE purchase_order SET status = $2, approved_at = CASE WHEN $2 = 'approved' THEN now() END, version = version + 1 WHERE id = $1",
       [poId, r.status === "approved" ? "approved" : "pending_approval"]);
     await audit(c, ctx, "purchase_order", poId, "submitted", { total: po.grand_total, result: r.status }, po.branch_id);
@@ -392,7 +393,8 @@ export async function createBill(ctx: Ctx, f: { supplier_id: string; supplier_in
     await audit(c, ctx, "supplier_bill", bill.id, "entered", { invoice: invNo, match }, b);
     // A matched bill (or one with no PO, e.g. a service invoice) posts at once; a mismatch goes for approval.
     if (mismatch) {
-      const r = await submitForApproval(c, ctx, { docType: "supplier_bill", docId: bill.id, docRef: docNo, branchId: b, amount: netT.plus(vatT).toFixed(2), summary: { supplier: sup.name_en } });
+      const r = await submitForApproval(c, ctx, { docType: "supplier_bill", docId: bill.id, docRef: docNo, branchId: b, amount: netT.plus(vatT).toFixed(2), summary: { supplier: sup.name_en }, supplierId: f.supplier_id,
+        itemCategories: await categoriesOf(c, (await c.query("SELECT gl.item_id FROM supplier_bill_line bl JOIN grn_line gl ON gl.id = bl.grn_line_id WHERE bl.bill_id = $1", [bill.id])).rows.map((r) => r.item_id)) });
       if (r.status === "approved") await postBill(c, ctx, bill.id);
     } else await postBill(c, ctx, bill.id);
     return { id: bill.id as string, docNo, match };

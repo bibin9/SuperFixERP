@@ -5,7 +5,7 @@ import { withTx, withBranchSystemTx } from "../db";
 import { invalid, notFound, conflict } from "../errors";
 import { audit } from "./audit";
 import { getSetting } from "./settings";
-import { submitForApproval, registerHandler } from "./workflow";
+import { submitForApproval, categoriesOf, registerHandler } from "./workflow";
 import { calcDocument, D, Decimal } from "../money";
 import { addDaysLocal, commitForLine, releaseCommitment, today } from "./stock";
 import { setStatus, ENQUIRY_QUOTABLE, JOB_EDITABLE } from "./jobs";
@@ -117,6 +117,7 @@ export async function saveQuotation(ctx: Ctx, enquiryId: string, f: { doc_discou
       const res = await submitForApproval(c, ctx, {
         docType: "discount", docId: qid, docRef: docNo, branchId: job.branch_id, amount: calc.total.toFixed(2), discountPct: maxPct.toFixed(4),
         summary: { reason: reasons.join("; "), enquiry: enq.doc_no, total: calc.total.toFixed(2), discount: calc.discount.toFixed(2) },
+        customerId: enq.customer_id, itemCategories: await categoriesOf(c, lines.map((l) => l.item_id)),
       });
       status = res.status === "approved" ? "ready_to_send" : "pending_internal_approval";
     }

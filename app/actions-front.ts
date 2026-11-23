@@ -116,3 +116,19 @@ export async function newKeydropCodeAction() {
   const { newKeydropCode } = await import("@/lib/services/keydrop");
   await run("/workshop/keys", () => newKeydropCode(ctx), "New QR code made. Print it and replace the one on the key box.");
 }
+
+// ---------- complaints register (OT-03) ----------
+export async function openComplaintAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const { openComplaint } = await import("@/lib/services/complaints");
+  const back = String(fd.get("$back") || "/complaints");
+  await run(back, async () => { const r = await openComplaint(ctx, obj(fd)); return `/complaints/${r.id}?ok=${encodeURIComponent(`${r.docNo} opened`)}`; });
+}
+export async function workComplaintAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const { workComplaint } = await import("@/lib/services/complaints");
+  const id = String(fd.get("id"));
+  const step = String(fd.get("step"));
+  await run(`/complaints/${id}`, () => workComplaint(ctx, id, { step, note: fd.get("note"), owner_id: fd.get("owner_id") }),
+    step === "close" ? "Complaint closed" : step === "reopen" ? "Complaint reopened" : step === "owner" ? "Owner changed" : "Action added");
+}

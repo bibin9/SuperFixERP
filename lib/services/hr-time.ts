@@ -146,8 +146,9 @@ export async function attendanceDays(c: PoolClient, f: { from: string; to: strin
         worked_h: 0, late_min: 0, early_min: 0, shift: sh?.code ?? null, punches: ps.length, note: "" };
       if (ps.length > 1) row.worked_h = Math.max(0, Math.round(((mins(row.last_out!) - mins(row.first_in!) - (sh?.break_minutes ?? 0)) / 60) * 100) / 100);
       if (lv) { row.status = "leave"; row.note = lv.name_en; }
-      else if (hols.has(d)) { row.status = ps.length ? "worked_holiday" : "holiday"; row.note = hols.get(d)!; }
-      else if (!sh) { row.status = ps.length ? "worked_off_day" : "off"; }
+      // One punch on a past holiday or day off is still a missing punch-out, so HR is asked to fix it.
+      else if (hols.has(d)) { row.status = ps.length === 1 && d !== today() ? "missing_out" : ps.length ? "worked_holiday" : "holiday"; row.note = hols.get(d)!; }
+      else if (!sh) { row.status = ps.length === 1 && d !== today() ? "missing_out" : ps.length ? "worked_off_day" : "off"; if (ps.length === 1) row.note = "Day off"; }
       else if (!ps.length) { row.status = d === today() ? "not_in_yet" : "absent"; }
       else {
         row.late_min = Math.max(0, mins(row.first_in!) - mins(sh.st) - sh.grace_minutes);

@@ -2,7 +2,7 @@
 /** Which guide fits the screen at this path (longest matching prefix). */
 export const SCREEN_TOPIC: [string, string][] = [
   ["/enquiries", "enquiries"], ["/customers", "customers"], ["/vehicles", "customers"], ["/jobs/", "job-card"], ["/jobs", "job-card"],
-  ["/bookings", "bookings"], ["/approvals", "approvals"], ["/workshop/runs", "runs"], ["/workshop/keys", "key-drop"], ["/workshop/time", "workshop-board"], ["/workshop/tablets", "workshop-board"], ["/hr/machines", "attendance"], ["/feedback", "feedback"], ["/workshop", "workshop-board"], ["/my-jobs", "my-jobs"],
+  ["/bookings", "bookings"], ["/approvals", "approvals"], ["/workshop/runs", "runs"], ["/workshop/keys", "key-drop"], ["/workshop/time", "workshop-board"], ["/workshop/tablets", "workshop-board"], ["/hr/machines", "attendance"], ["/feedback", "feedback"], ["/complaints", "feedback"], ["/workshop", "workshop-board"], ["/my-jobs", "my-jobs"],
   ["/stock/queue", "store-queue"], ["/stock/reorder", "low-stock"], ["/stock/planning", "planning"], ["/stock/transfers", "transfers"], ["/stock/adjustments", "counts"], ["/stock/counts", "counts"], ["/stock", "stock"],
   ["/purchasing/bills", "supplier-bills"], ["/purchasing/petty-cash", "petty-cash"], ["/purchasing/direct", "buy-for-job"], ["/purchasing", "purchase-orders"],
   ["/invoices", "invoicing"], ["/billing/counter-sale", "counter-sale"], ["/billing/quick", "invoicing"], ["/billing/advances", "advances"], ["/billing/cheques", "cheques"], ["/billing/credit-notes", "credit-notes"], ["/billing/cash", "cash-closing"],
