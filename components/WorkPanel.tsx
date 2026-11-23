@@ -1,5 +1,6 @@
+import { ScanBox } from "@/components/ScanBox";
 import { addLineAction, addBundleAction, removeLineAction, saveQuotationAction, sendQuotationAction, staffDecisionAction, issueAction } from "@/app/actions";
-import { Money, Status } from "./ui";
+import { Link, Money, Status } from "./ui";
 import { D } from "@/lib/money";
 import { Popup } from "./Popup";
 import { QuickAdd } from "./QuickAdd";
@@ -58,7 +59,8 @@ export function WorkLines(p: {
           </Popup>
           <Popup id="add-part" title={isJob ? "Add a part (extra work)" : "Add a part"} label="+ Add part" className="btn sm">
             <form action={addLineAction}>{hidden}<input type="hidden" name="line_type" value="part" />
-              <div className="field"><label>Part</label><div className="picker"><select name="item_id" required>{p.m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select>
+              <ScanBox />
+              <div className="field"><label>Part</label><div className="picker"><select name="item_id" required>{p.m.items.map((i) => <option key={i.id} value={i.id} data-codes={i.codes}>{i.part_no} · {i.description}{p.canSeePrices ? ` · AED ${i.list_price}` : ""}</option>)}</select>
                 {p.quick?.items && <QuickAdd spec={p.quick.items} target="item_id" label="+ New part" />}</div></div>
               <div className="row"><div className="field"><label>Qty</label><input name="qty" defaultValue="1" inputMode="decimal" required /></div>{p.discountEdit && <div className="field"><label>Discount AED (optional)</label><input name="discount_amount" inputMode="decimal" placeholder="0.00" /></div>}</div>
               {p.priceEdit && <div className="field"><label>Override unit price (manager, optional)</label><input name="unit_price" inputMode="decimal" /></div>}
@@ -102,7 +104,8 @@ export function QuotationPanel(p: {
       {q ? (
         <>
           <div className="row" style={{ alignItems: "center" }}>
-            <div><b>{q.doc_no}</b> <Status s={q.status} /> <span className="muted small">valid until {q.valid_until.split("-").reverse().join("/")}</span></div>
+            <div><b>{q.doc_no}</b> <Status s={q.status} /> <span className="muted small">valid until {q.valid_until.split("-").reverse().join("/")}</span>
+              {p.canSeePrices && <> <Link className="btn ghost sm" href={`/print/quotation/${q.id}`}>Print quotation</Link></>}</div>
             {p.canSeePrices && <div className="right">Taxable <Money v={q.taxable_total} /> · VAT <Money v={q.vat_total} /> · <b>Total AED <Money v={q.grand_total} /></b> · approved <Money v={q.approved_total} /></div>}
           </div>
           {q.internal_approval_reason && <div className="flash warn" style={{ marginTop: 8 }}>{q.internal_approval_reason}</div>}

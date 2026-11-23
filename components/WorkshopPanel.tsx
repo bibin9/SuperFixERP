@@ -1,3 +1,4 @@
+import { ScanBox } from "@/components/ScanBox";
 import type { Ctx } from "@/lib/access";
 import { can } from "@/lib/access";
 import { jobWorkshop, minutesText, lineColour } from "@/lib/services/workshop";
@@ -76,7 +77,8 @@ export async function WorkshopPanel({ ctx, job, lines, m, back, quick, canAddUse
             <form action={partRequestAction}>
               <input type="hidden" name="job_id" value={job.id} /><input type="hidden" name="$back" value={back} />
               <p className="small muted">For a part the customer already approved on this job. A new part has to be added under Job lines with + Add part and approved by the customer before the store gives it out.</p>
-              <div className="field"><label>Part</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Part not in the list (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>
+              <ScanBox />
+              <div className="field"><label>Part</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Part not in the list (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id} data-codes={i.codes}>{i.part_no} · {i.description}</option>)}</select>
                 {quick?.items && <QuickAdd spec={quick.items} target="item_id" label="+ New part" />}</div></div>
               <div className="row"><div className="field"><label>Quantity</label><input name="qty" defaultValue="1" inputMode="decimal" /></div>
                 <div className="field"><label>Description (if not in the list)</label><input name="description" /></div></div>

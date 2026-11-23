@@ -231,12 +231,12 @@ export async function stockList(ctx: Ctx, q = "") {
   assertCan(ctx, "stock", "view");
   return withTx(ctx, async (c) => {
     const rows = (await c.query(
-      `SELECT i.id item_id, i.part_no, i.description, i.brand, i.uom, i.list_price, b.id branch_id, b.code branch_code,
+      `SELECT i.id item_id, i.part_no, i.description, i.brand, i.oem_part_no, i.barcode, i.uom, i.list_price, b.id branch_id, b.code branch_code,
               coalesce(sb.on_hand,0) on_hand, coalesce(sb.committed,0) committed, coalesce(sb.reserved,0) reserved,
               coalesce(sb.on_hand,0) - coalesce(sb.committed,0) - coalesce(sb.reserved,0) free, sb.avg_cost,
               round(coalesce(sb.on_hand,0) * coalesce(sb.avg_cost,0), 2) stock_value
          FROM item i JOIN stock_balance sb ON sb.item_id = i.id JOIN branch b ON b.id = sb.branch_id
-        WHERE i.active AND ($1 = '' OR i.part_no ILIKE '%'||$1||'%' OR i.description ILIKE '%'||$1||'%')
+        WHERE i.active AND ($1 = '' OR i.part_no ILIKE '%'||$1||'%' OR i.description ILIKE '%'||$1||'%' OR i.search_codes LIKE '%'||upper($1)||'%' OR i.fits_vehicles ILIKE '%'||$1||'%')
         ORDER BY i.part_no, b.code`, [q.trim()])).rows;
     // Cost is shown only for the user's own branches, and only with the purchase-cost permission.
     return rows.map((r) => (ctx.branchIds.includes(r.branch_id) && canSee(ctx, "purchase_cost", r.branch_id)) ? r : (({ avg_cost, stock_value, ...rest }) => { void avg_cost; void stock_value; return rest; })(r))

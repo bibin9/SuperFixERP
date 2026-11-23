@@ -1,3 +1,4 @@
+import { ScanBox } from "@/components/ScanBox";
 import { requireCtx } from "@/lib/session";
 import { reorderList } from "@/lib/services/stock-ops";
 import { suppliers } from "@/lib/services/purchasing";
@@ -64,7 +65,8 @@ export default async function Reorder({ searchParams }: { searchParams: Promise<
           </table>
           {all && canSet && m && (
             <form action={reorderLevelAction} className="row" style={{ marginTop: 14, alignItems: "flex-end" }}>
-              <div className="field"><label>Another part</label><select name="item_id" required defaultValue=""><option value="" disabled>Choose the part</option>{m.items.filter((i) => !rows.some((r) => r.item_id === i.id)).map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select></div>
+              <div className="field"><label>Scan</label><ScanBox /></div>
+              <div className="field"><label>Another part</label><select name="item_id" required defaultValue=""><option value="" disabled>Choose the part</option>{m.items.filter((i) => !rows.some((r) => r.item_id === i.id)).map((i) => <option key={i.id} value={i.id} data-codes={i.codes}>{i.part_no} · {i.description}</option>)}</select></div>
               <div className="field"><label>Reorder level</label><input name="reorder_level" required inputMode="decimal" /></div>
               <div className="field"><label>Reorder quantity</label><input name="reorder_qty" required inputMode="decimal" /></div>
               <button className="btn ghost shrink">Add</button>

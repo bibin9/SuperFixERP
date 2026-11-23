@@ -1,3 +1,4 @@
+import { ScanBox } from "@/components/ScanBox";
 import { requireCtx } from "@/lib/session";
 import { QuickAdd } from "@/components/QuickAdd";
 import { quickSpec } from "@/lib/services/quick-add";
@@ -25,7 +26,8 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
       {can(ctx, "stock", "create") && (
         <details className="card"><summary><b>Opening stock or a receipt without a purchase order</b></summary>
           <form action={receiveStockAction} className="row">
-            <div className="field"><label>Item</label><div className="picker"><select name="item_id">{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>{qi && <QuickAdd spec={qi} target="item_id" label="+ New part" />}</div></div>
+            <div className="field"><label>Scan</label><ScanBox /></div>
+            <div className="field"><label>Item</label><div className="picker"><select name="item_id">{m.items.map((i) => <option key={i.id} value={i.id} data-codes={i.codes}>{i.part_no} · {i.description}</option>)}</select>{qi && <QuickAdd spec={qi} target="item_id" label="+ New part" />}</div></div>
             <div className="field"><label>Quantity</label><input name="qty" required /></div>
             <div className="field"><label>Unit cost (AED)</label><input name="unit_cost" required /></div>
             <div className="field"><label>Type</label><select name="kind"><option value="receipt">Receipt (before supplier bill)</option><option value="opening">Opening stock</option></select></div>
@@ -36,7 +38,7 @@ export default async function Stock({ searchParams }: { searchParams: Promise<Re
         </details>
       )}
       <div className="card">
-        <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Search parts</label><input id="q" name="q" defaultValue={sp.q} placeholder="Part no. or description" /></div><button className="btn ghost shrink">Filter</button></form>
+        <form className="row" style={{ marginBottom: 10 }}><div className="field"><label htmlFor="q">Search parts</label><input id="q" name="q" defaultValue={sp.q} placeholder="Part no., barcode, OEM no., description or vehicle" /></div><button className="btn ghost shrink">Filter</button></form>
         <table>
           <thead><tr><th>Part</th><th>Branch</th><th className="num">On hand</th><th className="num">Committed</th><th className="num">Reserved</th><th className="num">Free</th>{cost && <th className="num">Avg cost</th>}{cost && <th className="num">Value</th>}</tr></thead>
           <tbody>{rows.map((r) => (

@@ -58,6 +58,10 @@ export const MASTERS: MDef[] = [
       { name: "vat_code", label: "Tax code", type: "select", sql: TAX, required: true },
       { name: "item_type", label: "Item type", type: "select", required: true, values: [["stock", "Stock item"], ["consumable", "Consumable"], ["non_stock", "Non-stock"], ["service", "Service item"]] },
       { name: "preferred_supplier_id", label: "Preferred supplier", type: "select", sql: "SELECT id::text, code || ' · ' || name_en FROM supplier WHERE active ORDER BY code", hint: "Used when a back order raises a purchase order" },
+      { name: "barcode", label: "Barcode", type: "text", pattern: "^[A-Za-z0-9.\\-]{3,40}$", hint: "What the scanner reads: letters, digits, dots and dashes. Each barcode belongs to one part only" },
+      { name: "oem_part_no", label: "OEM part no.", type: "text", hint: "The car maker's number for this part" },
+      { name: "alt_part_nos", label: "Aftermarket and other part nos.", type: "text", hint: "Separate with commas, for example Bosch 0986AF0123, Mann C 1780" },
+      { name: "fits_vehicles", label: "Fits vehicles", type: "textarea", hint: "Makes, models and years, for example Toyota Corolla 2014-2019, Toyota Yaris 2016-2020" },
     ] },
   { key: "price-lists", title: "Price lists by price level", group: "Stock", table: "price_list_line", pk: ["id"], autoId: true, hasActive: true, order: "price_level, item_id",
     note: "Selling price of an item for a price level (retail, trade, fleet and any level added under Pick lists). Without a line here the item's list price is used.",
@@ -341,6 +345,7 @@ export async function saveMaster(ctx: Ctx, mkey: string, form: Record<string, un
       return { key: JSON.stringify(keyVals) };
     } catch (e) {
       const code = (e as { code?: string }).code;
+      if (code === "23505" && (e as { constraint?: string }).constraint === "item_barcode_key") throw new AppError("conflict", "Another part already has this barcode.");
       if (code === "23505") throw new AppError("conflict", `A record with this ${d.fields.find((f) => d.pk.includes(f.name) || f.name === "code" || f.name === "part_no")?.label.toLowerCase() ?? "key"} already exists.`);
       if (code === "23503" || code === "23514") throw invalid("That value is not allowed here.");
       throw e;

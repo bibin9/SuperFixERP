@@ -158,3 +158,11 @@ test("OT-03: complaints register: open from a job or a low rating, act, hand ove
   await rejects(cx.openComplaint(priya, { feedback_id: fb }), "validation");
   assert.ok((await adminQuery("SELECT followed_up_at FROM job_feedback WHERE id = $1", [fb]))[0].followed_up_at);
 });
+
+test("OT-10: an employee import row needs only branch, names, nationality and joining date; HR completes the rest later", async () => {
+  const admin = await ctxFor("admin", "YAS");
+  const r = await importMasters(admin, "employees", "Employee no,Branch,First name,Last name,Nationality,Joining date\nIMP-9,YAS,Light,Row,India,01/03/2021");
+  assert.equal(r.created, 1, r.errors.join("; "));
+  const e = (await adminQuery("SELECT date_of_birth, mobile, department_id FROM employee WHERE emp_no = 'IMP-9'"))[0];
+  assert.deepEqual([e.date_of_birth, e.mobile, e.department_id], [null, null, null]);
+});

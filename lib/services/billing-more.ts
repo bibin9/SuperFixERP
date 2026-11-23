@@ -285,7 +285,7 @@ export async function counterSaleSetup(ctx: Ctx, customerId?: string | null) {
     if (!cust) throw notFound("Customer");
     const inclusive = await getSetting<unknown>(c, "sales.prices_include_vat", b, true);
     const items = (await c.query(
-      `SELECT i.id, i.part_no, i.description, i.vat_code, t.rate, coalesce(pl.price, i.list_price) net, coalesce(sb.on_hand,0) - coalesce(sb.committed,0) - coalesce(sb.reserved,0) free
+      `SELECT i.id, i.part_no, i.description, i.search_codes codes, i.vat_code, t.rate, coalesce(pl.price, i.list_price) net, coalesce(sb.on_hand,0) - coalesce(sb.committed,0) - coalesce(sb.reserved,0) free
          FROM item i JOIN tax_code t ON t.code = i.vat_code LEFT JOIN price_list_line pl ON pl.item_id = i.id AND pl.price_level = $2 AND pl.active
          LEFT JOIN stock_balance sb ON sb.item_id = i.id AND sb.branch_id = $1 WHERE i.active AND i.item_type IN ('stock','consumable') ORDER BY i.part_no`, [b, cust.price_level])).rows;
     return { customer: cust, billTo: billToName(cust), inclusive: inclusive === true || inclusive === "true", items };

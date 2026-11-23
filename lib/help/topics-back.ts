@@ -161,6 +161,7 @@ export const BACK: HelpTopic[] = [
       { h: "Make the sale", steps: [
         "Open **Billing, Counter sale**.",
         "Find the customer by mobile or name and press **Find**, or press **Walk-in instead** for someone without an account. A walk-in must pay in full.",
+        "To add a part with a barcode scanner, click in **Scan or type a barcode or part no.** and scan. Each scan of the same part adds one to its quantity. You can also type the part number, OEM number or an aftermarket number and press Enter.",
         "Choose each item (**Choose an item**) and type the **Qty**. The **Price incl. VAT** comes from the customer's price level. **Free stock** shows what you can sell.",
         "Type a **Discount (AED)** if allowed. Above your limit, or below the minimum price, the manager must override.",
         "Under **Payment** choose the **Method** and **Amount** (blank means the whole sale). For card or transfer type the reference; for a cheque the cheque details.",

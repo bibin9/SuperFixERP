@@ -16,7 +16,7 @@ export default async function CounterSale({ searchParams }: { searchParams: Prom
   const s = await counterSaleSetup(ctx, customerId);
   const found = sp.q && sp.q.trim().length >= 2 ? (await listCustomers(ctx, sp.q)).filter((c) => !c.is_walk_in).slice(0, 8) : [];
   const m = await masters(ctx);
-  const items = s.items.map((i) => ({ id: i.id, part_no: i.part_no, description: i.description, free: String(i.free),
+  const items = s.items.map((i) => ({ id: i.id, part_no: i.part_no, description: i.description, codes: i.codes ?? undefined, free: String(i.free),
     gross: (s.inclusive ? D(i.net).mul(D(1).plus(i.rate)) : D(i.net)).toFixed(2) }));
   return (
     <>

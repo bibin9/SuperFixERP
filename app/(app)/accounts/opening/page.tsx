@@ -29,7 +29,8 @@ export default async function Opening({ searchParams }: { searchParams: Promise<
             </div>
             <div className="field"><label>Or paste the CSV</label><textarea name="file_text" rows={4} aria-label="Masters CSV" placeholder={Object.values(MASTER_IMPORTS).map((v) => v.sample).join("\n\n")} /></div>
             <button className="btn ghost">Import</button>
-            <p className="small muted">The first row holds the column names, as in the examples above; the first sheet of an Excel file is read. Import in this order: stock items, then opening stock; customers, then their vehicles (each car finds its owner by mobile). Employees need the branch code and the department and designation code or name. Opening stock posts to the opening balance account, so leave 1300 inventory out of the ledger balances file.</p>
+            <p className="small">Templates: {Object.entries(MASTER_IMPORTS).map(([k, v], n) => <span key={k}>{n ? " · " : ""}<a download={`${k}-template.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent(v.sample + "\n")}`}>{v.title}</a></span>)}</p>
+            <p className="small muted">The first row holds the column names, as in the examples above; the first sheet of an Excel file is read. Import in this order: stock items, then opening stock; customers, then their vehicles (each car finds its owner by mobile). Employees need only the branch code, first and last name, nationality and joining date; date of birth, mobile, department and designation can be left out and completed on the employee page later. Opening stock posts to the opening balance account, so leave 1300 inventory out of the ledger balances file.</p>
           </form>
         </details>)}
       {!b && canAnywhere(ctx, "accounting", "create") && <OpeningCheck action={openingAction} />}

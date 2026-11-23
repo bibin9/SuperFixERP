@@ -115,7 +115,7 @@ const EMP_FIELDS = ["first_name", "last_name", "name_ar", "nationality", "date_o
   "department_id", "designation_id", "grade", "line_manager_id", "joining_date", "contract_type", "contract_end", "probation_end", "mohre_person_code",
   "labour_card_no", "wps_agent_id", "pay_method", "iban", "wps_card_no", "shift_id", "weekly_off", "user_id"] as const;
 
-/** `fromHire`: a hired applicant starts as a partial file that HR completes; the full-file checks apply on the next save. */
+/** `fromHire`: a hired applicant or an imported employee starts as a partial file that HR completes; the full-file checks apply on the next save. */
 function cleanEmployee(f: Record<string, unknown>, fromHire = false) {
   const o: Record<string, unknown> = {};
   o.first_name = str(f.first_name); o.last_name = str(f.last_name);

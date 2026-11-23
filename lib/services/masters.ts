@@ -8,7 +8,7 @@ export async function masters(ctx: Ctx) {
     titles: (await c.query("SELECT code, name_en FROM customer_title WHERE active ORDER BY name_en")).rows,
     plates: (await c.query("SELECT code, name, code_label, code_values FROM plate_template WHERE active ORDER BY country_code <> 'AE', name")).rows,
     services: (await c.query("SELECT id, code, name_en, standard_hours, labour_rate, is_quick FROM service WHERE active ORDER BY name_en")).rows,
-    items: (await c.query("SELECT id, part_no, description, list_price, category, item_type FROM item WHERE active ORDER BY part_no")).rows,
+    items: (await c.query("SELECT id, part_no, description, list_price, category, item_type, search_codes codes FROM item WHERE active ORDER BY part_no")).rows,
     branches: (await c.query("SELECT id, code, name_en FROM branch WHERE active ORDER BY code")).rows,
     suppliers: (await c.query("SELECT id, code, name_en FROM supplier WHERE active ORDER BY name_en")).rows,
     taxCodes: (await c.query("SELECT code, name FROM tax_code WHERE active ORDER BY code")).rows,

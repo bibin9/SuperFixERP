@@ -1,3 +1,4 @@
+import { ScanBox } from "@/components/ScanBox";
 import { RecordHistory } from "@/components/RecordHistory";
 import { QuickAdd } from "@/components/QuickAdd";
 import { quickSpec } from "@/lib/services/quick-add";
@@ -43,7 +44,8 @@ export default async function PoPage({ params, searchParams }: { params: Promise
         {editable && (
           <form action={poLineAction} className="row" style={{ marginTop: 12 }}>
             <input type="hidden" name="po_id" value={id} />
-            <div className="field"><label>Item</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Not a stock item (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id}>{i.part_no} · {i.description}</option>)}</select>{qi && <QuickAdd spec={qi} target="item_id" label="+ New part" />}</div></div>
+            <div className="field"><label>Scan</label><ScanBox /></div>
+            <div className="field"><label>Item</label><div className="picker"><select name="item_id" defaultValue=""><option value="">Not a stock item (describe it)</option>{m.items.map((i) => <option key={i.id} value={i.id} data-codes={i.codes}>{i.part_no} · {i.description}</option>)}</select>{qi && <QuickAdd spec={qi} target="item_id" label="+ New part" />}</div></div>
             <div className="field"><label>Description (if not an item)</label><input name="description" /></div>
             <div className="field shrink" style={{ width: 90 }}><label>Qty</label><input name="qty" required /></div>
             <div className="field shrink" style={{ width: 120 }}><label>Unit price (AED)</label><input name="unit_price" required /></div>

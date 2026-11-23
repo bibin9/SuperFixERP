@@ -62,7 +62,7 @@ export default async function Advances({ searchParams }: { searchParams: Promise
       <div className="card"><h2>{customerId ? "This customer's money held" : "Money held for customers"}</h2>
         <table>
           <thead><tr><th>Reference</th><th>Customer</th><th>Branch</th><th>Job</th><th>From</th><th className="num">Amount</th><th className="num">VAT in it</th><th className="num">Left</th><th>Taken</th>{canRefund && <th>Pay back</th>}</tr></thead>
-          <tbody>{rows.map((a) => <tr key={a.id}><td>{a.source_no}</td><td>{a.customer_name}</td><td>{a.branch_code}</td><td>{a.job_no ?? ""}</td><td>{label(a.source)}</td>
+          <tbody>{rows.map((a) => <tr key={a.id}><td>{a.source === "advance" && a.source_id ? <Link href={`/print/receipt/${a.source_id}`} title="Print the receipt">{a.source_no}</Link> : a.source_no}</td><td>{a.customer_name}</td><td>{a.branch_code}</td><td>{a.job_no ?? ""}</td><td>{label(a.source)}</td>
             <td className="num"><Money v={a.amount} /></td><td className="num"><Money v={a.vat_amount} /></td><td className="num">{D(a.open).gt(0) ? <Money v={a.open} /> : <span className="muted">used</span>}</td><td className="small">{dt(a.created_at)}</td>
             {canRefund && <td>{D(a.open).gt(0) && a.branch_id === ctx.currentBranchId && (
               <details className="refund"><summary className="small">Refund</summary>

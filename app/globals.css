@@ -664,3 +664,24 @@ dialog.popup>.flash{margin:12px 18px 0}
 .addline:has(select[name=new_line_type] option[value=labour]:checked) select[name=new_service_id]{display:block}
 .addline:has(select[name=new_line_type] option[value=part]:checked) select[name=new_item_id],.addline:has(select[name=new_line_type] option[value=consumable]:checked) select[name=new_item_id]{display:block}
 .addline:has(select[name=new_line_type] option[value=outside]:checked) input[name=new_description]{display:block}
+/* IN-07 / UX-03: scan or type a barcode */
+.scanbox{margin-bottom:8px}.scanbox input[data-scan]{flex:1;min-width:0}
+.scancam{margin-top:6px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}.scancam video{width:100%;max-width:360px;border-radius:10px;background:#000}
+@keyframes scanflash{from{background:#dff3e4}to{background:transparent}}
+tr.scanhit td{animation:scanflash 1.6s ease-out}
+/* OT-08: printed documents in English and Arabic */
+.printdoc .bi{display:inline-flex;flex-direction:column;line-height:1.2}
+.printdoc .ar{font-family:"Noto Naskh Arabic","Geeza Pro","Segoe UI","Tahoma",sans-serif;color:var(--muted);font-weight:500}
+.printdoc th .ar{font-size:11px}
+.printdoc[dir=rtl] .num{text-align:left}.printdoc[dir=rtl] th,.printdoc[dir=rtl] td{text-align:right}.printdoc[dir=rtl] td.num,.printdoc[dir=rtl] th.num{text-align:left}
+.printhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.printtitle{text-align:end}
+.printgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:12px}
+.printgrid>div{display:flex;gap:8px;align-items:baseline}.printgrid .k{color:var(--muted);min-width:120px;font-size:12.5px}
+.printterms{margin-top:12px;border-top:1px solid var(--line,#dfe5ee);padding-top:8px;display:grid;gap:4px}
+.printsign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:22px}.printsign .line{border-top:1px solid #8893a5;padding-top:4px;font-size:12.5px}
+@media print{.printdoc{border:none;padding:0}.printdoc table{font-size:11.5px}}
+.printdoc[dir=ltr] .bi{align-items:flex-start}.printdoc[dir=ltr] td .ar,.printdoc[dir=ltr] .printgrid .ar,.printdoc[dir=ltr] .printgrid [dir=rtl]{text-align:left}
+.printdoc td div.ar{margin:2px 0 0}
+.printdoc[dir=rtl] .printgrid>div>span:last-child,.printdoc[dir=rtl] .printhead .small{unicode-bidi:plaintext;text-align:right}
+.printdoc[dir=ltr] .printhead div[dir=rtl]{text-align:left}.printdoc[dir=ltr] .printtitle div[dir=rtl]{text-align:right}

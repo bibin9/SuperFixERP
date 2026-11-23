@@ -181,6 +181,14 @@ INSERT INTO item (part_no, description, brand, category, uom, list_price, item_t
  ('BAT-70AH','Battery 70Ah AC Delco','AC Delco','batteries','EA',450.00,'stock','Exide Gulf'),
  ('WPR-24','Wiper blade 24 in','Bosch','accessories','EA',60.00,'stock','Bosch'),
  ('CLT-L','Coolant (litre)','Prestone','oils','L',25.00,'stock','Prestone');
+-- IN-01: barcodes, OEM and aftermarket numbers, and the vehicles a part fits.
+UPDATE item SET barcode = v.barcode, oem_part_no = v.oem, alt_part_nos = v.alt, fits_vehicles = v.fits
+  FROM (VALUES ('FLT-OIL-90915','4987654321012','90915-YZZE1','Denso 150-1017, Bosch 0986AF0123','Toyota Corolla 2008-2019, Toyota Camry 2007-2017, Toyota Yaris 2006-2020'),
+               ('FLT-AIR-17801','4987654321029','17801-0T030','Mann C 26003','Toyota Corolla 2014-2019'),
+               ('BRK-PAD-FR-LC','4987654321036','04465-60320','Akebono AN-747WK, Brembo P83152','Toyota Land Cruiser 200 2008-2021, Lexus LX570 2008-2021'),
+               ('WPR-24','4047024123458',NULL,'Bosch 3397008538','Most cars with hook-type arms'),
+               ('OIL-5W30-L','5055107430041',NULL,NULL,NULL)) v(part_no, barcode, oem, alt, fits)
+ WHERE item.part_no = v.part_no;
 
 -- Chart of accounts (Tally-style groups) and the posting mapping (AC-01, AC-02)
 INSERT INTO account (code, name, account_group, account_type, sub_type) VALUES
@@ -501,6 +509,8 @@ INSERT INTO setting (key, value, grp, description) VALUES
 ON CONFLICT DO NOTHING;
 UPDATE branch SET latitude = 24.4877, longitude = 54.6036 WHERE code = 'YAS';
 UPDATE branch SET latitude = 25.2697, longitude = 55.3769 WHERE code = 'QUS';
+UPDATE branch SET name_ar = 'ياس', address = 'Yas Island, Abu Dhabi' WHERE code = 'YAS';
+UPDATE branch SET name_ar = 'القصيص', address = 'Al Qusais Industrial Area 2, Dubai' WHERE code = 'QUS';
 UPDATE branch SET latitude = 24.4539, longitude = 54.3773 WHERE code = 'HQ';
 
 INSERT INTO workflow (doc_type, name, enabled) VALUES

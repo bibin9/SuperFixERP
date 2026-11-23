@@ -16,7 +16,7 @@ import { str } from "../validate";
 export const MASTER_IMPORTS = {
   accounts: { title: "Ledgers (chart of accounts)", master: "accounts", key: "code", sample: "Code,Name,Group,Type,Sub-type\n5920,Telephone and internet,Indirect expenses,expense,normal" },
   suppliers: { title: "Suppliers", master: "suppliers", key: "code", sample: "Code,Name,TRN,Phone,Payment terms (days),Credit limit\nGULFOIL,Gulf Oil Trading,100234567800003,+97142223333,30,50000" },
-  items: { title: "Stock items", master: "items", key: "part_no", sample: "Part no,Description,Category,Unit,List price,Tax code,Item type\nFLT-AIR-1780,Air filter Corolla,parts,EA,45,SR,stock" },
+  items: { title: "Stock items", master: "items", key: "part_no", sample: "Part no,Description,Category,Unit,List price,Tax code,Item type,Barcode,OEM part no.,Fits vehicles\nFLT-AIR-1780,Air filter Corolla,parts,EA,45,SR,stock,6291234567890,17801-0T030,Toyota Corolla 2014-2019" },
   customers: { title: "Customers", master: null, key: "mobile", sample: "Customer type,First name,Last name,Company name,Mobile,Email,TRN,Credit limit,Payment terms days\ncorporate,,,Al Noor Transport LLC,0501234567,accounts@alnoor.ae,100555666700003,20000,30" },
   vehicles: { title: "Vehicles (owner found by mobile)", master: null, key: "plate_number", sample: "Owner mobile,Registered in,Plate code,Plate number,VIN,Make,Model,Year,Colour,Odometer,Mulkiya expiry\n0501234567,DXB,A,61363,JTMHV05J604123456,Toyota,Land Cruiser,2021,White,85000,2027-03-31" },
   employees: { title: "Employees", master: null, key: "emp_no", sample: "Employee no,Branch,First name,Last name,Nationality,Date of birth,Gender,Mobile,Department,Designation,Joining date,IBAN\nSF-1001,YAS,Ramesh,Kumar,India,1990-05-14,male,0551234567,WORKSHOP,TECH,2019-02-01,AE070331234567890123456" },
@@ -28,6 +28,7 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const ALIAS: Record<string, string[]> = {
   name: ["name_en", "name"], group: ["account_group"], type: ["account_type", "item_type"], subtype: ["sub_type"], unit: ["uom"], uom: ["uom"],
   taxcode: ["vat_code"], tax: ["vat_code"], vat: ["vat_code"], country: ["country_code"], partno: ["part_no"], price: ["list_price"], paymentterms: ["payment_terms_days"],
+  ean: ["barcode"], oem: ["oem_part_no"], oemno: ["oem_part_no"], oempartnumber: ["oem_part_no"], alternatives: ["alt_part_nos"], crossreference: ["alt_part_nos"], fits: ["fits_vehicles"], vehicles: ["fits_vehicles"],
 };
 
 function parseCsv(text: string) {
@@ -168,7 +169,7 @@ async function importOpening(ctx: Ctx, kind: "vehicles" | "employees" | "opening
         if (nat && !nationality) throw invalid(`Nationality "${nat}" is not in the country list. Add it under Masters, Countries, or use its code.`);
         const gender = str(f.gender).toLowerCase().replace(/^m$/, "male").replace(/^f$/, "female");
         const res = await createEmployee(ctx, { ...f, branch_id: branchId, department_id, designation_id, gender, nationality,
-          date_of_birth: isoDate(f.date_of_birth), joining_date: isoDate(f.joining_date) });
+          date_of_birth: f.date_of_birth ? isoDate(f.date_of_birth) : undefined, joining_date: isoDate(f.joining_date) }, {}, true);
         look.emps.add(res.empNo.toUpperCase());
         created++;
       } else {

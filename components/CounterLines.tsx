@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { ScanBox } from "@/components/ScanBox";
+import { matchCode } from "@/lib/scan-match";
 
-type Item = { id: string; part_no: string; description: string; gross: string; free: string };
+type Item = { id: string; part_no: string; description: string; gross: string; free: string; codes?: string };
 
 /** Counter-sale lines with a live VAT-inclusive total; the server prices and checks every line again. */
 export function CounterLines({ items, rows = 6 }: { items: Item[]; rows?: number }) {
@@ -15,8 +17,20 @@ export function CounterLines({ items, rows = 6 }: { items: Item[]; rows?: number
     return Math.round((Number(l.qty || 0) * unit - Number(l.discount || 0)) * 100) / 100;
   };
   const total = lines.reduce((s, l) => s + lineTotal(l), 0);
+  // A scan adds one to the line that already has the part, else fills the first empty line.
+  const scan = (code: string) => {
+    const it = matchCode(code, items);
+    if (!it) return `No part with code ${code}. Check the code, or add the barcode to the part.`;
+    const at = lines.findIndex((l) => l.item === it.id);
+    if (at >= 0) { set(at, "qty", String(Number(lines[at].qty || 0) + 1)); return `${it.part_no}: quantity ${Number(lines[at].qty || 0) + 1}`; }
+    const free = lines.findIndex((l) => !l.item);
+    if (free >= 0) setLines((ls) => ls.map((l, i) => (i === free ? { ...l, item: it.id, qty: "1" } : l)));
+    else setLines((ls) => [...ls, { item: it.id, qty: "1", price: "", discount: "" }]);
+    return `Added ${it.part_no} · ${it.description}`;
+  };
   return (
     <>
+      <ScanBox onCode={scan} />
       <table>
         <thead><tr><th>Item</th><th className="num">Free stock</th><th>Qty</th><th>Price incl. VAT</th><th>Discount (AED)</th><th className="num">Line total</th></tr></thead>
         <tbody>{lines.map((l, k) => (

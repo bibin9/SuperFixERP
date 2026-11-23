@@ -29,8 +29,10 @@ export async function globalSearch(ctx: Ctx, raw: string) {
       for (const r of (await c.query("SELECT id, doc_no, bill_to_name FROM sales_invoice WHERE doc_no ILIKE $1 LIMIT 8", [`%${q}%`])).rows)
         out.push({ type: "Invoice", label: r.doc_no, sub: r.bill_to_name, href: `/invoices/${r.id}` });
     if (canAnywhere(ctx, "stock", "view") || canAnywhere(ctx, "jobs", "view"))
-      for (const r of (await c.query("SELECT id, part_no, description FROM item WHERE active AND (part_no ILIKE $1 OR description ILIKE $1) LIMIT 8", [`%${q}%`])).rows)
-        out.push({ type: "Part", label: r.part_no, sub: r.description, href: `/stock?q=${encodeURIComponent(r.part_no)}` });
+      for (const r of (await c.query(`SELECT id, part_no, description, oem_part_no, (upper(btrim(barcode)) = upper($2)) by_barcode FROM item WHERE active
+          AND (part_no ILIKE $1 OR description ILIKE $1 OR search_codes LIKE '%'||upper($2)||'%' OR fits_vehicles ILIKE $1)
+        ORDER BY (upper(btrim(barcode)) = upper($2)) DESC NULLS LAST, part_no LIMIT 8`, [`%${q}%`, q.trim()])).rows)
+        out.push({ type: "Part", label: r.part_no, sub: [r.description, r.oem_part_no && `OEM ${r.oem_part_no}`].filter(Boolean).join(" · "), href: `/stock?q=${encodeURIComponent(r.part_no)}` });
     return out;
   });
 }

@@ -71,6 +71,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       <PageHead title={`Job card ${job.doc_no}`} sub={`${plate(job)} · ${job.make} ${job.model} ${job.model_year ?? ""} · ${custName(job)} · ${job.mobile} · ${job.branch_name}`}>
         <Status s={job.status} />{late && <span className="pill red">Late</span>}
         <Link className="btn ghost sm" href={`/vehicles/${job.vehicle_id}`}>Vehicle page</Link>
+        <Link className="btn ghost sm" href={`/print/job-card/${job.id}`}>Print job card</Link>
       </PageHead>
       <Flash sp={sp} />
       <ManualMessage ctx={ctx} id={sp.msg} back={`${back}?msg=${sp.msg ?? ""}`} />

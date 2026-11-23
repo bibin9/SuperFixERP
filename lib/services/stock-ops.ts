@@ -303,7 +303,7 @@ export async function getCount(ctx: Ctx, id: string) {
     const cnt = (await c.query("SELECT sc.*, b.code branch_code FROM stock_count sc JOIN branch b ON b.id = sc.branch_id WHERE sc.id = $1", [id])).rows[0];
     if (!cnt) throw notFound("Stock count");
     const lines = (await c.query(
-      `SELECT l.*, i.part_no, i.description, i.uom, sb.avg_cost FROM stock_count_line l JOIN item i ON i.id = l.item_id
+      `SELECT l.*, i.part_no, i.description, i.uom, i.search_codes codes, sb.avg_cost FROM stock_count_line l JOIN item i ON i.id = l.item_id
          LEFT JOIN stock_balance sb ON sb.item_id = l.item_id AND sb.branch_id = l.branch_id WHERE l.count_id = $1 ORDER BY i.category, i.part_no`, [id])).rows;
     // Blind count: the book quantity is shown only once the count is submitted, and only to approvers.
     const showBook = cnt.status !== "open" && (can(ctx, "stock", "approve", cnt.branch_id) || can(ctx, "approvals", "approve", cnt.branch_id));

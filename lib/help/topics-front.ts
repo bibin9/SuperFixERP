@@ -245,6 +245,11 @@ export const FRONT: HelpTopic[] = [
         "The workshop part has technicians, bays, clocked time, part requests, the quality check and delivery (see [Workshop board](/help/workshop-board) and [Quality check and delivery](/help/delivery)).",
         "**Customer messages**, **Status history** and **Approval history** are lower down.",
       ] },
+      { h: "Print the job card or the quotation", steps: [
+        "Press **Print job card** at the top of the job card, or **Print quotation** next to the quotation number. Then press **Print or save as PDF**.",
+        "Documents print in English and Arabic side by side. The admin can change this to English only or Arabic only, and set the terms printed at the foot, under **Admin, Settings, Printing**.",
+        "Parts and services print their Arabic name under the English one when the Arabic name is filled in on the part or service.",
+      ] },
       { h: "Job statuses", intro: "A job moves through these statuses:", steps: [
         "**Approved**: job card created, waiting to start.",
         "**Awaiting parts**: waiting for a part to arrive.",

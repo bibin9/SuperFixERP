@@ -53,7 +53,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
           {!receipts.length && !applied.length && <p className="small muted">No payments yet.</p>}
           <table><tbody>
             {receipts.map((r) => (
-              <tr key={r.doc_no + r.reversed}><td>{r.doc_no}</td><td>{r.method_name ?? r.method}{r.cheque_no && <> · cheque {r.cheque_no} <Status s={r.cheque_status} /></>}</td><td>{d(ymd(r.doc_date))}</td>
+              <tr key={r.doc_no + r.reversed}><td><Link href={`/print/receipt/${r.id}`} title="Print the receipt">{r.doc_no}</Link></td><td>{r.method_name ?? r.method}{r.cheque_no && <> · cheque {r.cheque_no} <Status s={r.cheque_status} /></>}</td><td>{d(ymd(r.doc_date))}</td>
                 <td className="num">{r.reversed ? <s><Money v={r.amount} /></s> : <Money v={r.amount} />}</td></tr>))}
             {applied.map((a, k) => <tr key={`ap${k}`}><td>{a.source_no}</td><td>{a.source === "credit_note" ? "Credit held for the customer" : "Advance applied"}</td><td>{dt(a.applied_at)}</td><td className="num"><Money v={a.amount} /></td></tr>)}
           </tbody></table>
