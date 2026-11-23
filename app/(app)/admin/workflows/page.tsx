@@ -43,6 +43,9 @@ export default async function Workflows({ searchParams }: { searchParams: Promis
                 {SUPPLIER_DOCS.includes(w.doc_type) && pick("cond_supplier_id", "Supplier", o.suppliers, s.cond_supplier_id)}
                 {CUSTOMER_DOCS.includes(w.doc_type) && pick("cond_customer_id", "Company customer", o.customers, s.cond_customer_id)}
                 {CATEGORY_DOCS.includes(w.doc_type) && pick("cond_item_category", "Item category", o.categories, s.cond_item_category)}
+                <div className="field shrink" style={{ width: 120 }}><label>Remind after (h)</label><input name="reminder_hours" defaultValue={s.reminder_hours ?? ""} placeholder="default" inputMode="numeric" /></div>
+                <div className="field shrink" style={{ width: 120 }}><label>Escalate after (h)</label><input name="escalate_hours" defaultValue={s.escalate_hours ?? ""} placeholder="default" inputMode="numeric" /></div>
+                {pick("escalate_role_id", "Escalate to", o.roles, s.escalate_role_id)}
                 <label className="check shrink"><input type="checkbox" name="enabled" defaultChecked={s.enabled} /> Step on</label>
                 <div className="shrink"><button className="btn ghost sm">Save</button></div>
               </div>
@@ -50,7 +53,7 @@ export default async function Workflows({ searchParams }: { searchParams: Promis
           ))}
         </div>
       ))}
-      <p className="small muted">Discount limits per role are under Settings, in the discount limit lines. The discount workflow starts only when a user goes above their limit or below the minimum margin.</p>
+      <p className="small muted">Discount limits per role are under Settings, in the discount limit lines. The discount workflow starts only when a user goes above their limit or below the minimum margin. Remind after and Escalate after are the hours a step may wait: blank uses Settings, Approvals (24 and 48 hours), 0 switches it off. When an item is escalated, the Escalate to role (blank = the role in Settings) can approve it too.</p>
     </>
   );
 }

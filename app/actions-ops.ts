@@ -96,7 +96,7 @@ export async function poStepAction(fd: FormData) {
     if (step === "submit") { const s = await pu.submitPo(ctx, id); return `/purchasing/${id}?ok=${s === "approved" ? "Approved (within the limit that needs no approval)" : "Sent for approval"}`; }
     if (step === "cancel") await pu.cancelPo(ctx, id);
     if (step === "return") { const r = await pu.returnToSupplier(ctx, String(fd.get("grn_id")), { reason: String(fd.get("reason") ?? ""), note: String(fd.get("note") ?? ""), qty: keyed(fd, "rq") }); return `/purchasing/${id}?ok=${encodeURIComponent(`${r.docNo}: parts returned to the supplier`)}`; }
-    if (step === "receive") { const g = await pu.receiveGoods(ctx, id, { delivery_note: String(fd.get("delivery_note") ?? ""), qty: keyed(fd, "qty"), damaged: keyed(fd, "damaged") }); return `/purchasing/${id}?ok=${encodeURIComponent(`${g.docNo} received into stock`)}`; }
+    if (step === "receive") { const g = await pu.receiveGoods(ctx, id, { delivery_note: String(fd.get("delivery_note") ?? ""), qty: keyed(fd, "qty"), damaged: keyed(fd, "damaged"), dot: keyed(fd, "dot") }); return `/purchasing/${id}?ok=${encodeURIComponent(`${g.docNo} received into stock`)}`; }
   }, step === "cancel" ? "Cancelled" : undefined);
 }
 export async function billAction(fd: FormData) {
@@ -197,4 +197,84 @@ export async function deliverAction(fd: FormData) {
 export async function newBoardLinkAction() {
   const ctx = await requireCtx();
   await run("/workshop", () => ws.newBoardLink(ctx), "New wall-screen link made; the old one no longer works");
+}
+
+// ---------- price requests (PU-08) ----------
+export async function createRfqAction(fd: FormData) {
+  const { createRfq } = await import("@/lib/services/rfq");
+  const ctx = await requireCtx();
+  await run(back(fd, "/purchasing/rfq"), async () => {
+    const r = await createRfq(ctx, { needed_by: String(fd.get("needed_by") ?? ""), note: String(fd.get("note") ?? ""), lines: lines(fd, ["item_id", "qty"]) });
+    return `/purchasing/rfq/${r.id}?ok=${encodeURIComponent(`${r.docNo} created. Enter each supplier's quote below.`)}`;
+  });
+}
+export async function rfqStepAction(fd: FormData) {
+  const rq = await import("@/lib/services/rfq");
+  const ctx = await requireCtx();
+  const id = String(fd.get("id"));
+  const step = String(fd.get("step"));
+  await run(`/purchasing/rfq/${id}`, async () => {
+    if (step === "quote") { await rq.saveQuote(ctx, id, { supplier_id: String(fd.get("supplier_id") ?? ""), lead_days: String(fd.get("lead_days") ?? ""), valid_until: String(fd.get("valid_until") ?? ""), note: String(fd.get("note") ?? ""), price: keyed(fd, "price") }); return; }
+    if (step === "order") {
+      const r = await rq.orderRfq(ctx, id, keyed(fd, "pick"));
+      return `/purchasing/rfq/${id}?ok=${encodeURIComponent(`Draft purchase order${r.orders.length > 1 ? "s" : ""} ${r.orders.join(", ")} raised. Open ${r.orders.length > 1 ? "each" : "it"} and send for approval.`)}`;
+    }
+    if (step === "cancel") await rq.cancelRfq(ctx, id);
+  }, step === "quote" ? "Quote saved" : "Cancelled");
+}
+
+// ---------- supplier warranty claims (OT-05) ----------
+export async function openClaimAction(fd: FormData) {
+  const sc = await import("@/lib/services/supplier-claims");
+  const ctx = await requireCtx();
+  await run(back(fd, "/purchasing/claims"), async () => {
+    const r = await sc.openClaim(ctx, obj(fd));
+    return `/purchasing/claims/${r.id}?ok=${encodeURIComponent(`${r.docNo} opened`)}`;
+  });
+}
+export async function claimStepAction(fd: FormData) {
+  const sc = await import("@/lib/services/supplier-claims");
+  const ctx = await requireCtx();
+  const id = String(fd.get("id"));
+  const step = String(fd.get("step"));
+  await run(`/purchasing/claims/${id}`, () => sc.workClaim(ctx, id, step, obj(fd)),
+    ({ send: "Marked as sent to the supplier", credit: "Supplier credit recorded", replace: "Replacement received into stock", reject: "Recorded as rejected" } as Record<string, string>)[step] ?? "Saved");
+}
+
+// ---------- IN-03 tyres and batteries ----------
+export async function serialAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const { recordSerial } = await import("@/lib/services/tyres");
+  await run(String(fd.get("$back") || `/jobs/${fd.get("job_id")}#lines`), async () => { await recordSerial(ctx, String(fd.get("line_id")), fd.get("serial_no")); }, "Serial number recorded: warranty can be checked by serial from search");
+}
+
+// ---------- SL-02 trade sales ----------
+export async function createTradeOrderAction(fd: FormData) {
+  const { createOrder } = await import("@/lib/services/trade-sales");
+  const ctx = await requireCtx();
+  await run(back(fd, "/billing/trade"), async () => {
+    const r = await createOrder(ctx, obj(fd));
+    return `/billing/trade/${r.id}?ok=${encodeURIComponent(`${r.docNo} created. Add the parts.`)}`;
+  });
+}
+export async function tradeStepAction(fd: FormData) {
+  const ts = await import("@/lib/services/trade-sales");
+  const ctx = await requireCtx();
+  const id = String(fd.get("id"));
+  const step = String(fd.get("step"));
+  const msg: Record<string, string> = { add: "Part added", remove: "Line removed", confirm: "Confirmed: this is now a sales order", cancel: "Cancelled" };
+  await run(`/billing/trade/${id}`, async () => {
+    if (step === "add") await ts.addOrderLine(ctx, id, obj(fd));
+    if (step === "remove") await ts.removeOrderLine(ctx, id, String(fd.get("line_id")));
+    if (step === "confirm") await ts.confirmOrder(ctx, id, obj(fd));
+    if (step === "cancel") await ts.cancelOrder(ctx, id);
+    if (step === "deliver") {
+      const r = await ts.deliver(ctx, id, { qty: keyed(fd, "dq"), received_by_name: String(fd.get("received_by_name") ?? ""), vehicle_ref: String(fd.get("vehicle_ref") ?? "") });
+      return `/billing/trade/${id}?ok=${encodeURIComponent(`${r.docNo}: goods left the store. Print it for the customer to sign.`)}`;
+    }
+    if (step === "invoice") {
+      const r = await ts.invoiceOrder(ctx, id);
+      return `/invoices/${r.id}?ok=${encodeURIComponent(`${r.docNo} posted on credit terms`)}`;
+    }
+  }, msg[step]);
 }

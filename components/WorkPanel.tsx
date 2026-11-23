@@ -1,5 +1,6 @@
 import { ScanBox } from "@/components/ScanBox";
 import { addLineAction, addBundleAction, removeLineAction, saveQuotationAction, sendQuotationAction, staffDecisionAction, issueAction } from "@/app/actions";
+import { serialAction } from "@/app/actions-ops";
 import { Link, Money, Status } from "./ui";
 import { D } from "@/lib/money";
 import { Popup } from "./Popup";
@@ -40,6 +41,11 @@ export function WorkLines(p: {
               {p.canIssue && l.approval_status === "approved" && D(l.issued_qty).lt(l.qty) && (
                 <form action={issueAction} className="row" style={{ marginTop: 4 }}><input type="hidden" name="job_id" value={p.owner.id} /><input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="request_key" value={crypto.randomUUID()} />
                   <input name="qty" defaultValue={D(l.qty).minus(l.issued_qty).toString()} style={{ width: 70, minWidth: 60 }} /><button className="btn sm shrink">Issue</button></form>
+              )}
+              {l.serial_nos && <div>serial {l.serial_nos}</div>}
+              {(p.canIssue || p.canEdit) && Number(l.warranty_months) > 0 && D(l.issued_qty).gt(0) && (l.serial_nos ? l.serial_nos.split(", ").length : 0) < D(l.issued_qty).toNumber() && (
+                <form action={serialAction} className="row" style={{ marginTop: 4 }}><input type="hidden" name="job_id" value={p.owner.id} /><input type="hidden" name="line_id" value={l.id} /><input type="hidden" name="$back" value={`${p.back}#lines`} />
+                  <input name="serial_no" placeholder={l.item_category === "tyres" ? "Tyre serial" : "Battery serial"} aria-label="Serial number" style={{ width: 130, minWidth: 90 }} /><button className="btn sm shrink">Save serial</button></form>
               )}</> : <>{D(l.free_here ?? 0).gte(l.qty) ? <span className="pill green">in stock here</span> : <span className="pill amber">short here</span>}<div className="muted">committed when the job card is created</div></>)
             : <span className="muted">—</span>}</td>
             {isJob && <td className="small">{l.technician_name ?? (l.line_type === "labour" && p.open ? <span className="muted">assign below</span> : "")}</td>}

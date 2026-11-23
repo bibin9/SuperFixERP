@@ -181,6 +181,9 @@ INSERT INTO item (part_no, description, brand, category, uom, list_price, item_t
  ('BAT-70AH','Battery 70Ah AC Delco','AC Delco','batteries','EA',450.00,'stock','Exide Gulf'),
  ('WPR-24','Wiper blade 24 in','Bosch','accessories','EA',60.00,'stock','Bosch'),
  ('CLT-L','Coolant (litre)','Prestone','oils','L',25.00,'stock','Prestone');
+-- IN-03: tyre and battery details.
+UPDATE item SET tyre_size = '265/65R17', load_index = '112', speed_index = 'S', warranty_months = 60 WHERE part_no = 'TYR-2656517';
+UPDATE item SET warranty_months = 18 WHERE part_no = 'BAT-70AH';
 -- IN-01: barcodes, OEM and aftermarket numbers, and the vehicles a part fits.
 UPDATE item SET barcode = v.barcode, oem_part_no = v.oem, alt_part_nos = v.alt, fits_vehicles = v.fits
   FROM (VALUES ('FLT-OIL-90915','4987654321012','90915-YZZE1','Denso 150-1017, Bosch 0986AF0123','Toyota Corolla 2008-2019, Toyota Camry 2007-2017, Toyota Yaris 2006-2020'),
@@ -270,7 +273,7 @@ SELECT w.id, 1, 'Accountant', (SELECT id FROM role WHERE code = 'accountant'), '
 
 INSERT INTO doc_series (branch_id, doc_type, prefix, next_number, padding, year_part)
 SELECT b.id, t.doc_type, b.code || t.suffix, 1, 5, true FROM branch b
-CROSS JOIN (VALUES ('transfer','-TR-'),('stock_adjustment','-ADJ-'),('stock_count','-CNT-'),('purchase_order','-PO-'),('grn','-GRN-'),('supplier_bill','-PB-'),('petty_cash','-PC-'),('supplier_return','-SR-'),('complaint','-CMP-')) t(doc_type, suffix)
+CROSS JOIN (VALUES ('transfer','-TR-'),('stock_adjustment','-ADJ-'),('stock_count','-CNT-'),('purchase_order','-PO-'),('grn','-GRN-'),('supplier_bill','-PB-'),('petty_cash','-PC-'),('supplier_return','-SR-'),('complaint','-CMP-'),('rfq','-RFQ-'),('supplier_claim','-SWC-'),('sales_order','-SO-'),('delivery_note','-DN-')) t(doc_type, suffix)
 ;
 
 INSERT INTO lookup_value (list, code, name_en, sort) VALUES

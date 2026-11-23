@@ -122,7 +122,28 @@ export async function stockOut(c: PoolClient, ctx: Ctx, f: { branchId: string; i
     `INSERT INTO stock_move (branch_id, item_id, move_type, doc_ref, qty_out, unit_cost, value, balance_qty, balance_avg_cost, user_id)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [f.branchId, f.itemId, f.moveType, f.ref, f.qty.toFixed(3), cost.toFixed(4), value.toFixed(2), onHand.toFixed(3), cost.toFixed(4), ctx.userId]);
+  await consumeDot(c, f.branchId, f.itemId, f.qty);
   return { value, cost };
+}
+
+/** IN-03: tyres leave oldest DOT first (week and year made, WWYY). Stock with no DOT recorded is not tracked. */
+async function consumeDot(c: PoolClient, branchId: string, itemId: string, qty: Decimal) {
+  const lots = (await c.query(
+    "SELECT dot_code, qty FROM tyre_dot_stock WHERE branch_id = $1 AND item_id = $2 AND qty > 0 ORDER BY right(dot_code, 2), left(dot_code, 2) FOR UPDATE", [branchId, itemId])).rows;
+  let left = qty;
+  for (const l of lots) {
+    if (left.lte(0)) break;
+    const take = Decimal.min(left, D(l.qty));
+    await c.query("UPDATE tyre_dot_stock SET qty = qty - $4 WHERE branch_id = $1 AND item_id = $2 AND dot_code = $3", [branchId, itemId, l.dot_code, take.toFixed(3)]);
+    left = left.minus(take);
+  }
+}
+
+/** IN-03: records the DOT of tyres coming into stock. */
+export async function addDot(c: PoolClient, branchId: string, itemId: string, dot: string, qty: Decimal) {
+  if (!/^\d{4}$/.test(dot) || Number(dot.slice(0, 2)) < 1 || Number(dot.slice(0, 2)) > 53) throw invalid("DOT is the week and year made, four digits, for example 2425 for week 24 of 2025.");
+  await c.query(`INSERT INTO tyre_dot_stock (branch_id, item_id, dot_code, qty) VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (branch_id, item_id, dot_code) DO UPDATE SET qty = tyre_dot_stock.qty + EXCLUDED.qty`, [branchId, itemId, dot, qty.toFixed(3)]);
 }
 
 /**

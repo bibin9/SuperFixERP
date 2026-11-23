@@ -16,6 +16,9 @@ const DOCS: Record<string, { table: string; audit: string[]; approval?: string; 
   supplier_bill: { table: "supplier_bill", audit: ["supplier_bill"], approval: "supplier_bill" },
   transfer: { table: "transfer", audit: ["transfer"], approval: "stock_transfer" },
   credit_note: { table: "credit_note", audit: ["credit_note"], approval: "credit_note" },
+  supplier_claim: { table: "supplier_claim", audit: ["supplier_claim"] },
+  rfq: { table: "rfq", audit: ["rfq"] },
+  sales_order: { table: "sales_order", audit: ["sales_order"], children: [{ entity: "sales_invoice", sql: "SELECT id::text FROM sales_invoice WHERE sales_order_id = $1" }] },
 };
 const STAMPS: [string, string, string][] = [["created_by", "created_at", "created"], ["posted_by", "posted_at", "posted"], ["approved_by", "approved_at", "approved"], ["cancelled_by", "cancelled_at", "cancelled"], ["requested_by", "created_at", "requested"]];
 

@@ -8,7 +8,7 @@ import { nextDocNo } from "./numbering";
 import { postJournal } from "./ledger";
 import { D, Decimal, r2, parseDec } from "../money";
 import { optStr, required, str, normaliseTrn } from "../validate";
-import { stockIn, stockOut, today } from "./stock";
+import { addDot, stockIn, stockOut, today } from "./stock";
 import { categoriesOf, registerHandler, submitForApproval } from "./workflow";
 import { getSetting } from "./settings";
 import { cfVisible, customFields } from "./hr";
@@ -33,7 +33,7 @@ export async function createPo(ctx: Ctx, f: Record<string, unknown>) {
   return withTx(ctx, async (c) => newPo(c, ctx, b, required(f.supplier_id, "Supplier"), f));
 }
 
-async function newPo(c: PoolClient, ctx: Ctx, b: string, supplierId: string, f: Record<string, unknown>) {
+export async function newPo(c: PoolClient, ctx: Ctx, b: string, supplierId: string, f: Record<string, unknown>) {
   const s = (await c.query("SELECT id FROM supplier WHERE id = $1 AND active", [supplierId])).rows[0];
   if (!s) throw invalid("Choose an active supplier.");
   const delivery = optStr(f.delivery_date);
@@ -73,7 +73,7 @@ export async function addPoLine(ctx: Ctx, poId: string, f: Record<string, unknow
   });
 }
 
-async function insertPoLine(c: PoolClient, po: { id: string; branch_id: string }, f: Record<string, unknown>) {
+export async function insertPoLine(c: PoolClient, po: { id: string; branch_id: string }, f: Record<string, unknown>) {
   const qty = parseDec(f.qty, "Quantity", { min: "0.001", dp: 3 });
   const price = parseDec(f.unit_price, "Unit price", { min: 0, dp: 4 });
   const disc = str(f.discount) ? parseDec(f.discount, "Discount", { min: 0, dp: 2 }) : D(0);
@@ -206,7 +206,7 @@ export async function getPo(ctx: Ctx, id: string) {
     const po = (await c.query("SELECT p.*, s.name_en supplier_name, s.code supplier_code, b.code branch_code FROM purchase_order p JOIN supplier s ON s.id = p.supplier_id JOIN branch b ON b.id = p.branch_id WHERE p.id = $1", [id])).rows[0];
     if (!po) throw notFound("Purchase order");
     const lines = (await c.query(
-      `SELECT pl.*, i.part_no, i.item_type, j.doc_no job_no, j.id job_id FROM po_line pl LEFT JOIN item i ON i.id = pl.item_id
+      `SELECT pl.*, i.part_no, i.item_type, i.category, j.doc_no job_no, j.id job_id FROM po_line pl LEFT JOIN item i ON i.id = pl.item_id
          LEFT JOIN job_line jl ON jl.id = pl.job_line_id LEFT JOIN job_card j ON j.id = jl.job_card_id WHERE pl.po_id = $1 ORDER BY pl.line_no`, [id])).rows;
     const grns = (await c.query("SELECT g.*, u.full_name FROM grn g LEFT JOIN app_user u ON u.id = g.received_by WHERE g.po_id = $1 ORDER BY g.received_at", [id])).rows;
     const grnLines = (await c.query(
@@ -228,13 +228,13 @@ export async function getPo(ctx: Ctx, id: string) {
 // Goods received (PU-04) — stock at the order's unit cost; job-linked lines are committed first (PC-08)
 // =====================================================================================
 
-export async function receiveGoods(ctx: Ctx, poId: string, f: { delivery_note?: string; qty: Record<string, unknown>; damaged?: Record<string, unknown> }) {
+export async function receiveGoods(ctx: Ctx, poId: string, f: { delivery_note?: string; qty: Record<string, unknown>; damaged?: Record<string, unknown>; dot?: Record<string, unknown> }) {
   return withTx(ctx, async (c) => {
     const po = (await c.query("SELECT * FROM purchase_order WHERE id = $1 FOR UPDATE", [poId])).rows[0];
     if (!po) throw notFound("Purchase order");
     if (!can(ctx, "stock", "create", po.branch_id) && !can(ctx, "purchasing", "edit", po.branch_id)) throw forbidden();
     if (!["approved", "partly_received"].includes(po.status)) throw invalid("Goods can be received only on an approved order.");
-    const lines = (await c.query("SELECT pl.*, i.item_type FROM po_line pl JOIN item i ON i.id = pl.item_id WHERE pl.po_id = $1 AND pl.item_id IS NOT NULL ORDER BY line_no FOR UPDATE OF pl", [poId])).rows;
+    const lines = (await c.query("SELECT pl.*, i.item_type, i.category FROM po_line pl JOIN item i ON i.id = pl.item_id WHERE pl.po_id = $1 AND pl.item_id IS NOT NULL ORDER BY line_no FOR UPDATE OF pl", [poId])).rows;
     const docNo = await nextDocNo(c, po.branch_id, "grn");
     const g = (await c.query("INSERT INTO grn (branch_id, doc_no, po_id, supplier_id, delivery_note, received_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
       [po.branch_id, docNo, poId, po.supplier_id, optStr(f.delivery_note), ctx.userId])).rows[0];
@@ -251,8 +251,11 @@ export async function receiveGoods(ctx: Ctx, poId: string, f: { delivery_note?: 
         any = true;
         const r = await stockIn(c, ctx, { branchId: po.branch_id, itemId: l.item_id, qty: q, unitCost, moveType: "receipt", ref: docNo, preferLineIds: l.job_line_id ? [l.job_line_id] : [] });
         total = total.plus(r.value);
-        await c.query("INSERT INTO grn_line (grn_id, branch_id, po_line_id, item_id, qty, damaged_qty, unit_cost, value) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-          [g.id, po.branch_id, l.id, l.item_id, q.toFixed(3), dmg.toFixed(3), unitCost.toFixed(4), r.value.toFixed(2)]);
+        const dot = str(f.dot?.[l.id]) || null;
+        if (dot) await addDot(c, po.branch_id, l.item_id, dot, q);
+        else if (l.category === "tyres" && await getSetting(c, "tyres.dot_required", po.branch_id, false) === true) throw invalid(`Line ${l.line_no}: enter the tyres' DOT (week and year made).`);
+        await c.query("INSERT INTO grn_line (grn_id, branch_id, po_line_id, item_id, qty, damaged_qty, unit_cost, value, dot_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+          [g.id, po.branch_id, l.id, l.item_id, q.toFixed(3), dmg.toFixed(3), unitCost.toFixed(4), r.value.toFixed(2), dot]);
         await c.query("UPDATE po_line SET received_qty = received_qty + $2 WHERE id = $1", [l.id, q.toFixed(3)]);
       }
     }

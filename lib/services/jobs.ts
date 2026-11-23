@@ -93,8 +93,9 @@ export async function getJob(ctx: Ctx, id: string) {
       if (!mine.rowCount) throw notFound("Job card");
     }
     const lines = (await c.query(
-      `SELECT l.*, sb.avg_cost, u.full_name technician_name, i.part_no,
-              sc.qty committed_qty, sc.back_ordered
+      `SELECT l.*, sb.avg_cost, u.full_name technician_name, i.part_no, i.category item_category, i.warranty_months,
+              sc.qty committed_qty, sc.back_ordered,
+              (SELECT string_agg(ps.serial_no, ', ' ORDER BY ps.created_at) FROM part_serial ps WHERE ps.job_line_id = l.id) serial_nos
          FROM job_line l LEFT JOIN stock_balance sb ON sb.item_id = l.item_id AND sb.branch_id = l.branch_id
          LEFT JOIN app_user u ON u.id = l.technician_id LEFT JOIN item i ON i.id = l.item_id
          LEFT JOIN stock_commitment sc ON sc.job_line_id = l.id AND sc.status = 'active'

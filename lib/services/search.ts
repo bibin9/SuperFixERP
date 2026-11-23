@@ -33,6 +33,10 @@ export async function globalSearch(ctx: Ctx, raw: string) {
           AND (part_no ILIKE $1 OR description ILIKE $1 OR search_codes LIKE '%'||upper($2)||'%' OR fits_vehicles ILIKE $1)
         ORDER BY (upper(btrim(barcode)) = upper($2)) DESC NULLS LAST, part_no LIMIT 8`, [`%${q}%`, q.trim()])).rows)
         out.push({ type: "Part", label: r.part_no, sub: [r.description, r.oem_part_no && `OEM ${r.oem_part_no}`].filter(Boolean).join(" · "), href: `/stock?q=${encodeURIComponent(r.part_no)}` });
+    if ((canAnywhere(ctx, "stock", "view") || canAnywhere(ctx, "jobs", "view")) && q.length >= 3)
+      for (const r of (await c.query(`SELECT ps.serial_no, ps.warranty_until, ps.warranty_until >= current_date ok, i.part_no, j.id job_id, j.doc_no FROM part_serial ps
+          JOIN item i ON i.id = ps.item_id LEFT JOIN job_card j ON j.id = ps.job_card_id WHERE upper(ps.serial_no) LIKE upper($1) || '%' LIMIT 8`, [q])).rows)
+        out.push({ type: "Serial", label: r.serial_no, sub: `${r.part_no} · ${r.doc_no ?? ""} · ${r.warranty_until ? (r.ok ? `under warranty to ${new Date(r.warranty_until).toISOString().slice(0, 10)}` : "warranty ended") : "no warranty"}`, href: `/stock/tyres?serial=${encodeURIComponent(r.serial_no)}` });
     return out;
   });
 }

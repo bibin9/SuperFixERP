@@ -63,7 +63,7 @@ The FSD v0.9 open questions are unanswered, so this build uses the FSD's own pro
 - **Arabic.** The invoice and credit note titles and the company name are bilingual; a fully Arabic layout is left for the print-template work in phase 6.
 - **VAT on deposits** follows the FTA rule that VAT is due on a payment received before the supply (setting, default on). A returned deposit cheque reverses that VAT in the ledger; the VAT return lists the deposit and its reversal on application only.
 - **Credit notes** use the original invoice line's VAT rate, take the remainder on the last credit so no fils are stranded, and are numbered only when posted. Restocked parts come back at the cost they were sold at.
-- **Counter sales.** A sale with a discount above the advisor's limit, or a price below the minimum or below cost, has to be made by the branch manager (there is no separate approval queue for counter sales). Trade and fleet price levels are 90% and 93% of list in the demo data; the monthly fleet statement (OT-06) and trade account flows (SL-02) are left for the reports phase.
+- **Counter sales.** A sale with a discount above the advisor's limit, or a price below the minimum or below cost, has to be made by the branch manager (there is no separate approval queue for counter sales). Trade and fleet price levels are 90% and 93% of list in the demo data; the monthly fleet statement is OT-06. Trade orders on credit (SL-02) post cost of sales on the delivery note and sales and VAT on the invoice.
 - **Cash closing** is one count per cashier per day; after closing, that cashier cannot take more cash that day.
 - **E-invoicing.** The JSON follows the PINT AE field names so an accredited service provider can map it later; nothing is sent anywhere.
 

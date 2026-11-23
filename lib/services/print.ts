@@ -11,14 +11,14 @@ import { printLang, type PrintLang } from "../print-text";
  * OT-08: printed documents in English and Arabic. The admin sets the language (both, en, ar) and the
  * terms at the foot of each document under Settings, Printing; a branch setting overrides the company one.
  */
-export type DocKind = "invoice" | "quotation" | "job_card" | "receipt" | "credit_note";
+export type DocKind = "invoice" | "quotation" | "job_card" | "receipt" | "credit_note" | "delivery_note";
 export type PrintSetup = {
   lang: PrintLang; terms: { en: string; ar: string };
   company: { name_en: string; name_ar: string; trn: string };
   branch: { name_en: string; name_ar: string | null; address: string | null; emirate: string; phone: string | null };
 };
 
-async function setupIn(c: PoolClient, branchId: string, kind: DocKind): Promise<PrintSetup> {
+export async function setupIn(c: PoolClient, branchId: string, kind: DocKind): Promise<PrintSetup> {
   const co = (await c.query("SELECT legal_name_en, legal_name_ar, trn FROM company LIMIT 1")).rows[0];
   const b = (await c.query("SELECT name_en, name_ar, address, emirate, phone FROM branch WHERE id = $1", [branchId])).rows[0];
   return {

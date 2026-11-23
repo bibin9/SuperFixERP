@@ -140,6 +140,16 @@ async function branchAlerts(ctx: Ctx): Promise<Alert[]> {
           GROUP BY j.id, j.doc_no, v.make, v.model ORDER BY max(a.assigned_at) LIMIT 8`, [b, mins])).rows)
         out.push({ group: "Assigned but not started", text: `${r.doc_no} · ${r.car}`, sub: `${r.techs} not clocked in after ${mins} minutes`, href: `/jobs/${r.id}#workshop`, tone: "a" });
     }
+    // WF-07: approvals waiting past their reminder time, including ones escalated to me.
+    if (canAnywhere(ctx, "approvals", "view")) {
+      const { ELIGIBLE_SQL } = await import("./workflow");
+      for (const r of (await c.query(
+        `SELECT r.doc_ref, r.doc_type, t.step_name, t.created_at, (t.escalate_after <= now()) escalated FROM approval_task t JOIN approval_request r ON r.id = t.request_id
+          WHERE t.status = 'pending' AND r.status = 'pending' AND t.seq = r.current_seq AND t.remind_after <= now() AND ${ELIGIBLE_SQL}
+          ORDER BY t.created_at LIMIT 8`, [ctx.userId])).rows)
+        out.push({ group: "Approvals waiting too long", text: `${r.doc_ref} · ${String(r.doc_type).replace(/_/g, " ")}`,
+          sub: `${r.step_name}, waiting since ${new Date(r.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}${r.escalated ? " · escalated" : ""}`, href: "/approvals", tone: "r" });
+    }
     // Complaints with me that are past their close-by date (OT-03).
     for (const r of (await c.query(
       `SELECT k.id, k.doc_no, k.description FROM complaint_case k WHERE k.owner_id = $1 AND k.status <> 'closed' AND k.due_date < current_date ORDER BY k.due_date LIMIT 8`, [ctx.userId])).rows)

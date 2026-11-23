@@ -26,7 +26,7 @@ export default async function Approvals({ searchParams }: { searchParams: Promis
         {items.map((i) => (
           <div key={i.task_id} style={{ borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
             <div className="row" style={{ alignItems: "center" }}>
-              <div><b>{LABEL[i.doc_type] ?? i.doc_type.replace(/_/g, " ")}</b> · {i.doc_type === "payroll_run" && i.summary?.month ? <Link href={`/payroll/${i.summary.month}`}>{i.doc_ref}</Link> : DOC_LINK[i.doc_type] ? <Link href={DOC_LINK[i.doc_type](i.doc_id)}>{i.doc_ref}</Link> : i.doc_ref} · {i.branch_code} · from {i.requested_by_name} <span className="muted small">{dt(i.created_at)}</span>
+              <div><b>{LABEL[i.doc_type] ?? i.doc_type.replace(/_/g, " ")}</b> · {i.doc_type === "payroll_run" && i.summary?.month ? <Link href={`/payroll/${i.summary.month}`}>{i.doc_ref}</Link> : DOC_LINK[i.doc_type] ? <Link href={DOC_LINK[i.doc_type](i.doc_id)}>{i.doc_ref}</Link> : i.doc_ref} · {i.branch_code} · from {i.requested_by_name} <span className="muted small">{dt(i.created_at)}</span>{i.overdue && <span className="pill red">Waiting too long</span>}{i.escalated && <span className="pill amber">Escalated to you</span>}
                 <div className="small">{i.summary?.reason}{i.amount !== null && <> · total AED <Money v={i.amount} /></>}{i.discount_pct && <> · discount {Number(i.discount_pct).toFixed(2)}%</>} · step: {i.step_name}</div>
                 {i.summary?.job && <div className="small">Job {i.summary.job}</div>}
                 {HR_DOCS.includes(i.doc_type) && i.summary && <div className="small" data-testid="hr-summary">{Object.entries(i.summary).filter(([k]) => k !== "reason").map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(" · ")}</div>}</div>

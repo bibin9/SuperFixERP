@@ -3,6 +3,7 @@ import { Ctx, assertCan, canSee } from "../access";
 import { withTx } from "../db";
 import { forbidden, invalid, notFound, conflict } from "../errors";
 import { audit } from "./audit";
+import { getSetting } from "./settings";
 
 /** M10 approval engine. One engine for every document type in WF-01. */
 
@@ -40,7 +41,8 @@ export type ApprovalRequestRow = { id: string; doc_type: string; doc_id: string;
 const handlers = new Map<string, Handler>();
 export const registerHandler = (docType: string, h: Handler) => handlers.set(docType, h);
 
-type StepRow = { id: string; seq: number; name: string; approver_role_id: string | null; approver_user_id: string | null; approver_role_scope: string; backup_user_id: string | null };
+type StepRow = { id: string; seq: number; name: string; approver_role_id: string | null; approver_user_id: string | null; approver_role_scope: string; backup_user_id: string | null;
+  reminder_hours?: number | null; escalate_hours?: number | null; escalate_role_id?: string | null };
 
 /**
  * Steps that apply to a document. Conditions are combined with AND (WF-03). Amount bands are
@@ -82,10 +84,15 @@ async function createTask(c: PoolClient, reqId: string, input: SubmitInput, step
     );
     if (!holders.rowCount && step.backup_user_id && step.backup_user_id !== requestedBy) userId = step.backup_user_id;
   }
+  // WF-07: when the approvers are reminded and when the item is also offered to the escalation role.
+  const hours = async (own: number | null | undefined, key: string, dflt: number) => { const h = own ?? Number(await getSetting(c, key, input.branchId, dflt)); return Number.isFinite(h) && h > 0 ? h : null; };
+  const remindH = await hours(step.reminder_hours, "approvals.reminder_hours", 24);
+  const escalateH = await hours(step.escalate_hours, "approvals.escalate_hours", 48);
+  const escRole = step.escalate_role_id ?? (await c.query("SELECT id FROM role WHERE code = $1", [String(await getSetting(c, "approvals.escalate_role", input.branchId, "owner"))])).rows[0]?.id ?? null;
   await c.query(
-    `INSERT INTO approval_task (request_id, branch_id, step_id, seq, step_name, approver_role_id, approver_branch_id, approver_user_id, backup_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [reqId, input.branchId, step.id, step.seq, step.name, userId ? null : step.approver_role_id, approverBranch, userId, step.backup_user_id],
+    `INSERT INTO approval_task (request_id, branch_id, step_id, seq, step_name, approver_role_id, approver_branch_id, approver_user_id, backup_user_id, remind_after, escalate_after, escalate_role_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + make_interval(hours => $10::int), now() + make_interval(hours => $11::int), $12)`,
+    [reqId, input.branchId, step.id, step.seq, step.name, userId ? null : step.approver_role_id, approverBranch, userId, step.backup_user_id, remindH, escalateH, escalateH && escRole ? escRole : null],
   );
 }
 
@@ -115,15 +122,23 @@ const ELIGIBLE_SQL = `
   (t.approver_user_id = $1 OR t.backup_user_id = $1 OR EXISTS (
      SELECT 1 FROM user_branch_role ubr
       WHERE ubr.user_id = $1 AND ubr.role_id = t.approver_role_id
-        AND (ubr.branch_id = t.approver_branch_id OR ubr.branch_id IS NULL)))
+        AND (ubr.branch_id = t.approver_branch_id OR ubr.branch_id IS NULL))
+   OR (${"t.escalate_after <= now()"} AND EXISTS (
+     SELECT 1 FROM user_branch_role ubr
+      WHERE ubr.user_id = $1 AND ubr.role_id = t.escalate_role_id
+        AND (ubr.branch_id = t.approver_branch_id OR ubr.branch_id IS NULL))))
   AND r.requested_by <> $1`;
+/** WF-07: this user is an approver only because the item waited too long and was escalated to them. */
+const ESCALATED_ONLY_SQL = `NOT (coalesce(t.approver_user_id = $1, false) OR coalesce(t.backup_user_id = $1, false) OR EXISTS (
+     SELECT 1 FROM user_branch_role ubr WHERE ubr.user_id = $1 AND ubr.role_id = t.approver_role_id AND (ubr.branch_id = t.approver_branch_id OR ubr.branch_id IS NULL)))`;
+export { ELIGIBLE_SQL };
 
 /** Approvals inbox: items waiting for me. Amounts follow field permissions (WF-05). */
 export async function inbox(ctx: Ctx) {
   assertCan(ctx, "approvals", "view");
   return withTx(ctx, async (c) => {
     const r = await c.query(
-      `SELECT t.id task_id, t.step_name, t.created_at, r.id request_id, r.doc_type, r.doc_id, r.doc_ref, r.amount, r.discount_pct, r.summary,
+      `SELECT t.id task_id, t.step_name, t.created_at, (t.remind_after <= now()) overdue, (${ESCALATED_ONLY_SQL}) escalated, r.id request_id, r.doc_type, r.doc_id, r.doc_ref, r.amount, r.discount_pct, r.summary,
               b.code branch_code, u.full_name requested_by_name
          FROM approval_task t JOIN approval_request r ON r.id = t.request_id
          JOIN branch b ON b.id = r.branch_id JOIN app_user u ON u.id = r.requested_by

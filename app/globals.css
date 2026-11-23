@@ -689,3 +689,4 @@ tr.scanhit td{animation:scanflash 1.6s ease-out}
 .bilingual .ar{font-family:"Noto Naskh Arabic","Geeza Pro","Segoe UI","Tahoma",sans-serif;font-weight:500;margin-top:2px}
 .bilingual h1 .ar{font-size:.8em;color:var(--muted)}.bilingual .sub .ar,.bilingual .flash .ar,.bilingual td .ar,.bilingual p .ar{color:inherit;opacity:.85}
 .bilingual span.ar{display:block}
+.compare td.best{background:var(--green-soft,#e3f5e9);font-weight:600}

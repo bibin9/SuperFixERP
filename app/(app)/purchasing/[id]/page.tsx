@@ -62,11 +62,12 @@ export default async function PoPage({ params, searchParams }: { params: Promise
       {receivable && (
         <form action={poStepAction} className="card"><h2>Goods received</h2>
           <input type="hidden" name="po_id" value={id} />
-          <table><thead><tr><th>Item</th><th className="num">Still to come</th><th>Good qty received</th><th>Damaged (not taken)</th></tr></thead>
+          <table><thead><tr><th>Item</th><th className="num">Still to come</th><th>Good qty received</th><th>Damaged (not taken)</th>{lines.some((l) => l.category === "tyres") && <th>Tyre DOT (WWYY)</th>}</tr></thead>
             <tbody>{lines.filter((l) => l.item_id && D(l.received_qty).lt(l.qty)).map((l) => (
               <tr key={l.id}><td>{l.description}</td><td className="num">{D(l.qty).minus(l.received_qty).toString()}</td>
                 <td><input name={`qty[${l.id}]`} defaultValue={D(l.qty).minus(l.received_qty).toString()} style={{ width: 90, minWidth: 70 }} /></td>
-                <td><input name={`damaged[${l.id}]`} placeholder="0" style={{ width: 90, minWidth: 70 }} /></td></tr>
+                <td><input name={`damaged[${l.id}]`} placeholder="0" style={{ width: 90, minWidth: 70 }} /></td>
+                {lines.some((x) => x.category === "tyres") && <td>{l.category === "tyres" ? <input name={`dot[${l.id}]`} placeholder="e.g. 2426" maxLength={4} style={{ width: 90, minWidth: 70 }} /> : null}</td>}</tr>
             ))}</tbody></table>
           <div className="row" style={{ marginTop: 10 }}><div className="field"><label>Supplier delivery note</label><input name="delivery_note" /></div>
             <div className="shrink"><button className="btn green" name="step" value="receive">Receive into stock</button></div></div>

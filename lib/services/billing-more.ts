@@ -267,7 +267,7 @@ export async function listCashSessions(ctx: Ctx) {
 // =====================================================================================
 
 /** Price for a customer: their price level's list (within dates), else the item's list price (net of VAT). */
-async function priceFor(c: PoolClient, itemId: string, level: string) {
+export async function priceFor(c: PoolClient, itemId: string, level: string) {
   const it = (await c.query("SELECT i.*, t.rate FROM item i JOIN tax_code t ON t.code = i.vat_code WHERE i.id = $1 AND i.active", [itemId])).rows[0];
   if (!it) throw invalid("Choose an item.");
   const pl = (await c.query(

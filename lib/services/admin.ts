@@ -278,6 +278,7 @@ export async function listWorkflows(ctx: Ctx) {
       suppliers: (await c.query("SELECT id, code || ' · ' || name_en label FROM supplier WHERE active ORDER BY code")).rows as { id: string; label: string }[],
       customers: (await c.query("SELECT id, coalesce(company_name, concat_ws(' ', first_name, last_name)) || ' · ' || customer_no label FROM customer WHERE active AND customer_type <> 'individual' ORDER BY 2")).rows as { id: string; label: string }[],
       categories: (await c.query("SELECT code id, name_en label FROM lookup_value WHERE list = 'item_category' AND active ORDER BY sort, name_en")).rows as { id: string; label: string }[],
+      roles: (await c.query("SELECT id, name label FROM role ORDER BY name")).rows as { id: string; label: string }[],
     };
     return { workflows: wfs.map((w) => ({ ...w, steps: steps.filter((s) => s.workflow_id === w.id) })), options };
   });
@@ -300,7 +301,10 @@ export async function saveStepLimits(ctx: Ctx, stepId: string, f: Record<string,
     const cur = await c.query("SELECT * FROM workflow_step WHERE id = $1 FOR UPDATE", [stepId]);
     if (!cur.rowCount) throw notFound("Step");
     const row = { cond_min_amount: num(f.cond_min_amount), cond_max_amount: num(f.cond_max_amount), cond_min_discount_pct: num(f.cond_min_discount_pct), enabled: f.enabled === "on",
-      cond_branch_id: num(f.cond_branch_id), cond_supplier_id: num(f.cond_supplier_id), cond_customer_id: num(f.cond_customer_id), cond_item_category: num(f.cond_item_category) };
+      cond_branch_id: num(f.cond_branch_id), cond_supplier_id: num(f.cond_supplier_id), cond_customer_id: num(f.cond_customer_id), cond_item_category: num(f.cond_item_category),
+      reminder_hours: num(f.reminder_hours), escalate_hours: num(f.escalate_hours), escalate_role_id: num(f.escalate_role_id) };
+    for (const k of ["reminder_hours", "escalate_hours"] as const) if (row[k] !== null && (!/^\d{1,4}$/.test(row[k]!) || Number(row[k]) > 2000)) throw invalid("Hours must be a whole number (0 = off).");
+    if (row.reminder_hours && row.escalate_hours && Number(row.escalate_hours) > 0 && Number(row.escalate_hours) < Number(row.reminder_hours)) throw invalid("Escalation should come after the reminder.");
     for (const k of ["cond_min_amount", "cond_max_amount", "cond_min_discount_pct"] as const) if (row[k] !== null && !/^\d+(\.\d{1,4})?$/.test(row[k]!)) throw invalid("Limits must be numbers.");
     if (row.cond_min_amount && row.cond_max_amount && Number(row.cond_min_amount) > Number(row.cond_max_amount)) throw invalid("From AED cannot be more than To AED.");
     const exists = async (sql: string, v: string | null, what: string) => { if (v && !(await c.query(sql, [v])).rowCount) throw invalid(`Choose a valid ${what}.`); };
@@ -308,9 +312,12 @@ export async function saveStepLimits(ctx: Ctx, stepId: string, f: Record<string,
     await exists("SELECT 1 FROM supplier WHERE id = $1 AND active", row.cond_supplier_id, "supplier");
     await exists("SELECT 1 FROM customer WHERE id = $1 AND active", row.cond_customer_id, "customer");
     await exists("SELECT 1 FROM lookup_value WHERE list = 'item_category' AND code = $1 AND active", row.cond_item_category, "item category");
+    await exists("SELECT 1 FROM role WHERE id = $1", row.escalate_role_id, "role to escalate to");
     await c.query(`UPDATE workflow_step SET cond_min_amount = $2, cond_max_amount = $3, cond_min_discount_pct = $4, enabled = $5,
-                     cond_branch_id = $6, cond_supplier_id = $7, cond_customer_id = $8, cond_item_category = $9 WHERE id = $1`,
-      [stepId, row.cond_min_amount, row.cond_max_amount, row.cond_min_discount_pct, row.enabled, row.cond_branch_id, row.cond_supplier_id, row.cond_customer_id, row.cond_item_category]);
+                     cond_branch_id = $6, cond_supplier_id = $7, cond_customer_id = $8, cond_item_category = $9,
+                     reminder_hours = $10, escalate_hours = $11, escalate_role_id = $12 WHERE id = $1`,
+      [stepId, row.cond_min_amount, row.cond_max_amount, row.cond_min_discount_pct, row.enabled, row.cond_branch_id, row.cond_supplier_id, row.cond_customer_id, row.cond_item_category,
+        row.reminder_hours, row.escalate_hours, row.escalate_role_id]);
     await audit(c, ctx, "workflow_step", stepId, "update", diff(cur.rows[0], row));
   });
 }
