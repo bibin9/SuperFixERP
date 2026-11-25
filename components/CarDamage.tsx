@@ -25,7 +25,7 @@ export function CarDamage({ name = "damage", initial = [], readOnly = false }: {
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tap(id); } }}><title>{label}</title></path>
           );
         })}
-        <text x="160" y="202" textAnchor="middle" fontSize="11" fill="#64748b">top view · front up</text>
+        <text x="160" y="202" textAnchor="middle" fontSize="11" style={{ fill: "var(--muted)" }}>top view · front up</text>
       </svg>
       <div className="dmg-legend small">{KINDS.map(([id, l]) => <span key={id}><i className={`sw ${id}`} />{l}</span>)}</div>
       <div className="small" style={{ marginTop: 6 }}>{marks.length ? <>Marked: {marks.map((m) => `${ZONES.find(([z]) => z === m.z)?.[1]} (${KINDS.find(([k]) => k === m.k)?.[1].toLowerCase()})`).join(", ")}</> : <span className="muted">No damage marked{readOnly ? "" : ". Tap a part of the car to mark it"}.</span>}</div>

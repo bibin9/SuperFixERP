@@ -6,12 +6,13 @@ import { Flash, PageHead, label } from "@/components/ui";
 export default async function Settings({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const ctx = await requireCtx();
   const sp = await searchParams;
-  const rows = await listSettings(ctx);
+  const rows = (await listSettings(ctx)).filter((r) => r.grp !== "Style");
   const groups = [...new Set(rows.map((r) => r.grp))];
   return (
     <>
       <PageHead title="Settings" sub="Every threshold and switch lives here, never in code. Changes are logged with old and new values." />
       <Flash sp={sp} />
+      <p className="muted">Colours, logo, text size and night mode are on <a href="/admin/style">Look and night mode</a>.</p>
       {groups.map((g) => (
         <div className="card" key={g}><h2>{g}</h2>
           <table><tbody>{rows.filter((r) => r.grp === g).map((r) => (

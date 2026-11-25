@@ -254,7 +254,11 @@ async function seedHr(adminUrl: string) {
     for (const t of await inbox(ctx)) if (["overtime_request", "leave_request"].includes(t.doc_type)) await act(ctx, t.task_id, "approved");
   }
   // This month: Ramesh asks for two days' sick leave next week (waiting for Khalid).
-  await requestLeave(await ctxFor("ramesh", "YAS"), { leave_type: "sick", from_date: plus(7), to_date: plus(8), reason: "Medical appointment" });
+  // (Moves a day at a time if next week's dates fall on public holidays.)
+  for (let d = 7; d < 21; d++) {
+    try { await requestLeave(await ctxFor("ramesh", "YAS"), { leave_type: "sick", from_date: plus(d), to_date: plus(d + 1), reason: "Medical appointment" }); break; }
+    catch (e) { if (!(e instanceof Error && /public holiday/i.test(e.message))) throw e; }
+  }
   // Punching machines: Yas has synced this morning, Al Qusais has been offline for three hours. Two days ago
   // Arjun punched in but not out (a missing punch for the manager to fix). Khalid's visa expires in 3 weeks.
   for (const [k, inT, outT] of [["khalid", "07:52", "17:06"], ["arjun", "08:11", "17:15"], ["yousef", "08:40", "18:10"]] as const) {

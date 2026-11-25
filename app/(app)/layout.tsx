@@ -21,11 +21,16 @@ import { PHONE_TABLES_INLINE } from "@/lib/phone-tables";
 import { FormErrors } from "@/components/FormErrors";
 import { AutoLabels } from "@/components/AutoLabels";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { getStyle, modeFrom } from "@/lib/services/style";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireCtx();
+  const style = await getStyle();
+  const theme = modeFrom((await cookies()).get("theme")?.value, style);
   const { branches, pending, lowStock, lateJobs, keyDrops, pageSize } = await shellData(ctx);
   const role = roleAt(ctx, ctx.currentBranchId);
   const can = (s: Parameters<typeof canAnywhere>[1], a: Parameters<typeof canAnywhere>[2] = "view") => canAnywhere(ctx, s, a);
@@ -60,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/stock/reorder", "Low stock", can("stock"), lowStock],
       ["/stock/queue", "Store queue", can("stock")],
       ["/stock/transfers", "Transfer orders", can("stock")],
+      ["/stock/tyres", "Tyres and batteries", can("stock")],
       ["/stock/adjustments", "Stock adjustments", can("stock")],
     ]],
     ["Purchasing", [
@@ -71,6 +77,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ["Billing", [
       ["/invoices", "Invoices", can("invoices")],
       ["/billing/counter-sale", "Counter sale", can("invoices", "create")],
+      ["/billing/trade", "Trade orders", can("invoices")],
       ["/billing/quick", "Quick job", can("invoices", "create") && can("jobs", "create")],
       ["/billing/advances", "Advances", can("invoices")],
       ["/billing/cheques", "Cheques", can("invoices")],
@@ -118,6 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ["/admin/workflows", "Approval workflows", can("settings")],
       ["/admin/numbering", "Document numbering", can("settings")],
       ["/admin/settings", "Settings", can("settings")],
+      ["/admin/style", "Look and night mode", can("settings")],
       ["/admin/audit", "Audit log", can("audit")],
     ]],
     ["Help", [
@@ -142,9 +150,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="app">
       <aside className="side">
         <input type="checkbox" id="navtoggle" className="navtoggle" aria-hidden />
-        <div className="brand"><div className="mk" aria-hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 15 12 4l9 11M7 15h10l-2 5H9z" /></svg></div><div><b>AUTOVIQO</b><small>for Superfix Auto Centers</small></div>
+        <div className="brand"><div className="mk" aria-hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 15 12 4l9 11M7 15h10l-2 5H9z" /></svg></div><div><b>{style.app_name}</b>{style.app_tagline && <small>{style.app_tagline}</small>}</div>
           <label htmlFor="navtoggle" className="menubtn" aria-label="Open or close the menu">☰ Menu</label></div>
-        <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/sflogo.png" alt="Superfix" width={74} height={40} /><span><b>Superfix</b>{branches.length} branch{branches.length === 1 ? "" : "es"}</span></div>
+        <div className="client">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={style.logo || "/sflogo.png"} alt="Company logo" width={74} height={40} style={{ objectFit: "contain" }} /><span><b>Superfix</b>{branches.length} branch{branches.length === 1 ? "" : "es"}</span></div>
         <SideNav groups={groups} />
         <div className="side-foot">
           <div>Signed in as <b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · All branches" : ""}</div>
@@ -170,6 +178,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {!ctx.pinOnly && <><FindFeature items={features} />
           <HelpTour allowed={TOPICS.filter(sees).map((t) => t.slug)} />
           <Bell alerts={alerts} /></>}
+          <ThemeToggle initial={theme} />
           <div className="clock" title="Today"><Icon name="clock" size={16} className="cicon" />{new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Dubai" }).format(new Date())}</div>
           <div className="who"><span className="avatar" aria-hidden>{ctx.fullName.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span><span><b>{ctx.fullName}</b><br />{role?.roleName}{ctx.allBranches ? " · all branches" : ""}</span></div>
         </header>

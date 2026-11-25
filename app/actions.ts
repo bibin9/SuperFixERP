@@ -17,6 +17,7 @@ import { receiveStock, issueToJobLine } from "@/lib/services/stock";
 import { prepareMessage, confirmMessageSent } from "@/lib/services/messaging";
 import { addBundle, saveBundle, addServices } from "@/lib/services/bundles";
 import * as admin from "@/lib/services/admin";
+import { saveStyle } from "@/lib/services/style";
 import * as tablets from "@/lib/services/tablets";
 import { saveMaster, setMasterActive } from "@/lib/services/master-forms";
 
@@ -405,4 +406,12 @@ export async function tabletLockAction() {
   await logout(jar.get(COOKIE)?.value);
   jar.delete(COOKIE);
   redirect("/tablet");
+}
+
+// ---------- look and night mode ----------
+export async function saveStyleAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const logo = fd.get("logo");
+  const fields = Object.fromEntries([...fd.entries()].filter(([k, v]) => !k.startsWith("$") && typeof v === "string"));
+  await run("/admin/style", () => saveStyle(ctx, fields, logo instanceof File ? logo : null), "Style saved. Everyone sees it on their next page.");
 }
