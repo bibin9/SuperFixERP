@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
+    // SEC-04: lets a refused page answer 403 with app/forbidden.tsx instead of a 500 error.
+    authInterrupts: true,
     // Files up to 5 MB are accepted (saveAttachment); the form around them needs a little more (FILE-01).
     serverActions: { bodySizeLimit: "6mb" },
   },

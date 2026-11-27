@@ -4,6 +4,7 @@ import { withAnonTx, withTx } from "../db";
 import { Ctx, loadCtx, assertCan } from "../access";
 import { AppError, forbidden, invalid } from "../errors";
 import { getSetting } from "./settings";
+import { checkPassword } from "../password-check";
 import { audit } from "./audit";
 
 const hashToken = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
@@ -32,19 +33,31 @@ export async function login(username: string, password: string, meta: Meta = {},
       "SELECT count(*) n FROM login_event WHERE ip = $1 AND event = 'login_failed' AND at > now() - interval '15 minutes'", [meta.ip])).rows[0].n) : 0;
     if (ipFails >= IP_MAX_FAILS) return fail("Too many failed sign-ins from this network. Wait 15 minutes, then try again.");
     // PEN-02: an unknown or switched-off user takes as long as a wrong password, so timing does not reveal user names.
-    if (!user || user.status !== "active") { bcrypt.compareSync(String(password || ""), DUMMY_HASH); return fail("Wrong user name or password."); }
+    if (!user || user.status !== "active") { await checkPassword(String(password || ""), DUMMY_HASH); return fail("Wrong user name or password."); }
     if (user.locked_until && new Date(user.locked_until) > new Date()) return fail("This account is locked after too many failed sign-ins. Try again later or ask the admin.");
+    const maxFails = Number(await getSetting(c, "security.max_failed_logins", null, 5));
+    const lockMins = Number(await getSetting(c, "security.lockout_minutes", null, 15));
+    // SEC-03: wrong passwords lock the user only on the network they came from, so someone elsewhere cannot lock
+    // out the admin by guessing. The whole account still locks after many failures from all networks together.
+    const netLocked = (await c.query(
+      "SELECT 1 FROM login_event WHERE user_id = $1 AND event = 'locked' AND ip IS NOT DISTINCT FROM $2 AND at > now() - make_interval(mins => $3) LIMIT 1",
+      [user.id, meta.ip ?? null, lockMins])).rowCount;
+    if (netLocked) return fail("This account is locked after too many failed sign-ins. Try again later or ask the admin.");
     const secret = viaPin ? user.pin_hash : user.password_hash;
-    const ok = !!secret && bcrypt.compareSync(String(password || ""), secret);
+    // SEC-02: checked in a worker thread, so other people's pages keep loading while a sign-in is checked.
+    const ok = !!secret && await checkPassword(String(password || ""), secret);
     if (!ok) {
-      const maxFails = Number(await getSetting(c, "security.max_failed_logins", null, 5));
-      const lockMins = Number(await getSetting(c, "security.lockout_minutes", null, 15));
+      const accountMax = Number(await getSetting(c, "security.max_failed_logins_all_networks", null, 25));
       const fails = user.failed_attempts + 1;
-      if (fails >= maxFails) {
+      const netFails = 1 + Number((await c.query(
+        "SELECT count(*) n FROM login_event WHERE user_id = $1 AND event = 'login_failed' AND ip IS NOT DISTINCT FROM $2 AND at > greatest(now() - make_interval(mins => $3), coalesce((SELECT max(at) FROM login_event WHERE user_id = $1 AND event IN ('login', 'pin_login', 'locked') AND ip IS NOT DISTINCT FROM $2), '-infinity'))",
+        [user.id, meta.ip ?? null, lockMins])).rows[0].n);
+      if (fails >= accountMax) {
         await c.query("UPDATE app_user SET failed_attempts = 0, locked_until = now() + make_interval(mins => $2) WHERE id = $1", [user.id, lockMins]);
         await c.query("INSERT INTO login_event (user_id, username, event, ip, device) VALUES ($1,$2,'locked',$3,$4)", [user.id, uname, meta.ip, meta.device]);
       } else {
         await c.query("UPDATE app_user SET failed_attempts = $2 WHERE id = $1", [user.id, fails]);
+        if (netFails >= maxFails) await c.query("INSERT INTO login_event (user_id, username, event, ip, device) VALUES ($1,$2,'locked',$3,$4)", [user.id, uname, meta.ip, meta.device]);
       }
       return fail("Wrong user name or password.");
     }
@@ -72,7 +85,10 @@ export async function sessionCtx(token: string | undefined, meta: Meta = {}): Pr
       ? Number(await getSetting(c, "security.tablet_idle_minutes", null, 2))
       : Number(await getSetting(c, "security.session_idle_minutes", null, 30));
     const tabletBranch = sess.pin_only ? (await c.query("SELECT tablet_branch($1) b", [sess.tablet_id])).rows[0].b as string | null : null;
-    if (Date.now() - new Date(sess.last_seen_at).getTime() > idle * 60_000 || (sess.pin_only && tabletBranch !== sess.current_branch_id)) {
+    // SEC-07: a session also ends a fixed time after sign-in, however busy it is (12 hours by default).
+    const maxHours = Number(await getSetting(c, "security.session_max_hours", null, 12));
+    if (Date.now() - new Date(sess.created_at).getTime() > maxHours * 3_600_000 ||
+        Date.now() - new Date(sess.last_seen_at).getTime() > idle * 60_000 || (sess.pin_only && tabletBranch !== sess.current_branch_id)) {
       await c.query("UPDATE session SET revoked_at = now() WHERE id = $1", [sess.id]);
       return null;
     }

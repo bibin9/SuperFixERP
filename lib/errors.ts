@@ -1,8 +1,12 @@
 export type ErrorCode = "unauthenticated" | "forbidden" | "not_found" | "validation" | "conflict";
 
 export class AppError extends Error {
+  /** SEC-04: a refusal that reaches a page unhandled answers 403 (and a missing record 404), not 500. */
+  digest?: string;
   constructor(public code: ErrorCode, message: string, public details?: unknown) {
     super(message);
+    if (code === "forbidden") this.digest = "NEXT_HTTP_ERROR_FALLBACK;403";
+    if (code === "not_found") this.digest = "NEXT_HTTP_ERROR_FALLBACK;404";
   }
 }
 

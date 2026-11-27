@@ -64,7 +64,7 @@ export async function publicFeedbackAction(fd: FormData) {
   const token = String(fd.get("token"));
   let target = `/f/${encodeURIComponent(token)}`;
   const { allow } = await import("@/lib/rate-limit"); const { requestMeta } = await import("@/lib/session");
-  if (!allow("feedback", (await requestMeta()).ip, 20, 60 * 60_000)) redirect(`${target}?err=${encodeURIComponent("Too many tries. Please try again later.")}`);
+  if (!await allow("feedback", (await requestMeta()).ip, 20, 60 * 60_000)) redirect(`${target}?err=${encodeURIComponent("Too many tries. Please try again later.")}`);
   try { await submitFeedback(token, fd.get("rating"), fd.get("comment")); }
   catch (e) { if (e instanceof AppError) target = `/f/${encodeURIComponent(token)}?err=${encodeURIComponent(e.message)}`; else throw e; }
   redirect(target);
@@ -83,7 +83,7 @@ export async function keyDropSubmitAction(fd: FormData): Promise<{ ok?: { docNo:
   const { AppError } = await import("@/lib/errors");
   const photos = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
   const { allow } = await import("@/lib/rate-limit"); const { requestMeta } = await import("@/lib/session");
-  if (!allow("keydrop", (await requestMeta()).ip, 6, 60 * 60_000)) return { err: "Too many key drops from this phone in the last hour. Please call the branch." };
+  if (!await allow("keydrop", (await requestMeta()).ip, 6, 60 * 60_000)) return { err: "Too many key drops from this phone in the last hour. Please call the branch." };
   if (photos.length > 6) return { err: "Attach up to 6 photos.", field: "photos" };
   try {
     const files = await Promise.all(photos.map(async (f) => ({ name: f.name, type: f.type, bytes: Buffer.from(await f.arrayBuffer()) })));

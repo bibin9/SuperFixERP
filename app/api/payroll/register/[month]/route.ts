@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ month: 
   const { month } = await params;
   try {
     const csv = await registerCsv(ctx, month);
-    return new Response("﻿" + csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="payroll-register-${month}.csv"` } });
+    return new Response("﻿" + csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="payroll-register-${month}.csv"`, "cache-control": "private, no-store" } });
   } catch (e) {
     if (e instanceof AppError) return new Response(e.message, { status: e.code === "forbidden" ? 403 : 400 });
     throw e;

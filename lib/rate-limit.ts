@@ -1,13 +1,17 @@
+import { withAnonTx } from "./db";
+
 /**
- * Simple per-address limit for public forms (PEN-07): at most `max` uses per `windowMs` from one network address.
- * Kept in memory on the server, so it resets when the app restarts; enough to stop one phone or script flooding a form.
+ * Per-address limit for public forms (PEN-07): at most `max` uses per `windowMs` from one network address.
+ * SEC-05: counted in the database (rate_hit), so the limit survives restarts and is shared by every app server.
  */
-const hits = new Map<string, number[]>();
-export function allow(bucket: string, ip: string, max: number, windowMs: number): boolean {
-  const now = Date.now(), key = `${bucket}:${ip}`;
-  const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (list.length >= max) { hits.set(key, list); return false; }
-  list.push(now); hits.set(key, list);
-  if (hits.size > 50_000) for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
-  return true;
+export async function allow(bucket: string, ip: string, max: number, windowMs: number): Promise<boolean> {
+  return withAnonTx(async (c) => {
+    // One writer at a time per address and form, so a burst of parallel posts cannot slip past the count.
+    await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${bucket}:${ip}`]);
+    await c.query("DELETE FROM rate_hit WHERE bucket = $1 AND key = $2 AND at <= now() - make_interval(secs => $3)", [bucket, ip, windowMs / 1000]);
+    const n = Number((await c.query("SELECT count(*) n FROM rate_hit WHERE bucket = $1 AND key = $2", [bucket, ip])).rows[0].n);
+    if (n >= max) return false;
+    await c.query("INSERT INTO rate_hit (bucket, key) VALUES ($1, $2)", [bucket, ip]);
+    return true;
+  });
 }
