@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   try {
     const f = await wpsFile(ctx, id);
-    return new Response(f.content, { headers: { "content-type": "text/plain; charset=utf-8", "content-disposition": `attachment; filename="${f.file_name}"` } });
+    return new Response(f.content, { headers: { "content-type": "text/plain; charset=utf-8", "content-disposition": `attachment; filename="${f.file_name}"`, "cache-control": "private, no-store" } });
   } catch (e) {
     if (e instanceof AppError) return new Response(e.message, { status: e.code === "forbidden" ? 403 : 404 });
     throw e;

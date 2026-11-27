@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { Ctx, assertCan, can } from "../access";
 import { withTx, withAnonTx, withBranchSystemTx } from "../db";
 import { forbidden, invalid, notFound } from "../errors";
@@ -138,7 +139,8 @@ export async function newKeydropCode(ctx: Ctx) {
   if (!b) throw invalid("Choose a branch first.");
   if (!can(ctx, "settings", "edit", b) && !can(ctx, "workshop", "edit", b)) throw forbidden();
   await withTx(ctx, async (c) => {
-    await c.query("UPDATE branch SET keydrop_code = encode(sha256((id::text || random()::text || clock_timestamp()::text)::bytea), 'hex') WHERE id = $1", [b]);
+    // SEC-06: the code in the QR link comes from a cryptographic random source (not the database's random()).
+    await c.query("UPDATE branch SET keydrop_code = $2 WHERE id = $1", [b, crypto.randomBytes(32).toString("hex")]);
     await audit(c, ctx, "branch", b, "keydrop_code_changed", {}, b);
   });
 }

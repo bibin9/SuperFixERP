@@ -181,3 +181,13 @@ The `uat` branch deploys to Railway with `railway.json`:
 - App variables: `PG_ADMIN_URL=${{Postgres.DATABASE_URL}}`, `DB_NAME=superfix`, `APP_DB_PASSWORD=<a long random password>`. The cookie is marked secure automatically, because Railway reports https.
 - Each deploy runs `npm run db:deploy` first: it creates the `superfix_app` role and the database if missing, applies new migrations and loads the demo data only into an empty database. Existing data is never reset.
 - Demo users share the password `Superfix@2026`; change them (Admin > Users) before anyone outside the team gets the link.
+- The sign-in page lists the demo users only when `SHOW_DEMO_USERS=true` (set in `.env.example` for a local demo). Never set it on UAT or production.
+
+## Security, load and controls test (27 November 2026)
+
+- **Sign-in lock-out by network**: wrong passwords lock the user on the network they came from (`security.max_failed_logins`, 5); the whole account locks after `security.max_failed_logins_all_networks` (25) failures from all networks together. Someone elsewhere can no longer lock out the admin.
+- **Password checks in worker threads** (`workers/bcrypt-worker.cjs`, `PASSWORD_WORKERS`, default 2): a burst of sign-ins no longer stalls everyone else's pages.
+- **Sessions end 12 hours after sign-in** (`security.session_max_hours`), as well as after 30 idle minutes.
+- **Refused pages answer 403, missing or hidden records 404** (not 500).
+- **Public form limits** (key drop, feedback, quotation decision) are counted in the database (`rate_hit`, migration 044), so they hold across restarts and with more than one app server.
+- The key-drop QR code is made from a cryptographic random source; payroll register and WPS downloads are never cached.

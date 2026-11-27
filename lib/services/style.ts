@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { Ctx, assertCan } from "../access";
 import { withAnonTx, withTx } from "../db";
 import { invalid } from "../errors";
@@ -37,8 +38,9 @@ function clean(raw: Record<string, unknown>): Style {
   return s;
 }
 
-/** Read on every page (no user needed: it is also used on the sign-in page). */
-export async function getStyle(): Promise<Style> {
+/** Read on every page (no user needed: it is also used on the sign-in page). Read once per request (PERF-01). */
+export const getStyle = cache(readStyle);
+async function readStyle(): Promise<Style> {
   try {
     return await withAnonTx(async (c) => {
       const rows = (await c.query("SELECT key, value FROM setting WHERE branch_id IS NULL AND key LIKE 'style.%'")).rows;

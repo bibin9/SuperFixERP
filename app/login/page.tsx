@@ -16,10 +16,11 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
           <div className="field"><label htmlFor="p">Password</label><input id="p" name="password" type="password" autoComplete="current-password" required /></div>
           <button className="btn" style={{ width: "100%" }}>Sign in</button>
         </form>
-        <p className="muted small" style={{ marginTop: 14 }}>
+        {/* SEC-01: the demo user list and password show only on a local build that asks for it (SHOW_DEMO_USERS=true). */}
+        {process.env.SHOW_DEMO_USERS === "true" && <p className="muted small" style={{ marginTop: 14 }}>
           Demo users (password <b>Superfix@2026</b>): admin, saeed (owner), yousef (Yas manager), priya (Yas advisor), khalid (foreman), ramesh (technician),
           anil (stock keeper), maryam (accountant), omar (Al Qusais manager), sara (Al Qusais advisor).
-        </p>
+        </p>}
       </div>
     </main>
   );

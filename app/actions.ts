@@ -195,7 +195,7 @@ export async function publicDecisionAction(fd: FormData) {
   );
   for (const k of String(fd.get("all_lines")).split(",")) if (!decisions[k]) (decisions as Record<string, string>)[k] = "declined";
   let target = `/q/${encodeURIComponent(token)}?done=1`;
-  if (!allow("quote", (await requestMeta()).ip, 20, 60 * 60_000)) redirect(`/q/${encodeURIComponent(token)}?err=${encodeURIComponent("Too many tries. Please try again later.")}`);
+  if (!await allow("quote", (await requestMeta()).ip, 20, 60 * 60_000)) redirect(`/q/${encodeURIComponent(token)}?err=${encodeURIComponent("Too many tries. Please try again later.")}`);
   try { await submitPublicDecisions(token, decisions as Record<string, "approved" | "declined">); }
   catch (e) { if (e instanceof AppError) target = `/q/${encodeURIComponent(token)}?err=${encodeURIComponent(e.message)}`; else throw e; }
   redirect(target);
